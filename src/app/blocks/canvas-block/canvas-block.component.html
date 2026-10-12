@@ -2,7 +2,7 @@
   <!-- Barra superior con información y controles de zoom / centrado -->
   <div class="canvas-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
     <div class="canvas-info-group">
-      <span class="badge-icon">🎨</span>
+      <app-icon name="canvas" [size]="16" class="text-accent"></app-icon>
       <span class="badge-title">
         {{ i18n.currentLang() === 'es' ? 'Lienzo de Dibujo' : 'Drawing Canvas' }}
       </span>
@@ -21,7 +21,8 @@
         (click)="centerToContent()"
         [title]="i18n.currentLang() === 'es' ? 'Centrar al contenido del dibujo' : 'Center to drawing content'"
       >
-        <span class="btn-text">🎯 {{ i18n.currentLang() === 'es' ? 'Centrar' : 'Center' }}</span>
+        <app-icon name="target" [size]="13"></app-icon>
+        <span class="btn-text">{{ i18n.currentLang() === 'es' ? 'Centrar' : 'Center' }}</span>
       </button>
 
       <button
@@ -30,7 +31,7 @@
         (click)="zoomOut()"
         [title]="i18n.currentLang() === 'es' ? 'Reducir zoom' : 'Zoom out'"
       >
-        <span class="zoom-icon">−</span>
+        <app-icon name="zoom-out" [size]="13"></app-icon>
       </button>
       <button
         type="button"
@@ -46,7 +47,7 @@
         (click)="zoomIn()"
         [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom' : 'Zoom in'"
       >
-        <span class="zoom-icon">+</span>
+        <app-icon name="zoom-in" [size]="13"></app-icon>
       </button>
     </div>
   </div>

@@ -40,7 +40,10 @@ export type IconName =
   | 'book'
   | 'eye'
   | 'download'
-  | 'printer';
+  | 'printer'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'target';
 
 /**
  * Componente de Iconos vectoriales de Weave.

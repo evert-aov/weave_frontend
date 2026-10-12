@@ -23,6 +23,8 @@ if (typeof window !== 'undefined' && !(window as any).process) {
   (window as any).process = { env: { NODE_ENV: 'production' } };
 }
 
+import { IconComponent } from '../../shared/components/icon/icon.component';
+
 /**
  * Bloque de Pizarra y Dibujo con Excalidraw.
  * Renderiza la suite completa de Excalidraw en un contenedor responsive,
@@ -31,7 +33,7 @@ if (typeof window !== 'undefined' && !(window as any).process) {
 @Component({
   selector: 'app-canvas-block',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, IconComponent],
   templateUrl: './canvas-block.component.html',
   styleUrls: ['./canvas-block.component.scss'],
 })

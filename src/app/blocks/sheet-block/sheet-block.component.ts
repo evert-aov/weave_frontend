@@ -18,6 +18,8 @@ import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
 import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-ES';
 
+import { IconComponent } from '../../shared/components/icon/icon.component';
+
 /**
  * Bloque de Hoja de Cálculo Avanzado impulsado por Univer Sheets SDK.
  * Proporciona soporte nativo para fórmulas de cálculo reales (=SUM, =AVERAGE, etc.),
@@ -27,7 +29,7 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
 @Component({
   selector: 'app-sheet-block',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, IconComponent],
   templateUrl: './sheet-block.component.html',
   styleUrls: ['./sheet-block.component.scss'],
 })

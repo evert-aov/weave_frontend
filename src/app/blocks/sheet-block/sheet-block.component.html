@@ -5,7 +5,7 @@
   <!-- Barra superior de información y zoom del bloque -->
   <div class="sheet-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
     <div class="sheet-info-group">
-      <span class="badge-icon">📊</span>
+      <app-icon name="sheet" [size]="16" class="text-accent"></app-icon>
       <span class="badge-title">
         {{ i18n.currentLang() === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' }}
       </span>
@@ -24,7 +24,7 @@
         (click)="zoomOut()"
         [title]="i18n.currentLang() === 'es' ? 'Reducir zoom' : 'Zoom out'"
       >
-        <span class="zoom-icon">−</span>
+        <app-icon name="zoom-out" [size]="13"></app-icon>
       </button>
       <button
         type="button"
@@ -40,7 +40,7 @@
         (click)="zoomIn()"
         [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom' : 'Zoom in'"
       >
-        <span class="zoom-icon">+</span>
+        <app-icon name="zoom-in" [size]="13"></app-icon>
       </button>
     </div>
   </div>
