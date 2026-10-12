@@ -4,6 +4,7 @@ import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { ExportModalComponent } from '../../export/components/export-modal/export-modal.component';
 
 /**
  * Barra superior de Weave.
@@ -13,7 +14,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
 @Component({
   selector: 'app-topbar',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [CommonModule, IconComponent, ExportModalComponent],
   template: `
     <header class="topbar">
       <!-- Migas de pan y control de barra lateral -->
@@ -83,6 +84,17 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <span>{{ notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Editar' : 'Edit') : (i18n.currentLang() === 'es' ? 'Lectura' : 'Lectura') }}</span>
         </button>
 
+        <!-- Botón para Exportar documento (PDF, Markdown, etc.) -->
+        <button
+          type="button"
+          class="export-btn"
+          (click)="showExportModal.set(true)"
+          [title]="i18n.currentLang() === 'es' ? 'Exportar documento (PDF, Markdown, HTML)' : 'Export document (PDF, Markdown, HTML)'"
+        >
+          <app-icon name="download" [size]="14"></app-icon>
+          <span>{{ i18n.currentLang() === 'es' ? 'Exportar' : 'Export' }}</span>
+        </button>
+
         <!-- Botón funcional para compartir o copiar enlace del documento -->
         <button
           type="button"
@@ -105,6 +117,14 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
         </button>
       </div>
     </header>
+
+    <!-- Modal de exportación de documentos -->
+    @if (showExportModal() && notesService.currentNote(); as current) {
+      <app-export-modal
+        [note]="current"
+        (close)="showExportModal.set(false)"
+      ></app-export-modal>
+    }
   `,
   styles: [
     `
@@ -227,6 +247,26 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
         background: var(--soft);
         color: var(--accent);
       }
+      .export-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 31px;
+        padding: 0 11px;
+        border-radius: 7px;
+        font-size: 11px;
+        font-weight: 600;
+        background: var(--soft);
+        color: var(--text);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .export-btn:hover {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+      }
       .share-btn {
         display: flex;
         align-items: center;
@@ -252,6 +292,7 @@ export class TopbarComponent {
   readonly themeService = inject(ThemeService);
 
   readonly isCopiedLink = signal<boolean>(false);
+  readonly showExportModal = signal<boolean>(false);
 
   toggleSidebar(): void {
     this.notesService.isSidebarCollapsed.update((v) => !v);
