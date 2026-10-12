@@ -7,6 +7,7 @@ import {
   ViewChild,
   inject,
   signal,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -25,20 +26,24 @@ import { ThemeService } from '../../core/services/theme.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="code-block-card">
+    <div class="code-block-card" [class.reading-mode]="notesService.isReadingMode()">
       <!-- Barra superior con selector de lenguaje y botón copiar -->
       <div class="code-topbar">
         <div class="lang-selector">
           <i class="lang-dot"></i>
-          <select [(ngModel)]="currentLanguage" (change)="onLanguageChange()">
-            <option value="python">Python</option>
-            <option value="typescript">TypeScript</option>
-            <option value="javascript">JavaScript</option>
-            <option value="json">JSON</option>
-            <option value="html">HTML</option>
-            <option value="css">CSS</option>
-            <option value="sql">SQL</option>
-          </select>
+          @if (!notesService.isReadingMode()) {
+            <select [(ngModel)]="currentLanguage" (change)="onLanguageChange()">
+              <option value="python">Python</option>
+              <option value="typescript">TypeScript</option>
+              <option value="javascript">JavaScript</option>
+              <option value="json">JSON</option>
+              <option value="html">HTML</option>
+              <option value="css">CSS</option>
+              <option value="sql">SQL</option>
+            </select>
+          } @else {
+            <span class="lang-badge">{{ currentLanguage.toUpperCase() }}</span>
+          }
         </div>
         <button type="button" class="copy-btn" (click)="copyCode()">
           {{ isCopied() ? i18n.t('block.code.copied') : i18n.t('block.code.copy') }}
@@ -49,14 +54,23 @@ import { ThemeService } from '../../core/services/theme.service';
       <div #monacoContainer class="monaco-mount" [style.height.px]="editorHeight()"></div>
 
       <!-- Barra inferior de estado -->
-      <div class="code-statusbar">
-        <span>Ln {{ currentLine() }}, Col {{ currentCol() }}</span>
-        <span>UTF-8 &nbsp;&nbsp; Spaces: 2</span>
-      </div>
+      @if (!notesService.isReadingMode()) {
+        <div class="code-statusbar">
+          <span>Ln {{ currentLine() }}, Col {{ currentCol() }}</span>
+          <span>UTF-8 &nbsp;&nbsp; Spaces: 2</span>
+        </div>
+      }
     </div>
   `,
   styles: [
     `
+      .lang-badge {
+        font-size: 11px;
+        font-family: 'JetBrains Mono', monospace;
+        color: #9cb3d5;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+      }
       .code-block-card {
         background: var(--code);
         border: 1px solid color-mix(in srgb, var(--border-strong) 45%, transparent);
@@ -65,6 +79,11 @@ import { ThemeService } from '../../core/services/theme.service';
         overflow: hidden;
         box-shadow: 0 10px 26px rgba(0, 0, 0, 0.08);
         margin: 6px 0;
+      }
+      .code-block-card.reading-mode {
+        box-shadow: none;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        margin: 4px 0;
       }
       .code-topbar {
         height: 38px;
@@ -144,6 +163,18 @@ export class CodeBlockComponent implements OnInit, OnDestroy {
   currentLanguage = 'python';
   private monacoEditor?: any;
   private syncTimeout?: any;
+
+  constructor() {
+    effect(() => {
+      const isReading = this.notesService.isReadingMode();
+      if (this.monacoEditor) {
+        this.monacoEditor.updateOptions({
+          readOnly: isReading,
+          domReadOnly: isReading,
+        });
+      }
+    });
+  }
 
   ngOnInit(): void {
     this.currentLanguage = this.block.content?.['language'] || 'python';

@@ -71,6 +71,18 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
           <app-icon [name]="themeService.isDark() ? 'sun' : 'moon'" [size]="16"></app-icon>
         </button>
 
+        <!-- Botón de Modo Lectura / Modo Edición -->
+        <button
+          type="button"
+          class="reading-mode-btn"
+          [class.active]="notesService.isReadingMode()"
+          (click)="notesService.toggleReadingMode()"
+          [title]="notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Volver a modo edición' : 'Switch to edit mode') : (i18n.currentLang() === 'es' ? 'Modo lectura inmersivo' : 'Reading mode')"
+        >
+          <app-icon [name]="notesService.isReadingMode() ? 'pen' : 'book'" [size]="14"></app-icon>
+          <span>{{ notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Editar' : 'Edit') : (i18n.currentLang() === 'es' ? 'Lectura' : 'Lectura') }}</span>
+        </button>
+
         <!-- Botón funcional para compartir o copiar enlace del documento -->
         <button
           type="button"
@@ -143,6 +155,32 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
       }
       .actions {
         gap: 8px;
+      }
+      .reading-mode-btn {
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--muted);
+        font-size: 11.5px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .reading-mode-btn:hover {
+        background: var(--soft);
+        color: var(--text);
+        border-color: var(--border-strong);
+      }
+      .reading-mode-btn.active {
+        background: color-mix(in srgb, var(--accent) 15%, var(--panel));
+        color: var(--accent);
+        border-color: var(--accent);
+        font-weight: 600;
       }
       .saved {
         font-size: 10px;

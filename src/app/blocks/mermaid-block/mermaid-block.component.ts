@@ -22,19 +22,21 @@ import { ThemeService } from '../../core/services/theme.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="mermaid-block-card">
-      <div class="mermaid-header">
-        <span class="mermaid-tag">MERMAID</span>
-        <button
-          type="button"
-          class="mode-btn"
-          (click)="toggleMode()"
-        >
-          {{ isEditing() ? i18n.t('block.mermaid.preview') : i18n.t('block.mermaid.edit') }}
-        </button>
-      </div>
+    <div class="mermaid-block-card" [class.reading-mode]="notesService.isReadingMode()">
+      @if (!notesService.isReadingMode()) {
+        <div class="mermaid-header">
+          <span class="mermaid-tag">MERMAID</span>
+          <button
+            type="button"
+            class="mode-btn"
+            (click)="toggleMode()"
+          >
+            {{ isEditing() ? i18n.t('block.mermaid.preview') : i18n.t('block.mermaid.edit') }}
+          </button>
+        </div>
+      }
 
-      @if (isEditing()) {
+      @if (isEditing() && !notesService.isReadingMode()) {
         <div class="mermaid-editor">
           <textarea
             [(ngModel)]="chartText"
@@ -44,7 +46,7 @@ import { ThemeService } from '../../core/services/theme.service';
           ></textarea>
         </div>
       } @else {
-        <div class="mermaid-preview" (dblclick)="isEditing.set(true)">
+        <div class="mermaid-preview" (dblclick)="onPreviewDblClick()">
           <div class="svg-container" [innerHTML]="svgOutput()"></div>
         </div>
       }
@@ -59,6 +61,12 @@ import { ThemeService } from '../../core/services/theme.service';
         background: var(--panel);
         overflow: hidden;
         margin: 6px 0;
+      }
+      .mermaid-block-card.reading-mode {
+        background: transparent;
+        border: 1px solid var(--border);
+        box-shadow: none;
+        margin: 4px 0;
       }
       .mermaid-header {
         height: 34px;
@@ -124,13 +132,18 @@ import { ThemeService } from '../../core/services/theme.service';
 export class MermaidBlockComponent implements OnInit {
   @Input({ required: true }) block!: Block;
 
-  private readonly notesService = inject(NotesService);
+  readonly notesService = inject(NotesService);
   private readonly themeService = inject(ThemeService);
   readonly i18n = inject(I18nService);
 
   readonly isEditing = signal<boolean>(false);
   readonly svgOutput = signal<string>('');
   chartText = '';
+
+  onPreviewDblClick(): void {
+    if (this.notesService.isReadingMode()) return;
+    this.isEditing.set(true);
+  }
 
   ngOnInit(): void {
     mermaid.initialize({

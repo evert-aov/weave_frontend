@@ -7,6 +7,7 @@ import {
   ViewChild,
   inject,
   signal,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -103,6 +104,7 @@ const DEFAULT_STYLE_TEMPLATES: StyleTemplate[] = [
     <div
       class="text-block-root"
       [class.focused]="isFocused"
+      [class.reading-mode]="notesService.isReadingMode()"
       (click)="onRootClick($event)"
       [style.--custom-p-color]="blockStyles.p?.color || null"
       [style.--custom-p-size]="blockStyles.p?.fontSize || null"
@@ -127,7 +129,7 @@ const DEFAULT_STYLE_TEMPLATES: StyleTemplate[] = [
       [style.--custom-h6-font]="blockStyles.h6?.fontFamily || null"
     >
       <!-- Barra de herramientas superior estilo Trilium (siempre arriba, sticky) -->
-      @if (editor) {
+      @if (editor && !notesService.isReadingMode()) {
         <div class="trilium-top-toolbar" (mousedown)="$event.preventDefault()">
           <div class="toolbar-group">
             <button
@@ -341,7 +343,7 @@ const DEFAULT_STYLE_TEMPLATES: StyleTemplate[] = [
 
         <!-- Panel Emergente para Personalizar Estilos de H1..H6 y Plantillas -->
         <!-- Se detiene la propagación de click, mousedown y keydown para evitar el bug de robo de foco -->
-        @if (showStylePanel()) {
+        @if (showStylePanel() && !notesService.isReadingMode()) {
           <div
             class="style-inspector-panel"
             (click)="$event.stopPropagation()"
@@ -622,6 +624,15 @@ const DEFAULT_STYLE_TEMPLATES: StyleTemplate[] = [
         border-radius: 8px;
         transition: border-color 0.15s ease;
         margin: 6px 0;
+      }
+      .text-block-root.reading-mode {
+        border-color: transparent !important;
+        margin: 2px 0;
+        cursor: default;
+      }
+      .text-block-root.reading-mode .trilium-top-toolbar,
+      .text-block-root.reading-mode .style-inspector-panel {
+        display: none !important;
       }
 
       /* Barra superior de herramientas fija / sticky arriba inspirada en Trilium Classic */
@@ -1353,6 +1364,19 @@ export class TextBlockComponent implements OnInit, OnDestroy {
   newTemplateName = '';
   readonly allTemplates = signal<StyleTemplate[]>([]);
 
+  constructor() {
+    effect(() => {
+      const isReading = this.notesService.isReadingMode();
+      if (this.editor) {
+        this.editor.setEditable(!isReading);
+        if (isReading) {
+          this.showStylePanel.set(false);
+          this.isFocused = false;
+        }
+      }
+    });
+  }
+
   ngOnInit(): void {
     const initialContent = this.block.content?.['html'] || '<p></p>';
 
@@ -1421,6 +1445,7 @@ export class TextBlockComponent implements OnInit, OnDestroy {
   }
 
   onRootClick(event: MouseEvent): void {
+    if (this.notesService.isReadingMode()) return;
     // Si el clic ocurrió fuera del panel de estilos, enfocar el editor
     if (!this.showStylePanel()) {
       this.focusEditor();

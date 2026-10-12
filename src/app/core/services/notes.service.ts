@@ -21,6 +21,14 @@ export class NotesService {
   readonly activeSpace = signal<string>('Research');
   readonly saveStatus = signal<'saved' | 'saving' | 'unsaved'>('saved');
   readonly isSidebarCollapsed = signal<boolean>(false);
+  readonly isReadingMode = signal<boolean>(false);
+
+  /**
+   * Alterna entre el modo edición y el modo lectura inmersivo.
+   */
+  toggleReadingMode(): void {
+    this.isReadingMode.update((v) => !v);
+  }
 
   private readonly autoSaveSubject = new Subject<Note>();
   private lastSavedPayload = '';
@@ -69,6 +77,7 @@ export class NotesService {
     this.activeSpace.set('Research');
     this.lastSavedPayload = '';
     this.saveStatus.set('saved');
+    this.isReadingMode.set(false);
   }
 
   /**

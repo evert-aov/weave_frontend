@@ -6,6 +6,7 @@ import {
   ElementRef,
   ViewChild,
   inject,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as React from 'react';
@@ -30,7 +31,7 @@ if (typeof window !== 'undefined' && !(window as any).process) {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="excalidraw-block-container">
+    <div class="excalidraw-block-container" [class.reading-mode]="notesService.isReadingMode()">
       <div #canvasMount class="excalidraw-mount-point"></div>
     </div>
   `,
@@ -45,6 +46,13 @@ if (typeof window !== 'undefined' && !(window as any).process) {
         overflow: hidden;
         background: var(--bg);
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+        transition: height 0.2s ease, border-color 0.2s ease;
+      }
+      .excalidraw-block-container.reading-mode {
+        height: 460px;
+        box-shadow: none;
+        border: 1px solid var(--border);
+        margin: 6px 0;
       }
       .excalidraw-mount-point {
         width: 100%;
@@ -55,6 +63,14 @@ if (typeof window !== 'undefined' && !(window as any).process) {
       ::ng-deep .excalidraw {
         height: 100% !important;
         width: 100% !important;
+      }
+      /* Modo Lectura: Ocultar barra de herramientas de dibujo y controles de edición */
+      ::ng-deep .excalidraw-block-container.reading-mode .App-toolbar,
+      ::ng-deep .excalidraw-block-container.reading-mode .layer-ui__wrapper .zen-mode-transition,
+      ::ng-deep .excalidraw-block-container.reading-mode .App-bottom-bar,
+      ::ng-deep .excalidraw-block-container.reading-mode .help-icon,
+      ::ng-deep .excalidraw-block-container.reading-mode .dropdown-menu-button {
+        display: none !important;
       }
     `,
   ],
@@ -68,13 +84,33 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
   private readonly themeService = inject(ThemeService);
   private reactRoot?: Root;
   private syncTimeout?: any;
+  private currentElements: any[] = [];
+  private currentAppState: any = {};
+
+  constructor() {
+    effect(() => {
+      const isReading = this.notesService.isReadingMode();
+      const isDark = this.themeService.isDark();
+      if (this.reactRoot) {
+        this.renderCanvas(isReading, isDark);
+      }
+    });
+  }
 
   ngAfterViewInit(): void {
     const mountEl = this.canvasMount.nativeElement;
     this.reactRoot = createRoot(mountEl);
+    this.currentElements = this.block.content?.['elements'] || [];
+    this.currentAppState = this.block.content?.['appState'] || {};
 
-    const savedElements = this.block.content?.['elements'] || [];
-    const savedAppState = this.block.content?.['appState'] || {};
+    this.renderCanvas(
+      this.notesService.isReadingMode(),
+      this.themeService.isDark(),
+    );
+  }
+
+  private renderCanvas(isReading: boolean, isDark: boolean): void {
+    if (!this.reactRoot) return;
 
     const computeElementsSignature = (els: readonly any[], bg: string) => {
       return (
@@ -84,15 +120,16 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
     };
 
     let lastElementsSignature = computeElementsSignature(
-      savedElements,
-      savedAppState.viewBackgroundColor || '#ffffff',
+      this.currentElements,
+      this.currentAppState.viewBackgroundColor || (isDark ? '#111b2e' : '#ffffff'),
     );
 
     const handleChange = (elements: readonly any[], appState: any) => {
-      const bg = appState.viewBackgroundColor || '#ffffff';
+      this.currentElements = [...elements];
+      this.currentAppState = { ...appState };
+      const bg = appState.viewBackgroundColor || (isDark ? '#111b2e' : '#ffffff');
       const currentSignature = computeElementsSignature(elements, bg);
 
-      // Si los elementos y el color de fondo son idénticos, es solo un scroll/pan: ignorar
       if (currentSignature === lastElementsSignature) {
         return;
       }
@@ -114,15 +151,15 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       }, 1000);
     };
 
-    // Renderizar Excalidraw con datos iniciales y tema
     this.reactRoot.render(
       React.createElement(Excalidraw, {
+        viewModeEnabled: isReading,
         initialData: {
-          elements: savedElements,
+          elements: this.currentElements,
           appState: {
-            theme: this.themeService.isDark() ? 'dark' : 'light',
-            viewBackgroundColor: this.themeService.isDark() ? '#111b2e' : '#ffffff',
-            ...savedAppState,
+            theme: isDark ? 'dark' : 'light',
+            viewBackgroundColor: isDark ? '#111b2e' : '#ffffff',
+            ...this.currentAppState,
           },
         },
         onChange: handleChange,

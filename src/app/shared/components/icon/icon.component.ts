@@ -36,7 +36,9 @@ export type IconName =
   | 'save'
   | 'close'
   | 'check'
-  | 'refresh';
+  | 'refresh'
+  | 'book'
+  | 'eye';
 
 /**
  * Componente de Iconos vectoriales de Weave.
@@ -200,6 +202,14 @@ export type IconName =
         @case ('refresh') {
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
           <path d="M3 3v5h5"/>
+        }
+        @case ('book') {
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+          <path d="M6 6h10"/>
+        }
+        @case ('eye') {
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+          <circle cx="12" cy="12" r="3"/>
         }
       }
     </svg>

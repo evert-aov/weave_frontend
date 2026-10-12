@@ -27,80 +27,90 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
     <div class="image-block-wrap">
       @if (!imageUrl()) {
         <!-- Zona de carga y selección de imagen -->
-        <div
-          class="dropzone"
-          [class.dragover]="isDragging()"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)"
-        >
-          @if (isCapturingCamera()) {
-            <!-- Modal de captura en vivo con WebRTC -->
-            <div class="camera-stream-box">
-              <video #videoElement autoplay playsinline class="camera-video"></video>
-              <canvas #canvasElement style="display:none;"></canvas>
-              <div class="camera-actions">
-                <button type="button" class="btn-primary" (click)="capturePhoto()">
-                  <app-icon name="camera" [size]="15"></app-icon>
-                  {{ i18n.t('block.image.take_photo') }}
-                </button>
-                <button type="button" class="btn-cancel" (click)="stopCamera()">
-                  {{ i18n.t('block.image.close_camera') }}
-                </button>
+        @if (!notesService.isReadingMode()) {
+          <div
+            class="dropzone"
+            [class.dragover]="isDragging()"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event)"
+          >
+            @if (isCapturingCamera()) {
+              <!-- Modal de captura en vivo con WebRTC -->
+              <div class="camera-stream-box">
+                <video #videoElement autoplay playsinline class="camera-video"></video>
+                <canvas #canvasElement style="display:none;"></canvas>
+                <div class="camera-actions">
+                  <button type="button" class="btn-primary" (click)="capturePhoto()">
+                    <app-icon name="camera" [size]="15"></app-icon>
+                    {{ i18n.t('block.image.take_photo') }}
+                  </button>
+                  <button type="button" class="btn-cancel" (click)="stopCamera()">
+                    {{ i18n.t('block.image.close_camera') }}
+                  </button>
+                </div>
               </div>
-            </div>
-          } @else {
-            <div class="dropzone-content">
-              <div class="icon-circle">
-                <app-icon name="image" [size]="24"></app-icon>
+            } @else {
+              <div class="dropzone-content">
+                <div class="icon-circle">
+                  <app-icon name="image" [size]="24"></app-icon>
+                </div>
+                <p class="drop-text">{{ i18n.t('block.image.drag_drop') }}</p>
+                <div class="drop-buttons">
+                  <label class="btn-primary upload-label">
+                    <app-icon name="plus" [size]="14"></app-icon>
+                    {{ i18n.t('block.image.upload') }}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      (change)="onFileSelected($event)"
+                      style="display: none"
+                    />
+                  </label>
+                  <button type="button" class="btn-secondary" (click)="startCamera()">
+                    <app-icon name="camera" [size]="14"></app-icon>
+                    {{ i18n.t('block.image.camera') }}
+                  </button>
+                </div>
+                @if (isUploading()) {
+                  <span class="uploading-indicator">{{ i18n.t('topbar.saving') }}</span>
+                }
               </div>
-              <p class="drop-text">{{ i18n.t('block.image.drag_drop') }}</p>
-              <div class="drop-buttons">
-                <label class="btn-primary upload-label">
-                  <app-icon name="plus" [size]="14"></app-icon>
-                  {{ i18n.t('block.image.upload') }}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    (change)="onFileSelected($event)"
-                    style="display: none"
-                  />
-                </label>
-                <button type="button" class="btn-secondary" (click)="startCamera()">
-                  <app-icon name="camera" [size]="14"></app-icon>
-                  {{ i18n.t('block.image.camera') }}
-                </button>
-              </div>
-              @if (isUploading()) {
-                <span class="uploading-indicator">{{ i18n.t('topbar.saving') }}</span>
+            }
+          </div>
+        }
+      } @else {
+        <!-- Vista previa de imagen con pie de foto -->
+        <div class="image-preview-card" [class.reading-mode]="notesService.isReadingMode()">
+          <div class="image-container">
+            <img [src]="imageUrl()" [alt]="captionText" loading="lazy" />
+            @if (!notesService.isReadingMode()) {
+              <button
+                type="button"
+                class="replace-btn"
+                (click)="removeImage()"
+                title="Change image"
+              >
+                <app-icon name="trash" [size]="14"></app-icon>
+              </button>
+            }
+          </div>
+          @if (captionText || !notesService.isReadingMode()) {
+            <div class="caption-wrapper">
+              @if (!notesService.isReadingMode()) {
+                <input
+                  type="text"
+                  [(ngModel)]="captionText"
+                  (blur)="saveCaption()"
+                  (keydown.enter)="saveCaption()"
+                  [placeholder]="i18n.t('block.image.caption_placeholder')"
+                  class="caption-input"
+                />
+              } @else {
+                <p class="caption-text">{{ captionText }}</p>
               }
             </div>
           }
-        </div>
-      } @else {
-        <!-- Vista previa de imagen con pie de foto -->
-        <div class="image-preview-card">
-          <div class="image-container">
-            <img [src]="imageUrl()" [alt]="captionText" loading="lazy" />
-            <button
-              type="button"
-              class="replace-btn"
-              (click)="removeImage()"
-              title="Change image"
-            >
-              <app-icon name="trash" [size]="14"></app-icon>
-            </button>
-          </div>
-          <div class="caption-wrapper">
-            <input
-              type="text"
-              [(ngModel)]="captionText"
-              (blur)="saveCaption()"
-              (keydown.enter)="saveCaption()"
-              [placeholder]="i18n.t('block.image.caption_placeholder')"
-              class="caption-input"
-            />
-          </div>
         </div>
       }
     </div>
@@ -251,6 +261,18 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
       .caption-input:focus {
         color: var(--text);
       }
+      .caption-text {
+        font-size: 11px;
+        color: var(--muted);
+        text-align: center;
+        font-style: italic;
+        margin: 0;
+      }
+      .image-preview-card.reading-mode {
+        box-shadow: none;
+        border: none;
+        background: transparent;
+      }
       .uploading-indicator {
         font-size: 11px;
         color: var(--accent);
@@ -263,7 +285,7 @@ export class ImageBlockComponent implements OnInit, OnDestroy {
   @ViewChild('videoElement') videoElement?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasElement') canvasElement?: ElementRef<HTMLCanvasElement>;
 
-  private readonly notesService = inject(NotesService);
+  readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
 
   readonly imageUrl = signal<string>('');

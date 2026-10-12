@@ -44,7 +44,7 @@ import { BlockType } from '../../core/models/block.model';
   template: `
     <div class="document-scroll">
       @if (notesService.currentNote(); as note) {
-        <article class="document">
+        <article class="document" [class.reading-mode]="notesService.isReadingMode()">
           <!-- Metadatos de la nota -->
           <div class="doc-meta">
             <span class="space-badge">{{ note.space }}</span>
@@ -53,7 +53,7 @@ import { BlockType } from '../../core/models/block.model';
 
           <!-- Título principal -->
           <h1
-            contenteditable="true"
+            [attr.contenteditable]="!notesService.isReadingMode()"
             (blur)="onTitleBlur($event)"
             [textContent]="note.title"
             class="font-display"
@@ -62,7 +62,7 @@ import { BlockType } from '../../core/models/block.model';
           <!-- Resumen / Lead del documento -->
           <p
             class="lead"
-            contenteditable="true"
+            [attr.contenteditable]="!notesService.isReadingMode()"
             (blur)="onLeadBlur($event)"
             [textContent]="note.lead || i18n.t('doc.lead_placeholder')"
           ></p>
@@ -72,9 +72,11 @@ import { BlockType } from '../../core/models/block.model';
             @for (tag of note.tags; track tag) {
               <span class="tag-chip">{{ tag }}</span>
             }
-            <button type="button" class="add-tag-btn" (click)="addTagPrompt()" [title]="i18n.t('doc.add_tag')">
-              <app-icon name="plus" [size]="12"></app-icon>
-            </button>
+            @if (!notesService.isReadingMode()) {
+              <button type="button" class="add-tag-btn" (click)="addTagPrompt()" [title]="i18n.t('doc.add_tag')">
+                <app-icon name="plus" [size]="12"></app-icon>
+              </button>
+            }
           </div>
 
           <div class="divider"></div>
@@ -84,14 +86,16 @@ import { BlockType } from '../../core/models/block.model';
             @for (block of note.blocks; track block.id; let idx = $index) {
               <div class="block-row">
                 <!-- Canalón de control completamente fuera del texto -->
-                <div class="block-gutter">
-                  <app-block-rail
-                    (addBelow)="openSlashMenuAt(idx)"
-                    (moveUp)="notesService.moveBlock(block.id, 'up')"
-                    (moveDown)="notesService.moveBlock(block.id, 'down')"
-                    (deleteBlock)="notesService.removeBlock(block.id)"
-                  ></app-block-rail>
-                </div>
+                @if (!notesService.isReadingMode()) {
+                  <div class="block-gutter">
+                    <app-block-rail
+                      (addBelow)="openSlashMenuAt(idx)"
+                      (moveUp)="notesService.moveBlock(block.id, 'up')"
+                      (moveDown)="notesService.moveBlock(block.id, 'down')"
+                      (deleteBlock)="notesService.removeBlock(block.id)"
+                    ></app-block-rail>
+                  </div>
+                }
 
                 <!-- Contenido limpio del bloque -->
                 <div class="block-content">
@@ -128,15 +132,17 @@ import { BlockType } from '../../core/models/block.model';
           </div>
 
           <!-- Línea de inserción rápida y menú slash -->
-          <div class="drop-line" (click)="showSlashMenu.set(!showSlashMenu())">
-            <span>{{ i18n.t('doc.drop_here') }}</span>
-          </div>
+          @if (!notesService.isReadingMode()) {
+            <div class="drop-line" (click)="showSlashMenu.set(!showSlashMenu())">
+              <span>{{ i18n.t('doc.drop_here') }}</span>
+            </div>
 
-          @if (showSlashMenu()) {
-            <app-slash-menu
-              (selectBlock)="onSlashSelect($event)"
-              (closeMenu)="showSlashMenu.set(false)"
-            ></app-slash-menu>
+            @if (showSlashMenu()) {
+              <app-slash-menu
+                (selectBlock)="onSlashSelect($event)"
+                (closeMenu)="showSlashMenu.set(false)"
+              ></app-slash-menu>
+            }
           }
 
           <div class="bottom-space"></div>
@@ -244,6 +250,25 @@ import { BlockType } from '../../core/models/block.model';
         display: flex;
         flex-direction: column;
         gap: 12px;
+      }
+      /* Modo Lectura Inmersivo */
+      .document.reading-mode {
+        max-width: 820px;
+        padding-top: 36px;
+      }
+      .document.reading-mode .doc-meta,
+      .document.reading-mode h1,
+      .document.reading-mode .lead,
+      .document.reading-mode .tags,
+      .document.reading-mode .divider {
+        padding-left: 0;
+        margin-left: 0;
+      }
+      .document.reading-mode .block-row {
+        margin-bottom: 6px;
+      }
+      .document.reading-mode .blocks-container {
+        gap: 6px;
       }
       .block-row {
         display: flex;

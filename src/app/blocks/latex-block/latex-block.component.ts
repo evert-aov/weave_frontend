@@ -27,7 +27,7 @@ import { I18nService } from '../../core/services/i18n.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="latex-block-root" [class.editing]="isEditing()">
+    <div class="latex-block-root" [class.editing]="isEditing()" [class.reading-mode]="notesService.isReadingMode()">
       <!-- Modo Edición: Textarea auto-expandible con cabecera y vista previa en vivo -->
       @if (isEditing()) {
         <div class="latex-editor-card">
@@ -64,17 +64,25 @@ import { I18nService } from '../../core/services/i18n.service';
         </div>
       } @else {
         <!-- Modo Visualización: Fórmula integrada naturalmente al documento (sin scroll) -->
-        <div class="latex-display-card" (click)="enableEdit()" title="Haz clic para editar la fórmula">
-          <div class="top-tag">
-            <span class="sigma-glyph">∑</span>
-            <span>LaTeX</span>
-          </div>
+        <div
+          class="latex-display-card"
+          (click)="onCardClick()"
+          [title]="notesService.isReadingMode() ? '' : 'Haz clic para editar la fórmula'"
+        >
+          @if (!notesService.isReadingMode()) {
+            <div class="top-tag">
+              <span class="sigma-glyph">∑</span>
+              <span>LaTeX</span>
+            </div>
+          }
 
           <div #displayTarget class="math-render-surface main-display"></div>
 
-          <button type="button" class="quick-edit-btn" (click)="$event.stopPropagation(); enableEdit()">
-            {{ i18n.currentLang() === 'es' ? 'Editar' : 'Edit' }}
-          </button>
+          @if (!notesService.isReadingMode()) {
+            <button type="button" class="quick-edit-btn" (click)="$event.stopPropagation(); enableEdit()">
+              {{ i18n.currentLang() === 'es' ? 'Editar' : 'Edit' }}
+            </button>
+          }
         </div>
       }
     </div>
@@ -86,6 +94,21 @@ import { I18nService } from '../../core/services/i18n.service';
         margin: 10px 0;
         position: relative;
         font-family: inherit;
+      }
+
+      /* Modo Lectura: Integración continua sin bordes ni fragmentación */
+      .latex-block-root.reading-mode {
+        margin: 4px 0;
+      }
+      .latex-block-root.reading-mode .latex-display-card {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 4px 0 !important;
+        cursor: default !important;
+      }
+      .latex-block-root.reading-mode .math-render-surface.main-display {
+        padding: 2px 0;
       }
 
       /* Tarjeta de visualización integrada limpiamente */
@@ -279,6 +302,11 @@ export class LatexBlockComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     this.renderDisplayFormula();
+  }
+
+  onCardClick(): void {
+    if (this.notesService.isReadingMode()) return;
+    this.enableEdit();
   }
 
   enableEdit(): void {

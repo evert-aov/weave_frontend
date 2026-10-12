@@ -140,7 +140,7 @@ import { Space } from '../../core/models/space.model';
                       [class.selected]="notesService.currentNote()?._id === note._id"
                       (click)="openNote(note)"
                     >
-                      <app-icon name="file" [size]="13"></app-icon>
+                      <app-icon name="file" [size]="14"></app-icon>
                       <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
                     </button>
                   } @empty {
@@ -404,23 +404,37 @@ import { Space } from '../../core/models/space.model';
       .notes-tree {
         display: flex;
         flex-direction: column;
-        gap: 1px;
-        margin-bottom: 4px;
+        gap: 2px;
+        margin: 2px 0 6px;
       }
       .tree-row.child {
-        padding-left: 24px;
-        height: 28px;
-        font-size: 11px;
+        padding: 0 10px 0 22px;
+        height: 32px;
+        font-size: 13px;
+        border-radius: 6px;
+        font-weight: 450;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+      .tree-row.child:hover {
+        background: var(--soft);
+        color: var(--text);
+      }
+      .tree-row.child.selected {
+        background: color-mix(in srgb, var(--accent) 15%, var(--soft));
+        color: var(--text);
+        font-weight: 600;
       }
       .note-tree-title {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        font-size: 13px;
+        letter-spacing: -0.01em;
       }
       .empty-space-hint {
-        padding: 4px 0 4px 24px;
+        padding: 6px 0 6px 24px;
         color: var(--faint);
-        font-size: 10px;
+        font-size: 11.5px;
       }
       .dot {
         width: 7px;

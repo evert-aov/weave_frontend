@@ -27,16 +27,18 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="univer-sheet-block">
-      <div class="sheet-header-badge">
-        <span class="badge-icon">📊</span>
-        <span class="badge-title">
-          {{ i18n.currentLang() === 'es' ? 'Hoja de Cálculo Univer' : 'Univer Spreadsheet' }}
-        </span>
-        <span class="badge-subtitle">
-          {{ i18n.currentLang() === 'es' ? 'Cálculos matemáticos reales en vivo' : 'Live real-time formulas & computing' }}
-        </span>
-      </div>
+    <div class="univer-sheet-block" [class.reading-mode]="notesService.isReadingMode()">
+      @if (!notesService.isReadingMode()) {
+        <div class="sheet-header-badge">
+          <span class="badge-icon">📊</span>
+          <span class="badge-title">
+            {{ i18n.currentLang() === 'es' ? 'Hoja de Cálculo Univer' : 'Univer Spreadsheet' }}
+          </span>
+          <span class="badge-subtitle">
+            {{ i18n.currentLang() === 'es' ? 'Cálculos matemáticos reales en vivo' : 'Live real-time formulas & computing' }}
+          </span>
+        </div>
+      }
 
       <div class="sheet-container-wrapper">
         <div #sheetContainer class="univer-container"></div>
@@ -85,6 +87,32 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         width: 100%;
         height: 100%;
         position: relative;
+      }
+      /* Modo Lectura: Ocultar barra superior (Start, Formulas, View), barra de fórmulas y pie */
+      .univer-sheet-block.reading-mode {
+        box-shadow: none;
+        margin: 6px 0;
+      }
+      .univer-sheet-block.reading-mode .sheet-container-wrapper {
+        height: 380px;
+      }
+      ::ng-deep .univer-sheet-block.reading-mode header[data-u-comp='headerbar'],
+      ::ng-deep .univer-sheet-block.reading-mode header,
+      ::ng-deep .univer-sheet-block.reading-mode .univer-toolbar,
+      ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='toolbar'],
+      ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='headerbar'] {
+        display: none !important;
+        height: 0 !important;
+      }
+      ::ng-deep .univer-sheet-block.reading-mode section > header,
+      ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='formula-bar'] {
+        display: none !important;
+        height: 0 !important;
+      }
+      ::ng-deep .univer-sheet-block.reading-mode footer,
+      ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='footer'] {
+        display: none !important;
+        height: 0 !important;
       }
     `,
   ],
