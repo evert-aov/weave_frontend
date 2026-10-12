@@ -416,7 +416,18 @@ export class PdfExportStrategy implements ExportStrategy {
       }
 
       case 'mermaid': {
-        const chart = content['chartDefinition'] || '';
+        const blockEl = typeof document !== 'undefined' ? document.querySelector(`[data-block-id="${block.id}"]`) : null;
+        const svgEl = blockEl?.querySelector('.svg-container svg');
+        if (svgEl) {
+          return `
+            <div class="pdf-block pdf-mermaid-block page-break-avoid">
+              <div class="pdf-mermaid-svg-box">
+                ${svgEl.outerHTML}
+              </div>
+            </div>
+          `;
+        }
+        const chart = content['chart'] || content['chartDefinition'] || '';
         return `
           <div class="pdf-block pdf-mermaid-block page-break-avoid">
             <div class="pdf-mermaid-header">Diagrama Mermaid</div>
@@ -839,6 +850,24 @@ export class PdfExportStrategy implements ExportStrategy {
         font-size: 11.5px;
         color: #6b7280;
         margin-top: 4px;
+      }
+      .pdf-mermaid-block {
+        margin: 14px 0;
+        text-align: center;
+      }
+      .pdf-mermaid-svg-box {
+        display: inline-block;
+        max-width: 100%;
+        background: #ffffff;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+      }
+      .pdf-mermaid-svg-box svg {
+        max-width: 100% !important;
+        height: auto !important;
+        display: block;
+        margin: 0 auto;
       }
       .pdf-doc-footer {
         display: flex;
