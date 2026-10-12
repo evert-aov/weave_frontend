@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import * as katex from 'katex';
 import { Note } from '../../core/models/note.model';
 import { Block } from '../../core/models/block.model';
 import { ExportOptions, ExportStrategy } from '../models/export.model';
+import { formatMultiLineLatex } from '../../blocks/latex-block/latex-block.component';
 
 @Injectable({
   providedIn: 'root',
@@ -29,7 +29,8 @@ export class PdfExportStrategy implements ExportStrategy {
   }
 
   /**
-   * Genera y descarga un archivo .pdf directamente en el navegador utilizando jsPDF y html2canvas.
+   * Genera y descarga un archivo .pdf vectorial maquetado con auto-paginación inteligente
+   * evitando cortar texto o tablas a la mitad entre páginas.
    */
   private async generateDirectPdfDownload(
     note: Note,
@@ -39,26 +40,31 @@ export class PdfExportStrategy implements ExportStrategy {
     const renderContainer = document.createElement('div');
     renderContainer.className = 'weave-pdf-export-render-box';
     renderContainer.style.position = 'fixed';
-    renderContainer.style.top = '-99999px';
+    renderContainer.style.top = '0';
     renderContainer.style.left = '0';
-    renderContainer.style.width = '794px'; // ~210mm a 96dpi
+    renderContainer.style.width = '794px'; // ~210mm a 96dpi estándar para tamaño A4
     renderContainer.style.background = '#ffffff';
     renderContainer.style.color = '#111827';
     renderContainer.style.padding = '40px 48px';
     renderContainer.style.fontFamily = "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
     renderContainer.style.boxSizing = 'border-box';
     renderContainer.style.zIndex = '-9999';
+    renderContainer.style.pointerEvents = 'none';
 
-    renderContainer.innerHTML = this.buildNoteHtmlContent(note, options);
+    renderContainer.innerHTML = `
+      <style>${this.getPdfStyles()}</style>
+      <div class="weave-pdf-document">
+        ${this.buildNoteHtmlContent(note, options)}
+      </div>
+    `;
     document.body.appendChild(renderContainer);
 
     try {
-      const canvas = await html2canvas(renderContainer, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
+      if ((document as any).fonts?.ready) {
+        await (document as any).fonts.ready;
+      }
+      // Tiempo de estabilización para fuentes web, SVG y KaTeX
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const pdf = new jsPDF({
         orientation: options.orientation || 'portrait',
@@ -66,30 +72,37 @@ export class PdfExportStrategy implements ExportStrategy {
         format: options.pageSize?.toLowerCase() || 'a4',
       });
 
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const margin = 10;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 12;
       const contentWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * contentWidth) / canvas.width;
 
-      let heightLeft = imgHeight;
-      let position = margin;
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
-
-      pdf.addImage(imgData, 'JPEG', margin, position, contentWidth, imgHeight);
-      heightLeft -= pageHeight - margin * 2;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + margin;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', margin, position, contentWidth, imgHeight);
-        heightLeft -= pageHeight - margin * 2;
-      }
-
-      pdf.save(`${filename}.pdf`);
+      await new Promise<void>((resolve, reject) => {
+        pdf.html(renderContainer, {
+          x: margin,
+          y: margin,
+          width: contentWidth,
+          windowWidth: 794,
+          autoPaging: 'text',
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+          },
+          callback: (doc) => {
+            try {
+              doc.save(`${filename}.pdf`);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          },
+        });
+      });
     } finally {
-      document.body.removeChild(renderContainer);
+      if (document.body.contains(renderContainer)) {
+        document.body.removeChild(renderContainer);
+      }
     }
   }
 
@@ -133,9 +146,16 @@ export class PdfExportStrategy implements ExportStrategy {
               body {
                 padding: 0;
               }
-              .page-break-avoid {
-                page-break-inside: avoid;
-                break-inside: avoid;
+              .page-break-avoid,
+              .pdf-block,
+              .pdf-sheet-wrapper,
+              .pdf-sheet-table tr,
+              .pdf-latex-block,
+              .pdf-code-block,
+              .pdf-image-block,
+              .pdf-canvas-block {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
               }
             }
             ${this.getPdfStyles()}
@@ -214,11 +234,51 @@ export class PdfExportStrategy implements ExportStrategy {
     switch (block.type) {
       case 'text': {
         const textContent = content['html'] || '<p></p>';
-        return `<div class="pdf-block pdf-text-block">${textContent}</div>`;
+        const blockStyles = content['blockStyles'];
+        const blockClass = `pdf-text-${block.id}`;
+
+        let scopedStyles = '';
+        let inlineStyleVars = '';
+        if (blockStyles) {
+          const tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
+          tags.forEach((tag) => {
+            const rule = blockStyles[tag];
+            if (rule) {
+              const parts: string[] = [];
+              if (rule.color) {
+                parts.push(`color: ${rule.color} !important;`);
+                inlineStyleVars += `--custom-${tag}-color: ${rule.color}; `;
+              }
+              if (rule.fontSize) {
+                parts.push(`font-size: ${rule.fontSize} !important;`);
+                inlineStyleVars += `--custom-${tag}-size: ${rule.fontSize}; `;
+              }
+              if (rule.fontFamily) {
+                parts.push(`font-family: ${rule.fontFamily} !important;`);
+                inlineStyleVars += `--custom-${tag}-font: ${rule.fontFamily}; `;
+              }
+              if (parts.length > 0) {
+                scopedStyles += `.${blockClass} ${tag} { ${parts.join(' ')} }\n`;
+                if (tag === 'p') {
+                  scopedStyles += `.${blockClass} li { ${parts.join(' ')} }\n`;
+                }
+              }
+            }
+          });
+        }
+
+        const styleTag = scopedStyles ? `<style>${scopedStyles}</style>` : '';
+        return `
+          <div class="pdf-block pdf-text-block ${blockClass}" style="${inlineStyleVars}">
+            ${styleTag}
+            ${textContent}
+          </div>
+        `;
       }
 
       case 'latex': {
-        const formula = content['formula'] || '';
+        const rawFormula = content['formula'] || '';
+        const formula = formatMultiLineLatex(rawFormula);
         let renderedMath = '';
         try {
           renderedMath = katex.renderToString(formula, {
@@ -226,7 +286,7 @@ export class PdfExportStrategy implements ExportStrategy {
             throwOnError: false,
           });
         } catch {
-          renderedMath = `<code>${this.escapeHtml(formula)}</code>`;
+          renderedMath = `<code>${this.escapeHtml(rawFormula)}</code>`;
         }
         return `
           <div class="pdf-block pdf-latex-block page-break-avoid">
@@ -275,6 +335,16 @@ export class PdfExportStrategy implements ExportStrategy {
       }
 
       case 'canvas': {
+        const dataUrl = this.getCanvasBlockImage(block.id);
+        if (dataUrl) {
+          return `
+            <div class="pdf-block pdf-canvas-block page-break-avoid">
+              <div class="pdf-canvas-card">
+                <img src="${dataUrl}" alt="Pizarra Excalidraw" class="pdf-canvas-img" />
+              </div>
+            </div>
+          `;
+        }
         return `
           <div class="pdf-block pdf-canvas-placeholder page-break-avoid">
             <div class="pdf-canvas-badge">🎨 Pizarra Vectorial Excalidraw</div>
@@ -289,7 +359,46 @@ export class PdfExportStrategy implements ExportStrategy {
   }
 
   /**
-   * Transforma el snapshot de Univer Spreadsheet en una tabla HTML limpia para impresión.
+   * Captura en vivo los trazos vectoriales del lienzo Excalidraw montado en el DOM,
+   * exportándolo a una imagen PNG de alta resolución.
+   */
+  private getCanvasBlockImage(blockId: string): string | null {
+    if (typeof document === 'undefined') return null;
+    const blockEl = document.querySelector(`[data-block-id="${blockId}"]`);
+    if (!blockEl) return null;
+
+    const canvases = Array.from(blockEl.querySelectorAll('canvas')) as HTMLCanvasElement[];
+    if (canvases.length === 0) return null;
+
+    try {
+      const primaryCanvas = canvases.find((c) => c.width > 0 && c.height > 0) || canvases[0];
+      if (!primaryCanvas || primaryCanvas.width === 0 || primaryCanvas.height === 0) return null;
+
+      const offscreen = document.createElement('canvas');
+      offscreen.width = primaryCanvas.width;
+      offscreen.height = primaryCanvas.height;
+      const ctx = offscreen.getContext('2d');
+      if (!ctx) return null;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+
+      for (const canvas of canvases) {
+        if (canvas.width > 0 && canvas.height > 0) {
+          ctx.drawImage(canvas, 0, 0);
+        }
+      }
+
+      return offscreen.toDataURL('image/png');
+    } catch (err) {
+      console.warn('No se pudo capturar canvas vectorial:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Transforma el snapshot de Univer Spreadsheet en una tabla HTML limpia para impresión,
+   * con separadores de celda estables y sin cortes de texto.
    */
   private renderSheetToHtmlTable(block: Block): string {
     const workbookData = block.content?.['workbookData'];
@@ -301,7 +410,6 @@ export class PdfExportStrategy implements ExportStrategy {
       return '';
     }
 
-    // Identificar columnas ocupadas
     let maxCol = 0;
     rowIndices.forEach((r) => {
       const row = cellData[r] || {};
@@ -362,6 +470,7 @@ export class PdfExportStrategy implements ExportStrategy {
       .weave-pdf-document {
         max-width: 800px;
         margin: 0 auto;
+        color: #111827;
       }
       .pdf-doc-header {
         margin-bottom: 24px;
@@ -417,6 +526,17 @@ export class PdfExportStrategy implements ExportStrategy {
       .pdf-block {
         margin: 4px 0;
       }
+      .page-break-avoid,
+      .pdf-block,
+      .pdf-sheet-wrapper,
+      .pdf-sheet-table tr,
+      .pdf-latex-block,
+      .pdf-code-block,
+      .pdf-image-block,
+      .pdf-canvas-block {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
       .pdf-text-block p {
         margin: 0 0 10px 0;
         font-size: 14px;
@@ -442,6 +562,24 @@ export class PdfExportStrategy implements ExportStrategy {
         font-weight: 600;
         margin: 12px 0 4px;
         color: #1f2937;
+      }
+      .pdf-text-block h4 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 10px 0 4px;
+        color: #1f2937;
+      }
+      .pdf-text-block h5 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 8px 0 3px;
+        color: #374151;
+      }
+      .pdf-text-block h6 {
+        font-size: 12px;
+        font-weight: 600;
+        margin: 8px 0 3px;
+        color: #4b5563;
       }
       .pdf-text-block ul, .pdf-text-block ol {
         margin: 6px 0 12px 20px;
@@ -494,14 +632,17 @@ export class PdfExportStrategy implements ExportStrategy {
       }
       .pdf-sheet-wrapper {
         margin: 12px 0;
-        border: 1px solid #e5e7eb;
+        border: 1px solid #d1d5db;
         border-radius: 6px;
-        overflow: hidden;
+        overflow-x: auto;
+        background: #ffffff;
       }
       .pdf-sheet-table {
         width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 11.5px;
+        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pdf-sheet-th-corner, .pdf-sheet-th {
         background: #f3f4f6;
@@ -511,6 +652,7 @@ export class PdfExportStrategy implements ExportStrategy {
         font-weight: 600;
         color: #4b5563;
         text-align: center;
+        box-sizing: border-box;
       }
       .pdf-sheet-row-index {
         background: #f9fafb;
@@ -520,12 +662,15 @@ export class PdfExportStrategy implements ExportStrategy {
         color: #6b7280;
         text-align: center;
         font-weight: 500;
+        box-sizing: border-box;
       }
       .pdf-sheet-td {
         border-bottom: 1px solid #e5e7eb;
         border-right: 1px solid #e5e7eb;
         padding: 5px 10px;
         color: #1f2937;
+        box-sizing: border-box;
+        word-break: break-word;
       }
       .pdf-sheet-td.text-right {
         text-align: right;
@@ -544,6 +689,25 @@ export class PdfExportStrategy implements ExportStrategy {
         color: #6b7280;
         margin-top: 6px;
         font-style: italic;
+      }
+      .pdf-canvas-block {
+        margin: 14px 0;
+        text-align: center;
+      }
+      .pdf-canvas-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #ffffff;
+        padding: 8px;
+        display: inline-block;
+        max-width: 100%;
+      }
+      .pdf-canvas-img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 4px;
+        margin: 0 auto;
       }
       .pdf-canvas-placeholder {
         padding: 16px;

@@ -357,7 +357,7 @@ export class LatexBlockComponent implements OnInit, AfterViewInit {
   }
 
   private renderFormulaToElement(element: HTMLElement, formula: string): void {
-    const textToRender = formula.trim() || '\\text{Escribe una fórmula...}';
+    const textToRender = formatMultiLineLatex(formula);
     try {
       katex.render(textToRender, element, {
         displayMode: true,
@@ -378,3 +378,26 @@ export class LatexBlockComponent implements OnInit, AfterViewInit {
   }
 }
 
+/**
+ * Adapta fórmulas KaTeX que contienen saltos de línea (\n) envolviéndolas
+ * en el entorno \begin{gathered}...\end{gathered} y añadiendo \\ a cada línea,
+ * permitiendo que KaTeX muestre ecuaciones apiladas verticalmente en lugar de una sola línea.
+ */
+export function formatMultiLineLatex(raw: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '\\text{Escribe una fórmula...}';
+  if (/\\begin\{(aligned|gathered|align|split|matrix|pmatrix|bmatrix|vmatrix|cases)\}/.test(trimmed)) {
+    return trimmed;
+  }
+  const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length > 1) {
+    const joined = lines
+      .map((l, i) => {
+        if (i === lines.length - 1) return l;
+        return l.endsWith('\\\\') ? l : `${l} \\\\`;
+      })
+      .join('\n');
+    return `\\begin{gathered}\n${joined}\n\\end{gathered}`;
+  }
+  return trimmed;
+}

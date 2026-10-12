@@ -3,6 +3,7 @@ import * as katex from 'katex';
 import { Note } from '../../core/models/note.model';
 import { Block } from '../../core/models/block.model';
 import { ExportOptions, ExportStrategy } from '../models/export.model';
+import { formatMultiLineLatex } from '../../blocks/latex-block/latex-block.component';
 
 @Injectable({
   providedIn: 'root',
@@ -97,15 +98,38 @@ export class HtmlExportStrategy implements ExportStrategy {
   private renderBlockToHtml(block: Block): string {
     const content = block.content || {};
     switch (block.type) {
-      case 'text':
-        return `<div class="block text-block">${content['html'] || ''}</div>`;
+      case 'text': {
+        const textContent = content['html'] || '';
+        const blockStyles = content['blockStyles'];
+        let scoped = '';
+        if (blockStyles) {
+          const tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
+          tags.forEach((tag) => {
+            const rule = blockStyles[tag];
+            if (rule) {
+              const parts: string[] = [];
+              if (rule.color) parts.push(`color: ${rule.color};`);
+              if (rule.fontSize) parts.push(`font-size: ${rule.fontSize};`);
+              if (rule.fontFamily) parts.push(`font-family: ${rule.fontFamily};`);
+              if (parts.length > 0) scoped += `.block-${block.id} ${tag} { ${parts.join(' ')} }\n`;
+            }
+          });
+        }
+        return `
+          <div class="block text-block block-${block.id}">
+            ${scoped ? `<style>${scoped}</style>` : ''}
+            ${textContent}
+          </div>
+        `;
+      }
       case 'latex': {
-        const formula = content['formula'] || '';
+        const rawFormula = content['formula'] || '';
+        const formula = formatMultiLineLatex(rawFormula);
         let rendered = '';
         try {
           rendered = katex.renderToString(formula, { displayMode: true, throwOnError: false });
         } catch {
-          rendered = formula;
+          rendered = this.escapeHtml(rawFormula);
         }
         return `<div class="block latex-box">${rendered}</div>`;
       }

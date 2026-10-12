@@ -84,7 +84,7 @@ import { BlockType } from '../../core/models/block.model';
           <!-- Lista secuencial de bloques con canalón dedicado (sin sobreposición) -->
           <div class="blocks-container">
             @for (block of note.blocks; track block.id; let idx = $index) {
-              <div class="block-row">
+              <div class="block-row" [attr.data-block-id]="block.id">
                 <!-- Canalón de control completamente fuera del texto -->
                 @if (!notesService.isReadingMode()) {
                   <div class="block-gutter">
