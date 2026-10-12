@@ -419,10 +419,16 @@ export class PdfExportStrategy implements ExportStrategy {
         const blockEl = typeof document !== 'undefined' ? document.querySelector(`[data-block-id="${block.id}"]`) : null;
         const svgEl = blockEl?.querySelector('.svg-container svg');
         if (svgEl) {
+          const rawSvg = svgEl.outerHTML;
+          // Remover estilos que limitan max-width y asegurar que el SVG se expanda responsivamente al ancho de página
+          const responsiveSvg = rawSvg
+            .replace(/style="[^"]*max-width:[^"]*"/i, 'style="width: 100%; height: auto;"')
+            .replace(/max-width:[^;"]+;?/gi, '');
+
           return `
             <div class="pdf-block pdf-mermaid-block page-break-avoid">
               <div class="pdf-mermaid-svg-box">
-                ${svgEl.outerHTML}
+                ${responsiveSvg}
               </div>
             </div>
           `;
@@ -500,25 +506,90 @@ export class PdfExportStrategy implements ExportStrategy {
 
   /**
    * Transforma el snapshot de Univer Spreadsheet en una tabla HTML limpia para impresión,
-   * con separadores de celda estables y sin cortes de texto.
+   * preservando celdas combinadas (rowspan y colspan) y texto enriquecido con saltos de línea.
    */
   private renderSheetToHtmlTable(block: Block): string {
     const workbookData = block.content?.['workbookData'];
-    const sheet = Object.values(workbookData?.sheets || {})[0] as any;
-    const cellData = sheet?.cellData || {};
+    if (!workbookData?.sheets) return '';
 
-    const rowIndices = Object.keys(cellData).map(Number).sort((a, b) => a - b);
-    if (rowIndices.length === 0) {
+    const sheet = Object.values(workbookData.sheets)[0] as any;
+    if (!sheet) return '';
+
+    const cellData = sheet.cellData || {};
+    const mergeData: Array<{
+      startRow: number;
+      endRow: number;
+      startColumn: number;
+      endColumn: number;
+    }> = sheet.mergeData || [];
+
+    // Helper para extraer el texto limpio de una celda de Univer (soporta .v, .p rich text, .m)
+    const getCellValue = (cell: any): string => {
+      if (!cell) return '';
+      if (cell.v !== undefined && cell.v !== null && cell.v !== '') {
+        return String(cell.v);
+      }
+      if (cell.p?.body?.dataStream) {
+        return String(cell.p.body.dataStream).replace(/\r?\n$/, '');
+      }
+      if (cell.m !== undefined && cell.m !== null && cell.m !== '') {
+        return String(cell.m);
+      }
+      return '';
+    };
+
+    // Identificar qué celdas están ocupadas y cuáles rangos abarcan
+    const rowKeys = Object.keys(cellData).map(Number);
+    let maxRow = -1;
+    let maxCol = -1;
+
+    // Buscar filas y columnas con contenido
+    rowKeys.forEach((r) => {
+      const row = cellData[r] || {};
+      const colKeys = Object.keys(row).map(Number);
+      colKeys.forEach((c) => {
+        const val = getCellValue(row[c]);
+        if (val.trim().length > 0) {
+          if (r > maxRow) maxRow = r;
+          if (c > maxCol) maxCol = c;
+        }
+      });
+    });
+
+    // Incluir también los rangos de celdas combinadas
+    mergeData.forEach((m) => {
+      const rootCell = cellData[m.startRow]?.[m.startColumn];
+      if (getCellValue(rootCell).trim().length > 0 || m.startRow <= maxRow) {
+        if (m.endRow > maxRow) maxRow = m.endRow;
+        if (m.endColumn > maxCol) maxCol = m.endColumn;
+      }
+    });
+
+    if (maxRow < 0) {
       return '';
     }
 
-    let maxCol = 0;
-    rowIndices.forEach((r) => {
-      const row = cellData[r] || {};
-      const colIndices = Object.keys(row).map(Number);
-      colIndices.forEach((c) => {
-        if (c > maxCol) maxCol = c;
-      });
+    if (maxCol < 0) maxCol = 0;
+
+    // Mapeo de celdas combinadas:
+    // mergeRoots: clave "r,c" => { rowSpan, colSpan }
+    // coveredCells: Set de "r,c" que se omiten en el HTML porque están cubiertas por una combinación previa
+    const mergeRoots = new Map<string, { rowSpan: number; colSpan: number }>();
+    const coveredCells = new Set<string>();
+
+    mergeData.forEach((m) => {
+      const rowSpan = m.endRow - m.startRow + 1;
+      const colSpan = m.endColumn - m.startColumn + 1;
+
+      mergeRoots.set(`${m.startRow},${m.startColumn}`, { rowSpan, colSpan });
+
+      for (let r = m.startRow; r <= m.endRow; r++) {
+        for (let c = m.startColumn; c <= m.endColumn; c++) {
+          if (r !== m.startRow || c !== m.startColumn) {
+            coveredCells.add(`${r},${c}`);
+          }
+        }
+      }
     });
 
     let tableHtml = '<div class="pdf-block pdf-sheet-wrapper page-break-avoid">';
@@ -532,18 +603,37 @@ export class PdfExportStrategy implements ExportStrategy {
     tableHtml += '</tr></thead>';
 
     tableHtml += '<tbody>';
-    rowIndices.forEach((r) => {
+    for (let r = 0; r <= maxRow; r++) {
       const row = cellData[r] || {};
       tableHtml += '<tr>';
       tableHtml += `<td class="pdf-sheet-row-index">${r + 1}</td>`;
+
       for (let c = 0; c <= maxCol; c++) {
+        const key = `${r},${c}`;
+
+        // Si la celda está cubierta por una combinación previa, omitirla para no desplazar columnas
+        if (coveredCells.has(key)) {
+          continue;
+        }
+
         const cell = row[c];
-        const val = cell?.v !== undefined && cell?.v !== null ? String(cell.v) : '';
-        const isNumeric = val !== '' && !isNaN(Number(val));
-        tableHtml += `<td class="pdf-sheet-td ${isNumeric ? 'text-right' : ''}">${this.escapeHtml(val)}</td>`;
+        const rawVal = getCellValue(cell);
+        const isNumeric = rawVal !== '' && !isNaN(Number(rawVal)) && !rawVal.includes('\n');
+
+        // Formatear saltos de línea para celdas de texto enriquecido / párrafos
+        const formattedVal = this.escapeHtml(rawVal).replace(/\r?\n/g, '<br/>');
+
+        const mergeInfo = mergeRoots.get(key);
+        let spanAttrs = '';
+        if (mergeInfo) {
+          if (mergeInfo.rowSpan > 1) spanAttrs += ` rowspan="${mergeInfo.rowSpan}"`;
+          if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
+        }
+
+        tableHtml += `<td class="pdf-sheet-td ${isNumeric ? 'text-right' : ''}"${spanAttrs}>${formattedVal}</td>`;
       }
       tableHtml += '</tr>';
-    });
+    }
     tableHtml += '</tbody></table>';
     tableHtml += '</div>';
 
@@ -792,10 +882,12 @@ export class PdfExportStrategy implements ExportStrategy {
       .pdf-sheet-td {
         border-bottom: 1px solid #e5e7eb;
         border-right: 1px solid #e5e7eb;
-        padding: 5px 10px;
+        padding: 6px 10px;
         color: #1f2937;
         box-sizing: border-box;
         word-break: break-word;
+        vertical-align: top;
+        line-height: 1.5;
       }
       .pdf-sheet-td.text-right {
         text-align: right;
@@ -852,19 +944,23 @@ export class PdfExportStrategy implements ExportStrategy {
         margin-top: 4px;
       }
       .pdf-mermaid-block {
-        margin: 14px 0;
+        margin: 16px 0;
         text-align: center;
+        width: 100%;
       }
       .pdf-mermaid-svg-box {
-        display: inline-block;
-        max-width: 100%;
+        display: block;
+        width: 100%;
         background: #ffffff;
-        padding: 8px;
+        padding: 12px 14px;
         border-radius: 8px;
         border: 1px solid #e5e7eb;
+        box-sizing: border-box;
       }
       .pdf-mermaid-svg-box svg {
+        width: 100% !important;
         max-width: 100% !important;
+        min-width: 100% !important;
         height: auto !important;
         display: block;
         margin: 0 auto;

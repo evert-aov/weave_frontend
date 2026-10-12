@@ -137,6 +137,17 @@ export class HtmlExportStrategy implements ExportStrategy {
         return `<div class="block"><pre><code>${this.escapeHtml(content['code'] || '')}</code></pre></div>`;
       case 'image':
         return `<div class="block"><img src="${this.escapeHtml(content['url'] || '')}" alt="${this.escapeHtml(content['caption'] || '')}"></div>`;
+      case 'mermaid': {
+        const blockEl = typeof document !== 'undefined' ? document.querySelector(`[data-block-id="${block.id}"]`) : null;
+        const svgEl = blockEl?.querySelector('.svg-container svg');
+        if (svgEl) {
+          return `<div class="block mermaid-box" style="text-align: center; margin: 16px 0;">${svgEl.outerHTML}</div>`;
+        }
+        return `<div class="block"><pre><code>${this.escapeHtml(content['chart'] || content['chartDefinition'] || '')}</code></pre></div>`;
+      }
+      case 'sheet': {
+        return this.renderSheetToHtml(block);
+      }
       default:
         return '';
     }
@@ -157,6 +168,101 @@ export class HtmlExportStrategy implements ExportStrategy {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  private renderSheetToHtml(block: Block): string {
+    const workbookData = block.content?.['workbookData'];
+    if (!workbookData?.sheets) return '';
+
+    const sheet = Object.values(workbookData.sheets)[0] as any;
+    if (!sheet) return '';
+
+    const cellData = sheet.cellData || {};
+    const mergeData: Array<{
+      startRow: number;
+      endRow: number;
+      startColumn: number;
+      endColumn: number;
+    }> = sheet.mergeData || [];
+
+    const getCellValue = (cell: any): string => {
+      if (!cell) return '';
+      if (cell.v !== undefined && cell.v !== null && cell.v !== '') return String(cell.v);
+      if (cell.p?.body?.dataStream) return String(cell.p.body.dataStream).replace(/\r?\n$/, '');
+      if (cell.m !== undefined && cell.m !== null && cell.m !== '') return String(cell.m);
+      return '';
+    };
+
+    const rowKeys = Object.keys(cellData).map(Number);
+    let maxRow = -1;
+    let maxCol = -1;
+
+    rowKeys.forEach((r) => {
+      const row = cellData[r] || {};
+      Object.keys(row).map(Number).forEach((c) => {
+        if (getCellValue(row[c]).trim().length > 0) {
+          if (r > maxRow) maxRow = r;
+          if (c > maxCol) maxCol = c;
+        }
+      });
+    });
+
+    mergeData.forEach((m) => {
+      const rootCell = cellData[m.startRow]?.[m.startColumn];
+      if (getCellValue(rootCell).trim().length > 0 || m.startRow <= maxRow) {
+        if (m.endRow > maxRow) maxRow = m.endRow;
+        if (m.endColumn > maxCol) maxCol = m.endColumn;
+      }
+    });
+
+    if (maxRow < 0) return '';
+    if (maxCol < 0) maxCol = 0;
+
+    const mergeRoots = new Map<string, { rowSpan: number; colSpan: number }>();
+    const coveredCells = new Set<string>();
+
+    mergeData.forEach((m) => {
+      mergeRoots.set(`${m.startRow},${m.startColumn}`, {
+        rowSpan: m.endRow - m.startRow + 1,
+        colSpan: m.endColumn - m.startColumn + 1,
+      });
+      for (let r = m.startRow; r <= m.endRow; r++) {
+        for (let c = m.startColumn; c <= m.endColumn; c++) {
+          if (r !== m.startRow || c !== m.startColumn) {
+            coveredCells.add(`${r},${c}`);
+          }
+        }
+      }
+    });
+
+    let html = '<div class="block table-box"><table style="width: 100%; border-collapse: separate; border-spacing: 0;">';
+    html += '<thead><tr><th style="background: #f3f4f6; padding: 6px; border: 1px solid #e5e7eb;">#</th>';
+    for (let c = 0; c <= maxCol; c++) {
+      html += `<th style="background: #f3f4f6; padding: 6px; border: 1px solid #e5e7eb;">${String.fromCharCode(65 + (c % 26))}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+
+    for (let r = 0; r <= maxRow; r++) {
+      const row = cellData[r] || {};
+      html += `<tr><td style="background: #f9fafb; padding: 5px; text-align: center; border: 1px solid #e5e7eb;">${r + 1}</td>`;
+      for (let c = 0; c <= maxCol; c++) {
+        const key = `${r},${c}`;
+        if (coveredCells.has(key)) continue;
+
+        const rawVal = getCellValue(row[c]);
+        const formattedVal = this.escapeHtml(rawVal).replace(/\r?\n/g, '<br/>');
+        const mergeInfo = mergeRoots.get(key);
+        let spanAttrs = '';
+        if (mergeInfo) {
+          if (mergeInfo.rowSpan > 1) spanAttrs += ` rowspan="${mergeInfo.rowSpan}"`;
+          if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
+        }
+        html += `<td style="border: 1px solid #e5e7eb; padding: 6px 10px; vertical-align: top;"${spanAttrs}>${formattedVal}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+    return html;
   }
 
   private downloadBlob(blob: Blob, filename: string): void {
