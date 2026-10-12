@@ -21,7 +21,7 @@ export class NotesService {
   readonly activeSpace = signal<string>('Research');
   readonly saveStatus = signal<'saved' | 'saving' | 'unsaved'>('saved');
   readonly isSidebarCollapsed = signal<boolean>(false);
-  readonly isReadingMode = signal<boolean>(false);
+  readonly isReadingMode = signal<boolean>(true);
 
   /**
    * Alterna entre el modo edición y el modo lectura inmersivo.
@@ -77,7 +77,7 @@ export class NotesService {
     this.activeSpace.set('Research');
     this.lastSavedPayload = '';
     this.saveStatus.set('saved');
-    this.isReadingMode.set(false);
+    this.isReadingMode.set(true);
   }
 
   /**
@@ -99,6 +99,7 @@ export class NotesService {
             this.currentNote.set(notes[0]);
             this.lastSavedPayload = this.getNotePayload(notes[0]);
             this.saveStatus.set('saved');
+            this.isReadingMode.set(true);
           }
         } else {
           this.currentNote.set(null);
@@ -118,6 +119,7 @@ export class NotesService {
         this.currentNote.set(note);
         this.lastSavedPayload = this.getNotePayload(note);
         this.saveStatus.set('saved');
+        this.isReadingMode.set(true);
       }),
     );
   }

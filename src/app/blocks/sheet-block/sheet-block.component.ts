@@ -110,13 +110,11 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         margin: 0 !important;
         overflow: hidden !important;
       }
-      /* Barra de fórmulas: Colapsar a 0 sin remover el nodo para preservar la fila 2 (1fr) del canvas */
-      ::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'],
+      /* Barra de fórmulas: Colapsar a 0 sin romper el layout grid del canvas */
       ::ng-deep .univer-sheet-block.reading-mode section.univer-grid-rows-\[auto_1fr\] {
         grid-template-rows: 0px 1fr !important;
       }
-      ::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'] > header,
-      ::ng-deep .univer-sheet-block.reading-mode section > header:not([data-u-comp='headerbar']),
+      ::ng-deep .univer-sheet-block.reading-mode section.univer-grid-rows-\[auto_1fr\] > header,
       ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='formula-bar'] {
         height: 0 !important;
         min-height: 0 !important;
@@ -129,11 +127,12 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         opacity: 0 !important;
         pointer-events: none !important;
       }
-      /* Forzar que la sección del canvas ocupe el 100% del alto restante */
-      ::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'] > section,
+      /* Garantizar que el contenedor del canvas tome todo el ancho (100%) y alto disponible */
+      ::ng-deep .univer-sheet-block.reading-mode section.univer-grid-rows-\[auto_1fr\] > section,
       ::ng-deep .univer-sheet-block.reading-mode [data-range-selector='true'] {
-        grid-row: 2 !important;
+        width: 100% !important;
         height: 100% !important;
+        min-width: 100% !important;
         min-height: 100% !important;
         display: block !important;
         visibility: visible !important;
