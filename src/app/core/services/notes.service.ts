@@ -82,6 +82,7 @@ export class NotesService {
               lead: note.lead,
               space: note.space,
               docType: note.docType,
+              docUrl: note.docUrl,
               docData: note.docData,
               tags: note.tags,
               blocks: note.blocks,

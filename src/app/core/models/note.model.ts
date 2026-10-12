@@ -12,6 +12,7 @@ export interface Note {
   lead?: string;
   space: string;
   docType?: DocType;
+  docUrl?: string;
   docData?: any;
   tags: string[];
   blocks: Block[];

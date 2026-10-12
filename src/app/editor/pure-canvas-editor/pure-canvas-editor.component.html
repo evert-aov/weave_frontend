@@ -19,6 +19,19 @@
     </div>
 
     <div class="header-right">
+      <!-- Enlace al archivo físico almacenado en el disco -->
+      @if (note.docUrl) {
+        <a
+          [href]="'http://localhost:3000' + note.docUrl"
+          target="_blank"
+          class="physical-file-badge"
+          [title]="i18n.currentLang() === 'es' ? 'Archivo físico en servidor: ' + note.docUrl : 'Physical file on server: ' + note.docUrl"
+        >
+          <app-icon name="paperclip" [size]="12"></app-icon>
+          <span>{{ i18n.currentLang() === 'es' ? 'Archivo físico' : 'Physical file' }}</span>
+        </a>
+      }
+
       <!-- Indicador de guardado -->
       <span class="save-indicator" [class.saving]="notesService.saveStatus() === 'saving'">
         <span class="indicator-dot"></span>
