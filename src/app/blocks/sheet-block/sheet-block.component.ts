@@ -92,21 +92,14 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Oculta o muestra los nombres de columnas (A, B, C...) y números de filas (1, 2, 3...)
-   * según si se encuentra en modo lectura o edición.
+   * Asegura que el canvas de Univer esté actualizado al alternar modos.
    */
-  updateHeadersVisibility(isReading: boolean): void {
+  updateHeadersVisibility(_isReading: boolean): void {
     try {
       if (this.univerAPI) {
         const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
         const activeSheet = activeWorkbook?.getActiveSheet?.();
         if (activeSheet) {
-          if (typeof activeSheet.setRowHeaderWidth === 'function') {
-            activeSheet.setRowHeaderWidth(isReading ? 0 : 46);
-          }
-          if (typeof activeSheet.setColumnHeaderHeight === 'function') {
-            activeSheet.setColumnHeaderHeight(isReading ? 0 : 24);
-          }
           if (typeof activeSheet.refreshCanvas === 'function') {
             activeSheet.refreshCanvas();
           }
@@ -167,11 +160,9 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
    */
   updateReadingHeight(): void {
     const rows = this.getOccupiedRowsCount();
-    const isReading = this.notesService.isReadingMode();
-    const headerHeight = isReading ? 0 : 26;
-    const basePadding = 18;
-    const calculated = headerHeight + rows * 24 + basePadding;
-    const clamped = Math.min(Math.max(calculated, 90), 560);
+    // 26px cabecera de columnas + 24px por fila de datos + margen inferior
+    const calculated = 26 + rows * 24 + 24;
+    const clamped = Math.min(Math.max(calculated, 120), 560);
     this.readingHeight.set(clamped);
   }
 

@@ -100,7 +100,7 @@
   top: 0;
   left: 0;
 }
-/* Modo Lectura: Ocultar barras de herramientas, fórmulas y pies de Univer preservando el canvas */
+/* Modo Lectura: Ocultar barras de herramientas, fórmulas y pies de Univer preservando el canvas intacto */
 .univer-sheet-block.reading-mode {
   box-shadow: none;
   margin: 6px 0;
@@ -110,56 +110,18 @@
 ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='headerbar'],
 ::ng-deep .univer-sheet-block.reading-mode .univer-toolbar {
   display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  overflow: hidden !important;
 }
-/* Barra de fórmulas: Ocultar visualmente sin colapsar el grid a 0 para que no rompa el viewport del canvas */
 ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='formula-bar'] {
   display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  overflow: hidden !important;
-}
-::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'] {
-  grid-template-rows: 0px 1fr !important;
-}
-::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'] > header {
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  overflow: hidden !important;
-}
-::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'] > section,
-::ng-deep .univer-sheet-block.reading-mode [data-range-selector='true'] {
-  width: 100% !important;
-  height: 100% !important;
-  min-width: 100% !important;
-  min-height: 100% !important;
-  display: block !important;
-  visibility: visible !important;
 }
 ::ng-deep .univer-sheet-block.reading-mode footer,
 ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='footer'] {
   display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  overflow: hidden !important;
 }
 ::ng-deep .univer-sheet-block.reading-mode canvas[data-u-comp='render-canvas'],
 ::ng-deep .univer-sheet-block.reading-mode canvas {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  image-rendering: -webkit-optimize-contrast;
 }
 
