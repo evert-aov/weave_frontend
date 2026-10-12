@@ -74,8 +74,8 @@ export class HtmlExportStrategy implements ExportStrategy {
     .tag { font-size: 11px; background: #f3f4f6; color: #4b5563; padding: 2px 8px; border-radius: 4px; }
     hr { border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0; }
     .block { margin: 16px 0; }
-    .text-block { zoom: 1.2; font-size: 16.8px; }
-    .text-block p { font-size: 16.8px; line-height: 1.68; }
+    .text-block { font-size: 16.8px; line-height: 1.68; }
+    .text-block p { font-size: 16.8px; line-height: 1.68; margin: 0 0 10px 0; }
     pre { background: #1f2937; color: #f9fafb; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; }
     .table-box table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
     .table-box th, .table-box td { border: 1px solid #e5e7eb; padding: 8px 12px; }

@@ -861,8 +861,8 @@ export class PdfExportStrategy implements ExportStrategy {
         display: block;
         page-break-inside: auto !important;
         break-inside: auto !important;
-        zoom: 1.2;
         font-size: 16.8px;
+        line-height: 1.68;
       }
       .page-break-avoid,
       .pdf-sheet-wrapper,
