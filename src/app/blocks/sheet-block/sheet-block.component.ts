@@ -7,6 +7,7 @@ import {
   ViewChild,
   inject,
   effect,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Block } from '../../core/models/block.model';
@@ -41,7 +42,10 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         </div>
       }
 
-      <div class="sheet-container-wrapper">
+      <div
+        class="sheet-container-wrapper"
+        [style.height.px]="notesService.isReadingMode() ? readingHeight() : 440"
+      >
         <div #sheetContainer class="univer-container"></div>
       </div>
     </div>
@@ -83,6 +87,7 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         height: 440px;
         background: var(--bg);
         overflow: hidden;
+        transition: height 0.18s ease;
       }
       .univer-container {
         width: 100%;
@@ -93,9 +98,6 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
       .univer-sheet-block.reading-mode {
         box-shadow: none;
         margin: 6px 0;
-      }
-      .univer-sheet-block.reading-mode .sheet-container-wrapper {
-        height: 400px;
       }
       /* Ocultar barra superior / ribbon (Start, Formulas, View, etc.) */
       ::ng-deep .univer-sheet-block.reading-mode header[data-u-comp='headerbar'],
@@ -166,15 +168,19 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
 
+  readonly readingHeight = signal<number>(180);
+
   private univerInstance: any = null;
   private univerAPI: any = null;
   private saveTimeout: any = null;
   private commandSubscription: any = null;
 
   constructor() {
+    this.updateReadingHeight();
     effect(() => {
       // Registrar la dependencia reactiva del modo lectura
       const isReading = this.notesService.isReadingMode();
+      this.updateReadingHeight();
       // Notificar a Univer y al navegador para recalcular dimensiones de canvas
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
@@ -187,9 +193,65 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.initUniver();
+    this.updateReadingHeight();
     setTimeout(() => {
       window.dispatchEvent(new Event('resize'));
     }, 100);
+  }
+
+  /**
+   * Determina cuántas filas con contenido real existen en la hoja de cálculo.
+   */
+  getOccupiedRowsCount(): number {
+    try {
+      if (this.univerAPI) {
+        const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
+        const activeSheet = activeWorkbook?.getActiveSheet?.();
+        if (activeSheet && typeof activeSheet.getLastRow === 'function') {
+          const lastRow = activeSheet.getLastRow();
+          if (typeof lastRow === 'number' && lastRow >= 0) {
+            return lastRow + 1;
+          }
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const savedData = this.block?.content?.['workbookData'];
+      if (savedData?.sheets) {
+        const sheet = Object.values(savedData.sheets)[0] as any;
+        const cellData = sheet?.cellData;
+        if (cellData && typeof cellData === 'object') {
+          const rowKeys = Object.keys(cellData);
+          const validRows = rowKeys.filter((r) => {
+            const row = cellData[r];
+            return (
+              row &&
+              Object.values(row).some(
+                (c: any) => c?.v !== undefined && c?.v !== null && c?.v !== ''
+              )
+            );
+          });
+          if (validRows.length > 0) {
+            return Math.max(...validRows.map(Number)) + 1;
+          }
+        }
+      }
+    } catch (e) {}
+
+    return 5;
+  }
+
+  /**
+   * Calcula y actualiza la altura exacta necesaria para mostrar únicamente las celdas con datos.
+   */
+  updateReadingHeight(): void {
+    const rows = this.getOccupiedRowsCount();
+    // 26px cabecera de columnas (A, B, C...) + 24px por fila de datos + 22px margen y bordes
+    const calculated = 26 + rows * 24 + 22;
+    // Acotar entre 110px y 520px (con scroll si excede)
+    const clamped = Math.min(Math.max(calculated, 110), 520);
+    this.readingHeight.set(clamped);
   }
 
   ngOnDestroy(): void {
@@ -314,6 +376,7 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
           this.notesService.updateBlockContent(this.block.id, {
             workbookData: snapshot,
           });
+          this.updateReadingHeight();
         }
       } catch (err) {
         console.error('[SheetBlockComponent] Error saving workbook snapshot:', err);
