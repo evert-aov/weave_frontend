@@ -50,18 +50,27 @@ export class PdfExportStrategy implements ExportStrategy {
     const pageWidthMm = pdf.internal.pageSize.getWidth();
     const pageHeightMm = pdf.internal.pageSize.getHeight();
 
+    // Márgenes físicos estándar para cada página del documento PDF (concordancia exacta con modo impresión)
+    const marginTopMm = 16;
+    const marginBottomMm = 20;
+    const marginLeftMm = 18;
+    const marginRightMm = 18;
+
+    const contentWidthMm = pageWidthMm - marginLeftMm - marginRightMm;
+    const contentHeightMm = pageHeightMm - marginTopMm - marginBottomMm;
+
     // Proporción exacta a 96 DPI estándar de pantalla para concordancia 1:1 física con el tamaño de página
     const pxPerMm = 96 / 25.4;
-    const widthPx = Math.round(pageWidthMm * pxPerMm);
+    const contentWidthPx = Math.round(contentWidthMm * pxPerMm);
 
     const renderContainer = document.createElement('div');
     renderContainer.className = 'weave-pdf-export-render-box';
     renderContainer.style.position = 'fixed';
     renderContainer.style.top = '0';
     renderContainer.style.left = '0';
-    renderContainer.style.width = `${widthPx}px`;
-    renderContainer.style.maxWidth = `${widthPx}px`;
-    renderContainer.style.minWidth = `${widthPx}px`;
+    renderContainer.style.width = `${contentWidthPx}px`;
+    renderContainer.style.maxWidth = `${contentWidthPx}px`;
+    renderContainer.style.minWidth = `${contentWidthPx}px`;
     renderContainer.style.background = '#ffffff';
     renderContainer.style.color = '#111827';
     renderContainer.style.padding = '0';
@@ -77,7 +86,7 @@ export class PdfExportStrategy implements ExportStrategy {
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
       <style>${this.getPdfStyles()}</style>
-      <div class="weave-pdf-document" style="box-sizing: border-box; padding: 16mm 18mm 20mm 18mm; width: 100%; margin: 0 auto;">
+      <div class="weave-pdf-document" style="box-sizing: border-box; padding: 0; width: 100%; margin: 0;">
         ${this.buildNoteHtmlContent(note, options)}
       </div>
     `;
@@ -94,10 +103,10 @@ export class PdfExportStrategy implements ExportStrategy {
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: widthPx,
+        windowWidth: contentWidthPx,
       });
 
-      const maxPageHeightPx = Math.round((pageHeightMm * fullCanvas.width) / pageWidthMm);
+      const maxPageHeightPx = Math.round((contentHeightMm * fullCanvas.width) / contentWidthMm);
 
       const containerRect = renderContainer.getBoundingClientRect();
       const breakableNodes = Array.from(
@@ -151,7 +160,7 @@ export class PdfExportStrategy implements ExportStrategy {
         }
 
         const sliceHeightPx = breakY - currentY;
-        const sliceHeightMm = (sliceHeightPx * pageWidthMm) / fullCanvas.width;
+        const sliceHeightMm = (sliceHeightPx * contentWidthMm) / fullCanvas.width;
 
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = fullCanvas.width;
@@ -178,7 +187,7 @@ export class PdfExportStrategy implements ExportStrategy {
           }
 
           const imgData = pageCanvas.toDataURL('image/jpeg', 0.98);
-          pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, sliceHeightMm);
+          pdf.addImage(imgData, 'JPEG', marginLeftMm, marginTopMm, contentWidthMm, sliceHeightMm);
           pageIndex++;
         }
 
@@ -195,7 +204,7 @@ export class PdfExportStrategy implements ExportStrategy {
 
   /**
    * Abre la ventana nativa de impresión del navegador con estilos optimizados para PDF vectorial.
-   * Flujo continuo sin páginas en blanco artificiales.
+   * Flujo continuo sin páginas en blanco artificiales y supresión de encabezados/pies del navegador.
    */
   private printViaBrowser(note: Note, options: ExportOptions): void {
     const printWindow = window.open('', '_blank');
@@ -211,7 +220,7 @@ export class PdfExportStrategy implements ExportStrategy {
       <html lang="es">
         <head>
           <meta charset="utf-8" />
-          <title>${this.escapeHtml(note.title || 'Documento Weave')}</title>
+          <title></title>
           <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
           <link rel="preconnect" href="https://fonts.googleapis.com">
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -220,6 +229,16 @@ export class PdfExportStrategy implements ExportStrategy {
             @page {
               size: ${options.pageSize || 'A4'} ${options.orientation || 'portrait'};
               margin: 16mm 18mm 20mm 18mm;
+              @top-left-corner { content: ""; }
+              @top-left { content: ""; }
+              @top-center { content: ""; }
+              @top-right { content: ""; }
+              @top-right-corner { content: ""; }
+              @bottom-left-corner { content: ""; }
+              @bottom-left { content: ""; }
+              @bottom-center { content: ""; }
+              @bottom-right { content: ""; }
+              @bottom-right-corner { content: ""; }
             }
             body {
               font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -231,8 +250,23 @@ export class PdfExportStrategy implements ExportStrategy {
               padding: 0;
             }
             @media print {
+              @page {
+                size: ${options.pageSize || 'A4'} ${options.orientation || 'portrait'};
+                margin: 16mm 18mm 20mm 18mm;
+                @top-left-corner { content: ""; }
+                @top-left { content: ""; }
+                @top-center { content: ""; }
+                @top-right { content: ""; }
+                @top-right-corner { content: ""; }
+                @bottom-left-corner { content: ""; }
+                @bottom-left { content: ""; }
+                @bottom-center { content: ""; }
+                @bottom-right { content: ""; }
+                @bottom-right-corner { content: ""; }
+              }
               body {
                 padding: 0;
+                margin: 0;
               }
               .pdf-blocks-container {
                 display: block !important;
