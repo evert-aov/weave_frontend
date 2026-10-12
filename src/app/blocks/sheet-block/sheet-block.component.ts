@@ -92,21 +92,29 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Asegura que el canvas de Univer esté actualizado al alternar modos.
+   * Asegura que el canvas de Univer esté actualizado y bloquea/desbloquea celdas según el modo.
    */
-  updateHeadersVisibility(_isReading: boolean): void {
+  async updateHeadersVisibility(isReading: boolean): Promise<void> {
     try {
       if (this.univerAPI) {
         const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
         const activeSheet = activeWorkbook?.getActiveSheet?.();
         if (activeSheet) {
+          const permission = activeSheet.getWorksheetPermission?.();
+          if (permission) {
+            if (isReading && typeof permission.setReadOnly === 'function') {
+              await permission.setReadOnly();
+            } else if (!isReading && typeof permission.setEditable === 'function') {
+              await permission.setEditable();
+            }
+          }
           if (typeof activeSheet.refreshCanvas === 'function') {
             activeSheet.refreshCanvas();
           }
         }
       }
     } catch (e) {
-      console.warn('[SheetBlockComponent] Could not update headers visibility:', e);
+      console.warn('[SheetBlockComponent] Could not update headers or permissions:', e);
     }
   }
 

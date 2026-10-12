@@ -44,6 +44,7 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
   private syncTimeout?: any;
   private currentElements: any[] = [];
   private currentAppState: any = {};
+  private excalidrawAPI: any = null;
 
   constructor() {
     effect(() => {
@@ -51,6 +52,11 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       const isDark = this.themeService.isDark();
       if (this.reactRoot) {
         this.renderCanvas(isReading, isDark);
+      }
+      if (isReading) {
+        // Al pasar a modo lectura, centrar suavemente hacia el contenido dibujado
+        setTimeout(() => this.centerToContent(), 120);
+        setTimeout(() => this.centerToContent(), 300);
       }
     });
 
@@ -75,6 +81,30 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       this.notesService.isReadingMode(),
       this.themeService.isDark(),
     );
+
+    // Centrar inicialmente el dibujo si existen trazos o figuras
+    setTimeout(() => this.centerToContent(), 250);
+  }
+
+  /**
+   * Centra el viewport del lienzo hacia donde se encuentran los dibujos y figuras.
+   */
+  centerToContent(): void {
+    try {
+      if (this.excalidrawAPI && typeof this.excalidrawAPI.scrollToContent === 'function') {
+        const nonDeletedElements = (this.currentElements || []).filter((el) => !el.isDeleted);
+        if (nonDeletedElements.length > 0) {
+          this.excalidrawAPI.scrollToContent(nonDeletedElements, {
+            fitToViewport: true,
+            viewportZoomFactor: 0.85,
+            animate: true,
+            duration: 250,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[CanvasBlockComponent] Could not center to content:', e);
+    }
   }
 
   private renderCanvas(isReading: boolean, isDark: boolean): void {
@@ -121,6 +151,9 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
 
     this.reactRoot.render(
       React.createElement(Excalidraw, {
+        excalidrawAPI: (api: any) => {
+          this.excalidrawAPI = api;
+        },
         viewModeEnabled: isReading,
         initialData: {
           elements: this.currentElements,

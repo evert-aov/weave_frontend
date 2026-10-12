@@ -19,6 +19,7 @@
 
   <div
     class="sheet-container-wrapper"
+    [class.reading-mode]="notesService.isReadingMode()"
     [style.height.px]="notesService.isReadingMode() ? readingHeight() : 460"
   >
     <div
