@@ -634,6 +634,22 @@ const DEFAULT_STYLE_TEMPLATES: StyleTemplate[] = [
       .text-block-root.reading-mode .style-inspector-panel {
         display: none !important;
       }
+      /* Ocultar prefijos de encabezado (# .. ######) en modo lectura */
+      .text-block-root.reading-mode ::ng-deep .tiptap-surface h1::before,
+      .text-block-root.reading-mode ::ng-deep .tiptap-surface h2::before,
+      .text-block-root.reading-mode ::ng-deep .tiptap-surface h3::before,
+      .text-block-root.reading-mode ::ng-deep .tiptap-surface h4::before,
+      .text-block-root.reading-mode ::ng-deep .tiptap-surface h5::before,
+      .text-block-root.reading-mode ::ng-deep .tiptap-surface h6::before,
+      :host-context(.reading-mode) ::ng-deep .tiptap-surface h1::before,
+      :host-context(.reading-mode) ::ng-deep .tiptap-surface h2::before,
+      :host-context(.reading-mode) ::ng-deep .tiptap-surface h3::before,
+      :host-context(.reading-mode) ::ng-deep .tiptap-surface h4::before,
+      :host-context(.reading-mode) ::ng-deep .tiptap-surface h5::before,
+      :host-context(.reading-mode) ::ng-deep .tiptap-surface h6::before {
+        display: none !important;
+        content: '' !important;
+      }
 
       /* Barra superior de herramientas fija / sticky arriba inspirada en Trilium Classic */
       .trilium-top-toolbar {

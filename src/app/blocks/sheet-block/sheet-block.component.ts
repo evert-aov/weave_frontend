@@ -6,6 +6,7 @@ import {
   ElementRef,
   ViewChild,
   inject,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Block } from '../../core/models/block.model';
@@ -88,31 +89,72 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         height: 100%;
         position: relative;
       }
-      /* Modo Lectura: Ocultar barra superior (Start, Formulas, View), barra de fórmulas y pie */
+      /* Modo Lectura: Ocultar barra superior (Start, Formulas, View), barra de fórmulas y pie preservando el canvas de celdas */
       .univer-sheet-block.reading-mode {
         box-shadow: none;
         margin: 6px 0;
       }
       .univer-sheet-block.reading-mode .sheet-container-wrapper {
-        height: 380px;
+        height: 400px;
       }
+      /* Ocultar barra superior / ribbon (Start, Formulas, View, etc.) */
       ::ng-deep .univer-sheet-block.reading-mode header[data-u-comp='headerbar'],
-      ::ng-deep .univer-sheet-block.reading-mode header,
-      ::ng-deep .univer-sheet-block.reading-mode .univer-toolbar,
       ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='toolbar'],
-      ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='headerbar'] {
+      ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='headerbar'],
+      ::ng-deep .univer-sheet-block.reading-mode .univer-toolbar {
         display: none !important;
         height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
       }
-      ::ng-deep .univer-sheet-block.reading-mode section > header,
+      /* Barra de fórmulas: Colapsar a 0 sin remover el nodo para preservar la fila 2 (1fr) del canvas */
+      ::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'],
+      ::ng-deep .univer-sheet-block.reading-mode section.univer-grid-rows-\[auto_1fr\] {
+        grid-template-rows: 0px 1fr !important;
+      }
+      ::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'] > header,
+      ::ng-deep .univer-sheet-block.reading-mode section > header:not([data-u-comp='headerbar']),
       ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='formula-bar'] {
-        display: none !important;
         height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        overflow: hidden !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
       }
+      /* Forzar que la sección del canvas ocupe el 100% del alto restante */
+      ::ng-deep .univer-sheet-block.reading-mode [class*='univer-grid-rows-'] > section,
+      ::ng-deep .univer-sheet-block.reading-mode [data-range-selector='true'] {
+        grid-row: 2 !important;
+        height: 100% !important;
+        min-height: 100% !important;
+        display: block !important;
+        visibility: visible !important;
+      }
+      /* Ocultar pie de página (tabs de hojas, zoom, etc.) en modo lectura */
       ::ng-deep .univer-sheet-block.reading-mode footer,
       ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='footer'] {
         display: none !important;
         height: 0 !important;
+        min-height: 0 !important;
+        max-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+      }
+      /* Garantizar que el canvas de dibujo de Univer y sus celdas permanezcan visibles */
+      ::ng-deep .univer-sheet-block.reading-mode canvas[data-u-comp='render-canvas'],
+      ::ng-deep .univer-sheet-block.reading-mode canvas {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
       }
     `,
   ],
@@ -122,7 +164,7 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   @ViewChild('sheetContainer', { static: true })
   sheetContainer!: ElementRef<HTMLDivElement>;
 
-  private readonly notesService = inject(NotesService);
+  readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
 
   private univerInstance: any = null;
@@ -130,8 +172,25 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   private saveTimeout: any = null;
   private commandSubscription: any = null;
 
+  constructor() {
+    effect(() => {
+      // Registrar la dependencia reactiva del modo lectura
+      const isReading = this.notesService.isReadingMode();
+      // Notificar a Univer y al navegador para recalcular dimensiones de canvas
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 150);
+    });
+  }
+
   ngAfterViewInit(): void {
     this.initUniver();
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 100);
   }
 
   ngOnDestroy(): void {
