@@ -32,7 +32,13 @@ if (typeof window !== 'undefined' && !(window as any).process) {
   imports: [CommonModule],
   template: `
     <div class="excalidraw-block-container" [class.reading-mode]="notesService.isReadingMode()">
-      <div #canvasMount class="excalidraw-mount-point"></div>
+      <div
+        #canvasMount
+        class="excalidraw-mount-point"
+        [style.zoom]="1 / notesService.documentZoom()"
+        [style.width.%]="100 * notesService.documentZoom()"
+        [style.height.%]="100 * notesService.documentZoom()"
+      ></div>
     </div>
   `,
   styles: [
@@ -58,7 +64,8 @@ if (typeof window !== 'undefined' && !(window as any).process) {
         width: 100%;
         height: 100%;
         position: absolute;
-        inset: 0;
+        top: 0;
+        left: 0;
       }
       ::ng-deep .excalidraw {
         height: 100% !important;
@@ -80,7 +87,7 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
   @ViewChild('canvasMount', { static: true })
   canvasMount!: ElementRef<HTMLDivElement>;
 
-  private readonly notesService = inject(NotesService);
+  readonly notesService = inject(NotesService);
   private readonly themeService = inject(ThemeService);
   private reactRoot?: Root;
   private syncTimeout?: any;
@@ -94,6 +101,16 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       if (this.reactRoot) {
         this.renderCanvas(isReading, isDark);
       }
+    });
+
+    effect(() => {
+      this.notesService.documentZoom();
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 60);
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 160);
     });
   }
 

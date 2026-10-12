@@ -32,8 +32,6 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
     <div
       class="univer-sheet-block"
       [class.reading-mode]="notesService.isReadingMode()"
-      [style.zoom]="1 / notesService.documentZoom()"
-      [style.width.%]="100 * notesService.documentZoom()"
     >
       <!-- Barra superior de información del bloque -->
       <div class="sheet-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
@@ -52,9 +50,15 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
 
       <div
         class="sheet-container-wrapper"
-        [style.height.px]="(notesService.isReadingMode() ? readingHeight() : 460) * notesService.documentZoom()"
+        [style.height.px]="notesService.isReadingMode() ? readingHeight() : 460"
       >
-        <div #sheetContainer class="univer-container"></div>
+        <div
+          #sheetContainer
+          class="univer-container"
+          [style.zoom]="1 / notesService.documentZoom()"
+          [style.width.%]="100 * notesService.documentZoom()"
+          [style.height.%]="100 * notesService.documentZoom()"
+        ></div>
       </div>
     </div>
   `,
@@ -158,7 +162,9 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
       .univer-container {
         width: 100%;
         height: 100%;
-        position: relative;
+        position: absolute;
+        top: 0;
+        left: 0;
       }
       /* Modo Lectura: Ocultar barras de herramientas, fórmulas y pies de Univer */
       .univer-sheet-block.reading-mode {
@@ -236,9 +242,9 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
     this.updateReadingHeight();
     effect(() => {
       const isReading = this.notesService.isReadingMode();
-      const docZoom = this.notesService.documentZoom();
+      this.notesService.documentZoom();
       this.updateHeadersVisibility(isReading);
-      this.applyDocZoom(docZoom);
+      this.applyDocZoom(1.0);
       this.updateReadingHeight();
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
@@ -254,22 +260,22 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
     this.updateReadingHeight();
     setTimeout(() => {
       this.updateHeadersVisibility(this.notesService.isReadingMode());
-      this.applyDocZoom(this.notesService.documentZoom());
+      this.applyDocZoom(1.0);
       window.dispatchEvent(new Event('resize'));
     }, 120);
   }
 
   /**
-   * Aplica el zoom nativo directamente al motor vectorial de Univer Sheets
-   * para evitar cualquier efecto borroso de rasterización.
+   * Mantiene el motor vectorial de Univer Sheets en escala 1.0 (100%)
+   * para que las celdas y fórmulas internas no se distorsionen con el zoom.
    */
-  applyDocZoom(zoomRatio: number): void {
+  applyDocZoom(_zoomRatio?: number): void {
     try {
       if (this.univerAPI) {
         const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
         const activeSheet = activeWorkbook?.getActiveSheet?.();
         if (activeSheet && typeof activeSheet.zoom === 'function') {
-          activeSheet.zoom(zoomRatio);
+          activeSheet.zoom(1.0);
         }
       }
     } catch (e) {
