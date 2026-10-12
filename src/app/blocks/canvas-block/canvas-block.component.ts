@@ -30,57 +30,8 @@ if (typeof window !== 'undefined' && !(window as any).process) {
   selector: 'app-canvas-block',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <div class="excalidraw-block-container" [class.reading-mode]="notesService.isReadingMode()">
-      <div
-        #canvasMount
-        class="excalidraw-mount-point"
-        [style.zoom]="1 / notesService.documentZoom()"
-        [style.width.%]="100 * notesService.documentZoom()"
-        [style.height.%]="100 * notesService.documentZoom()"
-      ></div>
-    </div>
-  `,
-  styles: [
-    `
-      .excalidraw-block-container {
-        width: 100%;
-        height: 520px;
-        position: relative;
-        border-radius: 9px;
-        border: 1px solid var(--border-strong);
-        overflow: hidden;
-        background: var(--bg);
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-        transition: height 0.2s ease, border-color 0.2s ease;
-      }
-      .excalidraw-block-container.reading-mode {
-        height: 460px;
-        box-shadow: none;
-        border: 1px solid var(--border);
-        margin: 6px 0;
-      }
-      .excalidraw-mount-point {
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        top: 0;
-        left: 0;
-      }
-      ::ng-deep .excalidraw {
-        height: 100% !important;
-        width: 100% !important;
-      }
-      /* Modo Lectura: Ocultar barra de herramientas de dibujo y controles de edición */
-      ::ng-deep .excalidraw-block-container.reading-mode .App-toolbar,
-      ::ng-deep .excalidraw-block-container.reading-mode .layer-ui__wrapper .zen-mode-transition,
-      ::ng-deep .excalidraw-block-container.reading-mode .App-bottom-bar,
-      ::ng-deep .excalidraw-block-container.reading-mode .help-icon,
-      ::ng-deep .excalidraw-block-container.reading-mode .dropdown-menu-button {
-        display: none !important;
-      }
-    `,
-  ],
+  templateUrl: './canvas-block.component.html',
+  styleUrls: ['./canvas-block.component.scss'],
 })
 export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
   @Input({ required: true }) block!: Block;

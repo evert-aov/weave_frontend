@@ -1,0 +1,190 @@
+.latex-block-root {
+  width: 100%;
+  margin: 10px 0;
+  position: relative;
+  font-family: inherit;
+}
+
+/* Modo Lectura: Integración continua sin bordes ni fragmentación */
+.latex-block-root.reading-mode {
+  margin: 4px 0;
+}
+.latex-block-root.reading-mode .latex-display-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px 0 !important;
+  cursor: default !important;
+}
+.latex-block-root.reading-mode .math-render-surface.main-display {
+  padding: 2px 0;
+}
+
+/* Tarjeta de visualización integrada limpiamente */
+.latex-display-card {
+  width: 100%;
+  padding: 22px 28px 18px;
+  background: color-mix(in srgb, var(--panel) 60%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.latex-display-card:hover {
+  border-color: var(--border-strong);
+  background: var(--panel);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.top-tag {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+.sigma-glyph {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.quick-edit-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.latex-display-card:hover .quick-edit-btn {
+  opacity: 1;
+}
+.quick-edit-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Superficie de renderizado KaTeX: Flujo natural sin scroll */
+.math-render-surface {
+  width: 100%;
+  color: var(--text);
+  text-align: center;
+  overflow: visible;
+}
+.main-display {
+  font-size: 11.5px;
+  padding: 4px 0;
+}
+
+::ng-deep .math-render-surface .katex-display {
+  margin: 0.25em 0;
+  overflow: visible !important;
+}
+::ng-deep .math-render-surface .katex {
+  font-size: 1em;
+  text-rendering: auto;
+}
+
+/* Modo Edición */
+.latex-editor-card {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  padding: 12px 14px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+  animation: fadeIn 0.12s ease;
+}
+
+.editor-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.badge-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+.bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hint-key {
+  font-size: 10px;
+  color: var(--faint);
+  font-family: 'DM Sans', sans-serif;
+}
+.done-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent);
+  border-radius: 5px;
+  padding: 3px 12px;
+  transition: opacity 0.15s ease;
+}
+.done-btn:hover {
+  opacity: 0.9;
+}
+
+/* Textarea con auto-expansión en altura, sin scrollbar vertical */
+.latex-textarea {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+  overflow-y: hidden;
+  min-height: 52px;
+  box-sizing: border-box;
+}
+.latex-textarea:focus {
+  border-color: var(--accent);
+}
+
+/* Recuadro de vista previa en vivo durante edición */
+.live-preview-box {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border-radius: 6px;
+  border: 1px dashed var(--border-strong);
+}
+.live-preview-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}

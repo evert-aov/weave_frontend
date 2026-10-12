@@ -1,0 +1,45 @@
+<div class="mermaid-block-card" [class.reading-mode]="notesService.isReadingMode()">
+  @if (!notesService.isReadingMode()) {
+    <div class="mermaid-header">
+      <div class="header-left">
+        <span class="mermaid-tag">MERMAID</span>
+        <span class="header-hint">
+          {{ isEditing() ? (i18n.currentLang() === 'es' ? 'Editando definición' : 'Editing definition') : (i18n.currentLang() === 'es' ? 'Diagrama activo' : 'Active diagram') }}
+        </span>
+      </div>
+      <button
+        type="button"
+        class="mode-btn"
+        (click)="toggleMode()"
+      >
+        {{ isEditing() ? i18n.t('block.mermaid.preview') : i18n.t('block.mermaid.edit') }}
+      </button>
+    </div>
+  }
+
+  @if (isEditing() && !notesService.isReadingMode()) {
+    <div class="mermaid-editor">
+      <textarea
+        [(ngModel)]="chartText"
+        (blur)="renderChart()"
+        (keydown.control.enter)="toggleMode()"
+        [placeholder]="i18n.t('block.mermaid.placeholder')"
+        rows="8"
+      ></textarea>
+      <div class="editor-bar">
+        <span class="shortcut-tip">{{ i18n.currentLang() === 'es' ? 'Ctrl + Enter para guardar y previsualizar' : 'Ctrl + Enter to preview' }}</span>
+        <button type="button" class="done-btn" (click)="toggleMode()">
+          {{ i18n.currentLang() === 'es' ? 'Listo' : 'Done' }}
+        </button>
+      </div>
+    </div>
+  } @else {
+    <div
+      class="mermaid-preview"
+      (dblclick)="onPreviewDblClick()"
+      [title]="notesService.isReadingMode() ? '' : (i18n.currentLang() === 'es' ? 'Doble clic para editar' : 'Double click to edit')"
+    >
+      <div class="svg-container" [innerHTML]="svgOutput()"></div>
+    </div>
+  }
+</div>

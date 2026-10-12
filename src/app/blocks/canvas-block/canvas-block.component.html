@@ -1,0 +1,9 @@
+<div class="excalidraw-block-container" [class.reading-mode]="notesService.isReadingMode()">
+  <div
+    #canvasMount
+    class="excalidraw-mount-point"
+    [style.zoom]="1 / notesService.documentZoom()"
+    [style.width.%]="100 * notesService.documentZoom()"
+    [style.height.%]="100 * notesService.documentZoom()"
+  ></div>
+</div>

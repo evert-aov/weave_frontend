@@ -1,0 +1,731 @@
+.text-block-root {
+  position: relative;
+  width: 100%;
+  cursor: text;
+  background: transparent;
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+  margin: 6px 0;
+}
+.text-block-root.reading-mode {
+  border-color: transparent !important;
+  margin: 2px 0;
+  cursor: default;
+}
+.text-block-root.reading-mode .trilium-top-toolbar,
+.text-block-root.reading-mode .style-inspector-panel {
+  display: none !important;
+}
+/* Ocultar prefijos de encabezado (# .. ######) en modo lectura */
+.text-block-root.reading-mode ::ng-deep .tiptap-surface h1::before,
+.text-block-root.reading-mode ::ng-deep .tiptap-surface h2::before,
+.text-block-root.reading-mode ::ng-deep .tiptap-surface h3::before,
+.text-block-root.reading-mode ::ng-deep .tiptap-surface h4::before,
+.text-block-root.reading-mode ::ng-deep .tiptap-surface h5::before,
+.text-block-root.reading-mode ::ng-deep .tiptap-surface h6::before,
+:host-context(.reading-mode) ::ng-deep .tiptap-surface h1::before,
+:host-context(.reading-mode) ::ng-deep .tiptap-surface h2::before,
+:host-context(.reading-mode) ::ng-deep .tiptap-surface h3::before,
+:host-context(.reading-mode) ::ng-deep .tiptap-surface h4::before,
+:host-context(.reading-mode) ::ng-deep .tiptap-surface h5::before,
+:host-context(.reading-mode) ::ng-deep .tiptap-surface h6::before {
+  display: none !important;
+  content: '' !important;
+}
+
+/* Barra superior de herramientas fija / sticky arriba inspirada en Trilium Classic */
+.trilium-top-toolbar {
+  position: sticky;
+  top: 6px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--bg) 92%, var(--panel));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  opacity: 0.95;
+  transition: opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.text-block-root.focused .trilium-top-toolbar {
+  opacity: 1;
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tb-btn {
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.2;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.1s ease;
+  user-select: none;
+}
+.tb-btn:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+.tb-btn:active {
+  transform: scale(0.92);
+}
+.tb-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  font-weight: 600;
+}
+.tb-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.style-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.tb-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+/* Panel emergente Inspector de Estilos y Plantillas */
+.style-inspector-panel {
+  position: absolute;
+  top: 48px;
+  right: 8px;
+  z-index: 60;
+  width: 330px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  animation: fadeIn 0.12s ease;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-tabs {
+  display: flex;
+  gap: 4px;
+}
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 5px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tab-btn.active {
+  background: var(--soft);
+  color: var(--accent);
+}
+.close-panel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--faint);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.close-panel-btn:hover {
+  color: var(--text);
+  background: var(--soft);
+}
+.field-row {
+  margin-bottom: 12px;
+}
+.field-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.segmented-control {
+  display: flex;
+  background: var(--soft);
+  padding: 2px;
+  border-radius: 6px;
+  gap: 2px;
+}
+.segmented-control button {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  border-radius: 4px;
+  transition: all 0.1s ease;
+}
+.segmented-control button.active {
+  background: var(--bg);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.color-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.color-chip {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.color-chip:hover {
+  transform: scale(1.15);
+}
+.custom-color-input {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+}
+.color-preview-text {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.size-options {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.size-pill {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  background: var(--soft);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.size-pill.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.custom-size-input {
+  width: 72px;
+  padding: 4px 7px;
+  font-size: 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+}
+.custom-size-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.font-select {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+.panel-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.btn-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-reset:hover {
+  color: #ef4444;
+}
+.btn-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent);
+  padding: 4px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* Pestaña de Plantillas */
+.templates-list-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.templates-header {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.templates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.template-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: border-color 0.15s ease;
+}
+.template-item:hover {
+  border-color: var(--accent);
+}
+.template-info {
+  cursor: pointer;
+  flex: 1;
+}
+.template-name {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.template-chips-preview {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+}
+.preview-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.preview-desc {
+  font-size: 9.5px;
+  color: var(--faint);
+}
+.template-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-apply-tpl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-delete-tpl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--faint);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-delete-tpl:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+.save-template-box {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.save-tpl-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.tpl-name-input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+}
+.btn-save-tpl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-save-tpl:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Superficie editorial limpia */
+.tiptap-surface {
+  outline: none;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--text);
+  letter-spacing: -0.01px;
+  padding: 2px 0;
+}
+
+::ng-deep .tiptap-surface .ProseMirror {
+  outline: none;
+  min-height: 36px;
+}
+
+::ng-deep .tiptap-surface p {
+  font-family: var(--custom-p-font, 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif) !important;
+  font-size: var(--custom-p-size, 16px) !important;
+  color: var(--custom-p-color, var(--text)) !important;
+  line-height: 1.7;
+  margin: 0 0 10px 0;
+}
+::ng-deep .tiptap-surface p:last-child {
+  margin-bottom: 0;
+}
+
+::ng-deep .tiptap-surface li,
+::ng-deep .tiptap-surface .task-item {
+  font-family: var(--custom-p-font, inherit);
+  font-size: var(--custom-p-size, 16px) !important;
+  color: var(--custom-p-color, inherit);
+  line-height: 1.7;
+  margin-bottom: 4px;
+}
+
+/* Encabezados H1 .. H6 con variables CSS personalizables e indicadores Markdown sutiles */
+::ng-deep .tiptap-surface h1 {
+  font-family: var(--custom-h1-font, 'DM Sans', sans-serif) !important;
+  font-size: var(--custom-h1-size, 28px) !important;
+  color: var(--custom-h1-color, var(--text)) !important;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 28px 0 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+::ng-deep .tiptap-surface h1::before {
+  content: '# ';
+  color: var(--custom-h1-color, var(--faint));
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+::ng-deep .tiptap-surface h2 {
+  font-family: var(--custom-h2-font, 'DM Sans', sans-serif) !important;
+  font-size: var(--custom-h2-size, 22px) !important;
+  color: var(--custom-h2-color, var(--text)) !important;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 22px 0 10px;
+}
+::ng-deep .tiptap-surface h2::before {
+  content: '## ';
+  color: var(--custom-h2-color, var(--faint));
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+::ng-deep .tiptap-surface h3 {
+  font-family: var(--custom-h3-font, 'DM Sans', sans-serif) !important;
+  font-size: var(--custom-h3-size, 19px) !important;
+  color: var(--custom-h3-color, var(--text)) !important;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 18px 0 8px;
+}
+::ng-deep .tiptap-surface h3::before {
+  content: '### ';
+  color: var(--custom-h3-color, var(--faint));
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+::ng-deep .tiptap-surface h4 {
+  font-family: var(--custom-h4-font, 'DM Sans', sans-serif) !important;
+  font-size: var(--custom-h4-size, 17px) !important;
+  color: var(--custom-h4-color, var(--text)) !important;
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 14px 0 6px;
+}
+::ng-deep .tiptap-surface h4::before {
+  content: '#### ';
+  color: var(--custom-h4-color, var(--faint));
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+::ng-deep .tiptap-surface h5 {
+  font-family: var(--custom-h5-font, 'DM Sans', sans-serif) !important;
+  font-size: var(--custom-h5-size, 15.5px) !important;
+  color: var(--custom-h5-color, var(--text)) !important;
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+::ng-deep .tiptap-surface h5::before {
+  content: '##### ';
+  color: var(--custom-h5-color, var(--faint));
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+::ng-deep .tiptap-surface h6 {
+  font-family: var(--custom-h6-font, 'DM Sans', sans-serif) !important;
+  font-size: var(--custom-h6-size, 14.5px) !important;
+  color: var(--custom-h6-color, var(--muted)) !important;
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 10px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+::ng-deep .tiptap-surface h6::before {
+  content: '###### ';
+  color: var(--custom-h6-color, var(--faint));
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+/* Listas tradicionales */
+::ng-deep .tiptap-surface ul:not([data-type='taskList']) {
+  padding-left: 28px;
+  margin: 8px 0 12px;
+}
+::ng-deep .tiptap-surface ol {
+  padding-left: 28px;
+  margin: 8px 0 12px;
+}
+::ng-deep .tiptap-surface li {
+  margin-bottom: 4px;
+}
+
+/* Checklists / Task Lists interactivas estilo Trilium */
+::ng-deep .tiptap-surface ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 4px;
+  margin: 6px 0 10px;
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 4px;
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li > label {
+  user-select: none;
+  cursor: pointer;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li > div {
+  flex: 1;
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li input[type='checkbox'] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  margin: 0;
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li input[type='checkbox']:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li input[type='checkbox']:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 4.5px;
+  width: 4px;
+  height: 7.5px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+::ng-deep .tiptap-surface ul[data-type='taskList'] li[data-checked='true'] > div {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+/* Citas editoriales estilo tarjeta Trilium con comillas gigantes */
+::ng-deep .tiptap-surface blockquote {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  border-radius: 10px;
+  padding: 0.9em 2.2em;
+  position: relative;
+  margin: 12px 0;
+  font-style: normal;
+  color: var(--text);
+}
+::ng-deep .tiptap-surface blockquote::before {
+  content: '“';
+  position: absolute;
+  top: -4px;
+  left: 10px;
+  font-size: 38px;
+  line-height: 1;
+  opacity: 0.15;
+  font-family: Georgia, serif;
+  pointer-events: none;
+  color: var(--text);
+}
+::ng-deep .tiptap-surface blockquote::after {
+  content: '”';
+  position: absolute;
+  bottom: -20px;
+  right: 14px;
+  font-size: 38px;
+  line-height: 1;
+  opacity: 0.15;
+  font-family: Georgia, serif;
+  pointer-events: none;
+  color: var(--text);
+}
+::ng-deep .tiptap-surface blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* Código en línea y bloques de código */
+::ng-deep .tiptap-surface code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  background: var(--soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+::ng-deep .tiptap-surface pre {
+  background: #131722;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 12px 0;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+::ng-deep .tiptap-surface pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* Línea divisoria HR */
+::ng-deep .tiptap-surface hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
+
+/* Placeholder sutil */
+::ng-deep .tiptap-surface p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--faint);
+  pointer-events: none;
+  height: 0;
+}

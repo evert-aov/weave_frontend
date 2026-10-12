@@ -1,0 +1,59 @@
+<div class="latex-block-root" [class.editing]="isEditing()" [class.reading-mode]="notesService.isReadingMode()">
+  <!-- Modo Edición: Textarea auto-expandible con cabecera y vista previa en vivo -->
+  @if (isEditing()) {
+    <div class="latex-editor-card">
+      <div class="editor-bar">
+        <div class="badge-tag">
+          <span class="sigma-glyph">∑</span>
+          <span class="badge-text">LaTeX Formula</span>
+        </div>
+        <div class="bar-actions">
+          <span class="hint-key">Ctrl + Enter</span>
+          <button type="button" class="done-btn" (mousedown)="finishEditing($event)">
+            {{ i18n.currentLang() === 'es' ? 'Listo' : 'Done' }}
+          </button>
+        </div>
+      </div>
+
+      <textarea
+        #textareaEl
+        [(ngModel)]="rawFormula"
+        (input)="onFormulaInput()"
+        (keydown.control.enter)="saveAndPreview()"
+        (blur)="onBlurEditor()"
+        [placeholder]="'Ej: \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}'"
+        class="latex-textarea"
+      ></textarea>
+
+      <!-- Vista previa en vivo mientras escribe -->
+      <div class="live-preview-box">
+        <div class="live-preview-label">
+          {{ i18n.currentLang() === 'es' ? 'Vista previa en vivo' : 'Live Preview' }}
+        </div>
+        <div #liveTarget class="math-render-surface"></div>
+      </div>
+    </div>
+  } @else {
+    <!-- Modo Visualización: Fórmula integrada naturalmente al documento (sin scroll) -->
+    <div
+      class="latex-display-card"
+      (click)="onCardClick()"
+      [title]="notesService.isReadingMode() ? '' : 'Haz clic para editar la fórmula'"
+    >
+      @if (!notesService.isReadingMode()) {
+        <div class="top-tag">
+          <span class="sigma-glyph">∑</span>
+          <span>LaTeX</span>
+        </div>
+      }
+
+      <div #displayTarget class="math-render-surface main-display"></div>
+
+      @if (!notesService.isReadingMode()) {
+        <button type="button" class="quick-edit-btn" (click)="$event.stopPropagation(); enableEdit()">
+          {{ i18n.currentLang() === 'es' ? 'Editar' : 'Edit' }}
+        </button>
+      }
+    </div>
+  }
+</div>

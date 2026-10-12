@@ -1,0 +1,35 @@
+<div class="code-block-card" [class.reading-mode]="notesService.isReadingMode()">
+  <!-- Barra superior con selector de lenguaje y botón copiar -->
+  <div class="code-topbar">
+    <div class="lang-selector">
+      <i class="lang-dot"></i>
+      @if (!notesService.isReadingMode()) {
+        <select [(ngModel)]="currentLanguage" (change)="onLanguageChange()">
+          <option value="python">Python</option>
+          <option value="typescript">TypeScript</option>
+          <option value="javascript">JavaScript</option>
+          <option value="json">JSON</option>
+          <option value="html">HTML</option>
+          <option value="css">CSS</option>
+          <option value="sql">SQL</option>
+        </select>
+      } @else {
+        <span class="lang-badge">{{ currentLanguage.toUpperCase() }}</span>
+      }
+    </div>
+    <button type="button" class="copy-btn" (click)="copyCode()">
+      {{ isCopied() ? i18n.t('block.code.copied') : i18n.t('block.code.copy') }}
+    </button>
+  </div>
+
+  <!-- Contenedor del editor Monaco -->
+  <div #monacoContainer class="monaco-mount" [style.height.px]="editorHeight()"></div>
+
+  <!-- Barra inferior de estado -->
+  @if (!notesService.isReadingMode()) {
+    <div class="code-statusbar">
+      <span>Ln {{ currentLine() }}, Col {{ currentCol() }}</span>
+      <span>UTF-8 &nbsp;&nbsp; Spaces: 2</span>
+    </div>
+  }
+</div>

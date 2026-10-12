@@ -1,0 +1,32 @@
+<div
+  class="univer-sheet-block"
+  [class.reading-mode]="notesService.isReadingMode()"
+>
+  <!-- Barra superior de información del bloque -->
+  <div class="sheet-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
+    <div class="sheet-info-group">
+      <span class="badge-icon">📊</span>
+      <span class="badge-title">
+        {{ i18n.currentLang() === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' }}
+      </span>
+      @if (!notesService.isReadingMode()) {
+        <span class="badge-subtitle">
+          {{ i18n.currentLang() === 'es' ? 'Cálculos matemáticos reales en vivo' : 'Live real-time formulas & computing' }}
+        </span>
+      }
+    </div>
+  </div>
+
+  <div
+    class="sheet-container-wrapper"
+    [style.height.px]="notesService.isReadingMode() ? readingHeight() : 460"
+  >
+    <div
+      #sheetContainer
+      class="univer-container"
+      [style.zoom]="1 / notesService.documentZoom()"
+      [style.width.%]="100 * notesService.documentZoom()"
+      [style.height.%]="100 * notesService.documentZoom()"
+    ></div>
+  </div>
+</div>

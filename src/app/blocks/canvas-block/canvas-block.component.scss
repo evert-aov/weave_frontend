@@ -1,0 +1,36 @@
+.excalidraw-block-container {
+  width: 100%;
+  height: 520px;
+  position: relative;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  transition: height 0.2s ease, border-color 0.2s ease;
+}
+.excalidraw-block-container.reading-mode {
+  height: 460px;
+  box-shadow: none;
+  border: 1px solid var(--border);
+  margin: 6px 0;
+}
+.excalidraw-mount-point {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+::ng-deep .excalidraw {
+  height: 100% !important;
+  width: 100% !important;
+}
+/* Modo Lectura: Ocultar barra de herramientas de dibujo y controles de edición */
+::ng-deep .excalidraw-block-container.reading-mode .App-toolbar,
+::ng-deep .excalidraw-block-container.reading-mode .layer-ui__wrapper .zen-mode-transition,
+::ng-deep .excalidraw-block-container.reading-mode .App-bottom-bar,
+::ng-deep .excalidraw-block-container.reading-mode .help-icon,
+::ng-deep .excalidraw-block-container.reading-mode .dropdown-menu-button {
+  display: none !important;
+}

@@ -1,0 +1,160 @@
+.image-block-wrap {
+  width: 100%;
+  margin: 6px 0;
+}
+.dropzone {
+  border: 2px dashed var(--border-strong);
+  border-radius: 9px;
+  background: var(--panel);
+  padding: 36px 20px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+.dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+.drop-text {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+.drop-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-cancel {
+  height: 32px;
+  padding: 0 14px;
+  background: var(--soft);
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.camera-stream-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.camera-video {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 8px;
+  background: #000;
+}
+.camera-actions {
+  display: flex;
+  gap: 10px;
+}
+.image-preview-card {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--panel);
+}
+.image-container {
+  position: relative;
+  width: 100%;
+  max-height: 480px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  background: var(--canvas);
+}
+.image-container img {
+  width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+}
+.replace-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+}
+.replace-btn:hover {
+  background: rgba(239, 68, 68, 0.9);
+}
+.caption-wrapper {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+}
+.caption-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  font-style: italic;
+  outline: none;
+}
+.caption-input:focus {
+  color: var(--text);
+}
+.caption-text {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  font-style: italic;
+  margin: 0;
+}
+.image-preview-card.reading-mode {
+  box-shadow: none;
+  border: none;
+  background: transparent;
+}
+.uploading-indicator {
+  font-size: 11px;
+  color: var(--accent);
+}

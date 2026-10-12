@@ -1,0 +1,150 @@
+.mermaid-block-card {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 55%, var(--bg));
+  overflow: hidden;
+  margin: 10px 0;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.mermaid-block-card:hover {
+  border-color: var(--border-strong);
+}
+.mermaid-block-card.reading-mode {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 6px 0;
+}
+.mermaid-header {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 85%, var(--bg));
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mermaid-tag {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+.header-hint {
+  font-size: 11px;
+  color: var(--faint);
+}
+.mode-btn {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 5px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.mode-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.mermaid-editor {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  outline: none;
+  box-sizing: border-box;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.editor-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2px;
+}
+.shortcut-tip {
+  font-size: 11px;
+  color: var(--faint);
+}
+.done-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent);
+  border-radius: 5px;
+  padding: 3px 12px;
+  transition: opacity 0.15s ease;
+}
+.done-btn:hover {
+  opacity: 0.9;
+}
+.mermaid-preview {
+  padding: 24px 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+  overflow-x: auto;
+  cursor: pointer;
+}
+.mermaid-block-card.reading-mode .mermaid-preview {
+  padding: 8px 0;
+  cursor: default;
+}
+.svg-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+::ng-deep .svg-container svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+::ng-deep .mermaid-error-box {
+  padding: 14px 18px;
+  background: color-mix(in srgb, #ef4444 8%, var(--bg));
+  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+::ng-deep .mermaid-error-box .error-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ef4444;
+  margin-bottom: 6px;
+}
+::ng-deep .mermaid-error-box pre {
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

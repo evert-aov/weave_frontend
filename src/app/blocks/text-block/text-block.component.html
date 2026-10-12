@@ -1,0 +1,519 @@
+<div
+  class="text-block-root"
+  [class.focused]="isFocused"
+  [class.reading-mode]="notesService.isReadingMode()"
+  (click)="onRootClick($event)"
+  [style.--custom-p-color]="blockStyles.p?.color || null"
+  [style.--custom-p-size]="blockStyles.p?.fontSize || null"
+  [style.--custom-p-font]="blockStyles.p?.fontFamily || null"
+  [style.--custom-h1-color]="blockStyles.h1?.color || null"
+  [style.--custom-h1-size]="blockStyles.h1?.fontSize || null"
+  [style.--custom-h1-font]="blockStyles.h1?.fontFamily || null"
+  [style.--custom-h2-color]="blockStyles.h2?.color || null"
+  [style.--custom-h2-size]="blockStyles.h2?.fontSize || null"
+  [style.--custom-h2-font]="blockStyles.h2?.fontFamily || null"
+  [style.--custom-h3-color]="blockStyles.h3?.color || null"
+  [style.--custom-h3-size]="blockStyles.h3?.fontSize || null"
+  [style.--custom-h3-font]="blockStyles.h3?.fontFamily || null"
+  [style.--custom-h4-color]="blockStyles.h4?.color || null"
+  [style.--custom-h4-size]="blockStyles.h4?.fontSize || null"
+  [style.--custom-h4-font]="blockStyles.h4?.fontFamily || null"
+  [style.--custom-h5-color]="blockStyles.h5?.color || null"
+  [style.--custom-h5-size]="blockStyles.h5?.fontSize || null"
+  [style.--custom-h5-font]="blockStyles.h5?.fontFamily || null"
+  [style.--custom-h6-color]="blockStyles.h6?.color || null"
+  [style.--custom-h6-size]="blockStyles.h6?.fontSize || null"
+  [style.--custom-h6-font]="blockStyles.h6?.fontFamily || null"
+>
+  <!-- Barra de herramientas superior estilo Trilium (siempre arriba, sticky) -->
+  @if (editor && !notesService.isReadingMode()) {
+    <div class="trilium-top-toolbar" (mousedown)="$event.preventDefault()">
+      <div class="toolbar-group">
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('paragraph')"
+          (click)="setParagraph()"
+          title="Texto normal"
+        >
+          ¶
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('heading', { level: 1 })"
+          (click)="toggleHeading(1)"
+          title="Título 1 (H1)"
+        >
+          H1
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('heading', { level: 2 })"
+          (click)="toggleHeading(2)"
+          title="Título 2 (H2)"
+        >
+          H2
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('heading', { level: 3 })"
+          (click)="toggleHeading(3)"
+          title="Título 3 (H3)"
+        >
+          H3
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('heading', { level: 4 })"
+          (click)="toggleHeading(4)"
+          title="Título 4 (H4)"
+        >
+          H4
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('heading', { level: 5 })"
+          (click)="toggleHeading(5)"
+          title="Título 5 (H5)"
+        >
+          H5
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('heading', { level: 6 })"
+          (click)="toggleHeading(6)"
+          title="Título 6 (H6)"
+        >
+          H6
+        </button>
+      </div>
+
+      <span class="tb-divider"></span>
+
+      <div class="toolbar-group">
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('bold')"
+          (click)="editor.chain().focus().toggleBold().run()"
+          title="Negrita (Ctrl+B)"
+        >
+          <b>B</b>
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('italic')"
+          (click)="editor.chain().focus().toggleItalic().run()"
+          title="Cursiva (Ctrl+I)"
+        >
+          <i>I</i>
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('strike')"
+          (click)="editor.chain().focus().toggleStrike().run()"
+          title="Tachado"
+        >
+          <s>S</s>
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('code')"
+          (click)="editor.chain().focus().toggleCode().run()"
+          title="Código en línea"
+        >
+          &lt;/&gt;
+        </button>
+      </div>
+
+      <span class="tb-divider"></span>
+
+      <div class="toolbar-group">
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('bulletList')"
+          (click)="editor.chain().focus().toggleBulletList().run()"
+          title="Lista con viñetas"
+        >
+          • Lista
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('orderedList')"
+          (click)="editor.chain().focus().toggleOrderedList().run()"
+          title="Lista numerada"
+        >
+          1. Num
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('taskList')"
+          (click)="editor.chain().focus().toggleTaskList().run()"
+          title="Lista de tareas (Checklist)"
+        >
+          ☑ Tareas
+        </button>
+      </div>
+
+      <span class="tb-divider"></span>
+
+      <div class="toolbar-group">
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('blockquote')"
+          (click)="editor.chain().focus().toggleBlockquote().run()"
+          title="Cita estilo tarjeta"
+        >
+          ❝ Cita
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          [class.active]="editor.isActive('codeBlock')"
+          (click)="editor.chain().focus().toggleCodeBlock().run()"
+          title="Bloque de código"
+        >
+          💻 Bloque
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          (click)="editor.chain().focus().setHorizontalRule().run()"
+          title="Línea divisoria"
+        >
+          — HR
+        </button>
+      </div>
+
+      <span class="tb-divider"></span>
+
+      <div class="toolbar-group">
+        <!-- Botón Inspector de Estilos y Plantillas -->
+        <button
+          type="button"
+          class="tb-btn style-toggle-btn"
+          [class.active]="showStylePanel()"
+          (click)="toggleStylePanel($event)"
+          title="Personalizar estilos para H1..H6 o aplicar plantillas"
+        >
+          <app-icon name="palette" [size]="13"></app-icon>
+          <span>{{ i18n.currentLang() === 'es' ? 'Estilos & Plantillas' : 'Styles & Templates' }}</span>
+        </button>
+      </div>
+
+      <span class="tb-divider"></span>
+
+      <div class="toolbar-group history-group">
+        <button
+          type="button"
+          class="tb-btn"
+          (click)="editor.chain().focus().undo().run()"
+          [disabled]="!editor.can().undo()"
+          title="Deshacer (Ctrl+Z)"
+        >
+          <app-icon name="undo" [size]="13"></app-icon>
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          (click)="editor.chain().focus().redo().run()"
+          [disabled]="!editor.can().redo()"
+          title="Rehacer (Ctrl+Y)"
+        >
+          <app-icon name="redo" [size]="13"></app-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel Emergente para Personalizar Estilos de H1..H6 y Plantillas -->
+    @if (showStylePanel() && !notesService.isReadingMode()) {
+      <div
+        class="style-inspector-panel"
+        (click)="$event.stopPropagation()"
+        (mousedown)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
+      >
+        <!-- Cabecera y selector de pestaña -->
+        <div class="panel-header">
+          <div class="panel-tabs">
+            <button
+              type="button"
+              class="tab-btn"
+              [class.active]="activeTab() === 'customize'"
+              (click)="activeTab.set('customize')"
+            >
+              <app-icon name="sliders" [size]="13"></app-icon>
+              <span>{{ i18n.currentLang() === 'es' ? 'Personalizar' : 'Customize' }}</span>
+            </button>
+            <button
+              type="button"
+              class="tab-btn"
+              [class.active]="activeTab() === 'templates'"
+              (click)="activeTab.set('templates')"
+            >
+              <app-icon name="folder" [size]="13"></app-icon>
+              <span>{{ i18n.currentLang() === 'es' ? 'Plantillas' : 'Templates' }}</span>
+            </button>
+          </div>
+          <button type="button" class="close-panel-btn" (click)="showStylePanel.set(false)" title="Cerrar">
+            <app-icon name="close" [size]="13"></app-icon>
+          </button>
+        </div>
+
+        <!-- Pestaña 1: Personalizar H1 .. H6 -->
+        @if (activeTab() === 'customize') {
+          <!-- Selector de Elemento Objetivo (Texto normal o H1 a H6) -->
+          <div class="field-row">
+            <label class="field-label">{{ i18n.currentLang() === 'es' ? 'Elemento' : 'Element' }}:</label>
+            <div class="segmented-control">
+              @for (el of targetElements; track el) {
+                <button
+                  type="button"
+                  [class.active]="selectedElement() === el"
+                  (click)="selectedElement.set(el)"
+                >
+                  {{ el === 'p' ? (i18n.currentLang() === 'es' ? 'Texto' : 'Body') : el.toUpperCase() }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Selector de Color -->
+          <div class="field-row">
+            <label class="field-label">{{ i18n.currentLang() === 'es' ? 'Color' : 'Color' }}:</label>
+            <div class="color-options">
+              <button
+                type="button"
+                class="color-chip"
+                [style.background]="'#ef4444'"
+                (click)="setCurrentElementColor('#ef4444')"
+                title="Rojo (Red)"
+              ></button>
+              <button
+                type="button"
+                class="color-chip"
+                [style.background]="'#3b82f6'"
+                (click)="setCurrentElementColor('#3b82f6')"
+                title="Azul (Blue)"
+              ></button>
+              <button
+                type="button"
+                class="color-chip"
+                [style.background]="'#10b981'"
+                (click)="setCurrentElementColor('#10b981')"
+                title="Verde (Green)"
+              ></button>
+              <button
+                type="button"
+                class="color-chip"
+                [style.background]="'#f59e0b'"
+                (click)="setCurrentElementColor('#f59e0b')"
+                title="Ámbar (Amber)"
+              ></button>
+              <button
+                type="button"
+                class="color-chip"
+                [style.background]="'#8b5cf6'"
+                (click)="setCurrentElementColor('#8b5cf6')"
+                title="Púrpura (Purple)"
+              ></button>
+              <button
+                type="button"
+                class="color-chip"
+                [style.background]="'var(--text)'"
+                (click)="setCurrentElementColor('')"
+                title="Por defecto"
+              ></button>
+              <input
+                type="color"
+                [value]="getCurrentElementColor() || '#ef4444'"
+                (change)="onCustomColorChange($event)"
+                class="custom-color-input"
+                title="Color personalizado"
+              />
+              <span class="color-preview-text" [style.color]="getCurrentElementColor() || 'inherit'">
+                {{ getCurrentElementColor() || 'Auto' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Selector de Tamaño de Fuente (Soporta entrada manual de px libre de bugs) -->
+          <div class="field-row">
+            <label class="field-label">{{ i18n.currentLang() === 'es' ? 'Tamaño (px)' : 'Size (px)' }}:</label>
+            <div class="size-options">
+              <button
+                type="button"
+                class="size-pill"
+                [class.active]="getCurrentElementSize() === '14px'"
+                (click)="setCurrentElementSize('14px')"
+              >
+                14px
+              </button>
+              <button
+                type="button"
+                class="size-pill"
+                [class.active]="getCurrentElementSize() === '16px'"
+                (click)="setCurrentElementSize('16px')"
+              >
+                16px
+              </button>
+              <button
+                type="button"
+                class="size-pill"
+                [class.active]="getCurrentElementSize() === '18px'"
+                (click)="setCurrentElementSize('18px')"
+              >
+                18px
+              </button>
+              <button
+                type="button"
+                class="size-pill"
+                [class.active]="getCurrentElementSize() === '22px'"
+                (click)="setCurrentElementSize('22px')"
+              >
+                22px
+              </button>
+              <button
+                type="button"
+                class="size-pill"
+                [class.active]="getCurrentElementSize() === '28px'"
+                (click)="setCurrentElementSize('28px')"
+              >
+                28px
+              </button>
+              <input
+                type="text"
+                [ngModel]="getCurrentElementSize()"
+                (ngModelChange)="onManualSizeInput($event)"
+                (click)="$event.stopPropagation()"
+                (keydown)="$event.stopPropagation()"
+                placeholder="ej. 16px"
+                class="custom-size-input"
+                title="Introduce un tamaño exacto (ej. 16px)"
+              />
+            </div>
+          </div>
+
+          <!-- Selector de Tipografía -->
+          <div class="field-row">
+            <label class="field-label">{{ i18n.currentLang() === 'es' ? 'Fuente' : 'Font' }}:</label>
+            <select
+              class="font-select"
+              [value]="getCurrentElementFont() || ''"
+              (change)="onCustomFontChange($event)"
+            >
+              <option value="">Por defecto (DM Sans)</option>
+              <option value="'Courier New', Courier, monospace">Courier New (Monospace)</option>
+              <option value="'JetBrains Mono', monospace">JetBrains Mono (Code)</option>
+              <option value="'Libre Caslon Display', Georgia, serif">Libre Caslon (Serif Editorial)</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="Arial, sans-serif">Arial</option>
+            </select>
+          </div>
+
+          <!-- Acciones de Personalización -->
+          <div class="panel-actions">
+            <button type="button" class="btn-reset" (click)="resetCurrentElementStyle()">
+              <app-icon name="refresh" [size]="12"></app-icon>
+              <span>{{ i18n.currentLang() === 'es' ? 'Restablecer Nivel' : 'Reset Level' }}</span>
+            </button>
+            <button type="button" class="btn-save" (click)="showStylePanel.set(false)">
+              <app-icon name="check" [size]="12"></app-icon>
+              <span>{{ i18n.currentLang() === 'es' ? 'Listo' : 'Done' }}</span>
+            </button>
+          </div>
+        }
+
+        <!-- Pestaña 2: Plantillas de Estilo Guardadas -->
+        @if (activeTab() === 'templates') {
+          <div class="templates-list-wrapper">
+            <div class="templates-header">
+              <span>{{ i18n.currentLang() === 'es' ? 'Plantillas Disponibles:' : 'Available Templates:' }}</span>
+            </div>
+
+            <div class="templates-list">
+              @for (tpl of allTemplates(); track tpl.id) {
+                <div class="template-item">
+                  <div class="template-info" (click)="applyTemplate(tpl)">
+                    <span class="template-name">{{ tpl.name }}</span>
+                    <div class="template-chips-preview">
+                      @if (tpl.styles.p?.color) {
+                        <span class="preview-dot" [style.background]="tpl.styles.p?.color" title="Texto"></span>
+                      }
+                      @if (tpl.styles.h1?.color) {
+                        <span class="preview-dot" [style.background]="tpl.styles.h1?.color" title="H1"></span>
+                      }
+                      <span class="preview-desc">
+                        {{ tpl.styles.p?.fontSize || tpl.styles.h1?.fontSize || '14px' }} · {{ (tpl.styles.p?.fontFamily || tpl.styles.h1?.fontFamily || 'DM Sans').split(',')?.[0]?.replace("'", "") }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="template-actions">
+                    <button type="button" class="btn-apply-tpl" (click)="applyTemplate(tpl)">
+                      <app-icon name="check" [size]="11"></app-icon>
+                      <span>{{ i18n.currentLang() === 'es' ? 'Aplicar' : 'Apply' }}</span>
+                    </button>
+                    @if (!tpl.isDefault) {
+                      <button
+                        type="button"
+                        class="btn-delete-tpl"
+                        (click)="deleteCustomTemplate(tpl.id)"
+                        title="Eliminar plantilla"
+                      >
+                        <app-icon name="trash" [size]="12"></app-icon>
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Guardar Estilo Actual como Nueva Plantilla -->
+            <div class="save-template-box">
+              <label class="field-label">
+                {{ i18n.currentLang() === 'es' ? 'Guardar estilo actual como plantilla:' : 'Save current as template:' }}
+              </label>
+              <div class="save-tpl-form">
+                <input
+                  type="text"
+                  [(ngModel)]="newTemplateName"
+                  (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
+                  (keydown.enter)="saveCurrentAsTemplate()"
+                  [placeholder]="i18n.currentLang() === 'es' ? 'Nombre de plantilla (ej. Mis Títulos Rojos)' : 'Template name'"
+                  class="tpl-name-input"
+                />
+                <button
+                  type="button"
+                  class="btn-save-tpl"
+                  (click)="saveCurrentAsTemplate()"
+                  [disabled]="!newTemplateName.trim()"
+                >
+                  <app-icon name="save" [size]="12"></app-icon>
+                  <span>{{ i18n.currentLang() === 'es' ? 'Guardar' : 'Save' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- Superficie de notas despejada: el texto comienza de inmediato arriba -->
+  <div #editorElement class="tiptap-surface"></div>
+</div>
