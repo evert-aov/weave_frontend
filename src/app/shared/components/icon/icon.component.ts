@@ -43,7 +43,9 @@ export type IconName =
   | 'printer'
   | 'zoom-in'
   | 'zoom-out'
-  | 'target';
+  | 'target'
+  | 'file-text'
+  | 'paperclip';
 
 /**
  * Componente de Iconos vectoriales de Weave.

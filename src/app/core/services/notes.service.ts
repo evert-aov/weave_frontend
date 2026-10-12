@@ -356,6 +356,18 @@ export class NotesService {
   }
 
   /**
+   * Sube un archivo o documento (PDF, Word, Excel, PPTX, etc.) al servidor de activos.
+   */
+  uploadAsset(file: File): Observable<{ url: string; originalName: string; mimeType: string; size: number }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ url: string; originalName: string; mimeType: string; size: number }>(
+      `${this.assetsUrl}/upload`,
+      formData,
+    );
+  }
+
+  /**
    * Contenido inicial según el tipo de bloque.
    */
   private getDefaultContentForType(type: BlockType): Record<string, any> {
@@ -390,6 +402,14 @@ export class NotesService {
         return {
           url: '',
           caption: '',
+        };
+      case 'file':
+        return {
+          url: '',
+          name: '',
+          size: 0,
+          mimeType: '',
+          extension: '',
         };
     }
   }

@@ -86,6 +86,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'slash.mermaid_desc': 'Flujos y mapas conceptuales en SVG interactivo',
     'slash.image_title': 'Imagen',
     'slash.image_desc': 'Subida de archivos o captura de cámara con pie de foto',
+    'slash.file_title': 'Archivo o documento',
+    'slash.file_desc': 'Adjunta PDFs, Word, Excel o PowerPoint con vista previa',
 
     // Autenticación
     'auth.login_title': 'Bienvenido a Weave',
@@ -184,6 +186,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'slash.mermaid_desc': 'Create diagrams from text with interactive SVG',
     'slash.image_title': 'Image',
     'slash.image_desc': 'File upload or camera capture with caption',
+    'slash.file_title': 'File or Document',
+    'slash.file_desc': 'Attach PDF, Word, Excel, or PowerPoint with preview',
 
     // Auth
     'auth.login_title': 'Welcome to Weave',

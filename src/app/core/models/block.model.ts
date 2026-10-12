@@ -8,7 +8,8 @@ export type BlockType =
   | 'image'
   | 'sheet'
   | 'code'
-  | 'mermaid';
+  | 'mermaid'
+  | 'file';
 
 /**
  * Interfaz que define un bloque dentro de un documento.

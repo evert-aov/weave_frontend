@@ -7,7 +7,7 @@
     >
       <!-- Metadatos de la nota -->
       <div class="doc-meta">
-        <span class="space-badge">{{ note.space }}</span>
+        <span class="space-badge">{{ formatSpacePath(note.space) }}</span>
         <span>{{ i18n.t('doc.updated') }}</span>
       </div>
 
@@ -79,6 +79,9 @@
                 }
                 @case ('mermaid') {
                   <app-mermaid-block [block]="block"></app-mermaid-block>
+                }
+                @case ('file') {
+                  <app-file-block [block]="block"></app-file-block>
                 }
               }
             </div>

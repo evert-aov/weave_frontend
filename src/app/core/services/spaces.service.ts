@@ -35,14 +35,15 @@ export class SpacesService {
   }
 
   /**
-   * Crea un nuevo espacio/directorio en MongoDB.
+   * Crea un nuevo espacio/directorio o subdirectorio en MongoDB.
    */
-  createSpace(name: string, color = 'indigo'): Observable<Space> {
+  createSpace(name: string, color = 'indigo', parentId?: string | null): Observable<Space> {
     return this.http
       .post<Space>(this.apiUrl, {
         name: name.trim(),
         color,
         icon: 'folder',
+        parentId: parentId || null,
       })
       .pipe(
         tap((newSpace) => {

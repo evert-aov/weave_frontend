@@ -136,42 +136,104 @@
   flex-direction: column;
   gap: 2px;
 }
-.space-item {
+
+.space-node {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.space-row-container {
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-radius: 6px;
+  position: relative;
+  transition: background 0.15s ease;
+  padding-left: calc(var(--tree-level, 0) * 12px);
+
+  &:hover {
+    background: var(--soft);
+
+    .space-actions {
+      opacity: 1;
+    }
+  }
+
+  &.selected-space {
+    background: color-mix(in srgb, var(--soft) 70%, var(--accent-soft));
+  }
 }
-.space-item:hover {
-  background: var(--soft);
-}
-.space-item.selected-space {
-  background: color-mix(in srgb, var(--soft) 70%, var(--accent-soft));
-}
+
 .tree-row {
   flex: 1;
   min-width: 0;
   height: 30px;
-  padding: 0 8px;
+  padding: 0 6px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   color: var(--muted);
   font-size: 12px;
   text-align: left;
   white-space: nowrap;
+  background: transparent;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+  }
 }
-.tree-row.selected {
-  background: var(--soft);
-  color: var(--text);
-  font-weight: 600;
+
+.chevron-toggle {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  transition: transform 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+  border-radius: 3px;
+
+  &:hover {
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  &.expanded {
+    transform: rotate(90deg);
+  }
 }
+
+.folder-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+
+  &.indigo { color: #635bde; }
+  &.violet { color: #9a5be6; }
+  &.teal { color: #26a8a1; }
+  &.amber { color: #f59e0b; }
+  &.rose { color: #f43f5e; }
+}
+
 .space-title {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
 }
+
+.notes-count {
+  font-size: 9px;
+  color: var(--faint);
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .space-actions {
   display: flex;
   align-items: center;
@@ -180,9 +242,7 @@
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-.space-item:hover .space-actions {
-  opacity: 1;
-}
+
 .space-action-btn {
   width: 18px;
   height: 18px;
@@ -190,44 +250,66 @@
   place-items: center;
   border-radius: 4px;
   color: var(--faint);
+  position: relative;
+  background: transparent;
+
+  &:hover {
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  &.delete-space:hover {
+    color: #ef4444;
+  }
+
+  .action-sub-plus {
+    position: absolute;
+    top: -2px;
+    right: -1px;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+  }
 }
-.space-action-btn:hover {
-  color: var(--text);
-  background: var(--bg);
-}
-.delete-space:hover {
-  color: #ef4444;
-}
-.notes-tree {
+
+.space-children {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 2px 0 6px;
+  gap: 1px;
 }
-.tree-row.child {
-  padding: 0 10px 0 22px;
-  height: 32px;
-  font-size: 13px;
-  border-radius: 6px;
-  font-weight: 450;
-  transition: background 0.15s ease, color 0.15s ease;
+
+.tree-row.note-row {
+  height: 28px;
+  padding-left: calc(22px + (var(--tree-level, 0) * 12px));
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+
+  &:hover {
+    background: var(--soft);
+    color: var(--text);
+  }
+
+  &.selected {
+    background: color-mix(in srgb, var(--accent) 15%, var(--soft));
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .note-tree-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11.5px;
+  }
 }
-.tree-row.child:hover {
-  background: var(--soft);
-  color: var(--text);
-}
-.tree-row.child.selected {
-  background: color-mix(in srgb, var(--accent) 15%, var(--soft));
-  color: var(--text);
-  font-weight: 600;
-}
-.note-tree-title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-  letter-spacing: -0.01em;
-}
+
 .empty-space-hint {
   padding: 6px 0 6px 24px;
   color: var(--faint);

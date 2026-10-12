@@ -27,6 +27,6 @@ export class WorkspaceComponent implements OnInit {
 
   ngOnInit(): void {
     this.spacesService.loadSpaces().subscribe();
-    this.notesService.loadNotes('Research').subscribe();
+    this.notesService.loadNotes().subscribe();
   }
 }

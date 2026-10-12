@@ -5,9 +5,16 @@
 export interface Space {
   _id: string;
   name: string;
+  parentId?: string | null;
+  path?: string;
+  order?: number;
   color: string;
   icon?: string;
   userId: string;
   createdAt?: string;
   updatedAt?: string;
+  // Propiedades calculadas en el frontend para el árbol de directorios
+  children?: Space[];
+  level?: number;
+  isExpanded?: boolean;
 }

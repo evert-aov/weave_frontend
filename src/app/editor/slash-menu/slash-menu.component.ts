@@ -87,6 +87,13 @@ export class SlashMenuComponent {
       titleKey: 'slash.image_title',
       descKey: 'slash.image_desc',
     },
+    {
+      type: 'file',
+      icon: 'paperclip',
+      command: '/file',
+      titleKey: 'slash.file_title',
+      descKey: 'slash.file_desc',
+    },
   ];
 
   @HostListener('window:keydown', ['$event'])

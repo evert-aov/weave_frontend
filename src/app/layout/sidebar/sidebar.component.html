@@ -41,7 +41,7 @@
       [class.active]="!notesService.activeSpace() || notesService.activeSpace() === 'all'"
       (click)="showAllNotes()"
     >
-      <app-icon name="file" [size]="15"></app-icon>
+      <app-icon name="grid" [size]="15"></app-icon>
       @if (!notesService.isSidebarCollapsed()) {
         <span>{{ i18n.t('nav.all_documents') }}</span>
         <small class="count-badge">{{ totalNotesCount() }}</small>
@@ -49,7 +49,7 @@
     </button>
   </nav>
 
-  <!-- Sección de Espacios (Directorios reales en MongoDB) -->
+  <!-- Sección de Espacios / Jerarquía de Directorios -->
   @if (!notesService.isSidebarCollapsed()) {
     <div class="sidebar-section">
       <div class="section-label">
@@ -57,87 +57,131 @@
         <button
           type="button"
           (click)="promptCreateSpace()"
-          title="Crear nuevo directorio/espacio"
+          [title]="i18n.currentLang() === 'es' ? 'Crear directorio raíz' : 'Create root directory'"
         >
           <app-icon name="plus" [size]="13"></app-icon>
         </button>
       </div>
 
-      <!-- Listado de directorios / espacios de la base de datos -->
+      <!-- Árbol jerárquico de directorios y notas -->
       <div class="spaces-list">
-        @for (space of spacesService.spacesList(); track space._id) {
-          <div class="space-item" [class.selected-space]="notesService.activeSpace() === space.name">
-            <button
-              type="button"
-              class="tree-row"
-              (click)="selectSpace(space)"
-            >
-              <span class="dot" [ngClass]="space.color || 'indigo'"></span>
-              <span
-                class="space-title"
-                (dblclick)="renameSpace(space, $event)"
-                [title]="i18n.currentLang() === 'es' ? 'Doble clic para renombrar' : 'Double click to rename'"
-              >{{ space.name }}</span>
-              <app-icon name="chevron" [size]="11"></app-icon>
-            </button>
-
-            <!-- Acciones del directorio: crear nota, renombrar o borrar espacio -->
-            <div class="space-actions">
-              <button
-                type="button"
-                class="space-action-btn"
-                (click)="createNoteInSpace(space.name); $event.stopPropagation()"
-                [title]="i18n.currentLang() === 'es' ? 'Nueva nota en este espacio' : 'New note in space'"
-              >
-                <app-icon name="plus" [size]="11"></app-icon>
-              </button>
-              <button
-                type="button"
-                class="space-action-btn"
-                (click)="renameSpace(space, $event)"
-                [title]="i18n.currentLang() === 'es' ? 'Renombrar directorio' : 'Rename directory'"
-              >
-                <app-icon name="pen" [size]="11"></app-icon>
-              </button>
-              <button
-                type="button"
-                class="space-action-btn delete-space"
-                (click)="deleteSpace(space); $event.stopPropagation()"
-                [title]="i18n.currentLang() === 'es' ? 'Eliminar directorio' : 'Delete directory'"
-              >
-                <app-icon name="trash" [size]="11"></app-icon>
-              </button>
-            </div>
-          </div>
-
-          <!-- Notas dentro del directorio activo -->
-          @if (notesService.activeSpace() === space.name) {
-            <div class="notes-tree">
-              @for (note of filteredNotes(); track note._id) {
-                <button
-                  type="button"
-                  class="tree-row child"
-                  [class.selected]="notesService.currentNote()?._id === note._id"
-                  (click)="openNote(note)"
-                >
-                  <app-icon name="file" [size]="14"></app-icon>
-                  <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
-                </button>
-              } @empty {
-                <div class="empty-space-hint">
-                  <small>Sin notas en este espacio</small>
-                </div>
-              }
-            </div>
-          }
+        @for (space of rootSpaces(); track space._id) {
+          <ng-container *ngTemplateOutlet="spaceNode; context: { $implicit: space }"></ng-container>
         } @empty {
           <div class="empty-space-hint">
-            <small>No hay espacios creados</small>
+            <small>{{ i18n.currentLang() === 'es' ? 'No hay directorios creados' : 'No spaces created' }}</small>
           </div>
         }
       </div>
     </div>
   }
+
+  <!-- Plantilla recursiva para renderizar cada carpeta y sus subdirectorios/notas -->
+  <ng-template #spaceNode let-space>
+    <div class="space-node" [style.--tree-level]="space.level || 0">
+      <!-- Fila de la carpeta / espacio -->
+      <div
+        class="space-row-container"
+        [class.selected-space]="notesService.activeSpace() === (space.path || space.name)"
+      >
+        <button
+          type="button"
+          class="tree-row"
+          (click)="selectSpace(space, $event)"
+          [title]="space.path || space.name"
+        >
+          <!-- Botón de colapsar / expandir -->
+          <span
+            class="chevron-toggle"
+            [class.expanded]="isSpaceExpanded(space._id)"
+            (click)="toggleSpace(space._id, $event)"
+          >
+            <app-icon name="chevron" [size]="10"></app-icon>
+          </span>
+
+          <!-- Icono de carpeta vectorial (sin emojis) -->
+          <span class="folder-icon" [ngClass]="space.color || 'indigo'">
+            <app-icon name="folder" [size]="14"></app-icon>
+          </span>
+
+          <span
+            class="space-title"
+            (dblclick)="renameSpace(space, $event)"
+            [title]="i18n.currentLang() === 'es' ? 'Doble clic para renombrar' : 'Double click to rename'"
+          >
+            {{ space.name }}
+          </span>
+
+          <span class="notes-count">
+            {{ getNotesForSpace(space).length }}
+          </span>
+        </button>
+
+        <!-- Acciones sobre el directorio: crear subdirectorio, crear nota, renombrar, eliminar -->
+        <div class="space-actions">
+          <button
+            type="button"
+            class="space-action-btn"
+            (click)="promptCreateSubspace(space, $event)"
+            [title]="i18n.currentLang() === 'es' ? 'Crear subcarpeta dentro de ' + space.name : 'Create subfolder inside ' + space.name"
+          >
+            <app-icon name="folder" [size]="11"></app-icon>
+            <span class="action-sub-plus">+</span>
+          </button>
+          <button
+            type="button"
+            class="space-action-btn"
+            (click)="createNoteInSpace(space, $event)"
+            [title]="i18n.currentLang() === 'es' ? 'Nueva nota en ' + space.name : 'New note in ' + space.name"
+          >
+            <app-icon name="file" [size]="11"></app-icon>
+          </button>
+          <button
+            type="button"
+            class="space-action-btn"
+            (click)="renameSpace(space, $event)"
+            [title]="i18n.currentLang() === 'es' ? 'Renombrar directorio' : 'Rename directory'"
+          >
+            <app-icon name="pen" [size]="11"></app-icon>
+          </button>
+          <button
+            type="button"
+            class="space-action-btn delete-space"
+            (click)="deleteSpace(space, $event)"
+            [title]="i18n.currentLang() === 'es' ? 'Eliminar directorio' : 'Delete directory'"
+          >
+            <app-icon name="trash" [size]="11"></app-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Contenido dentro de la carpeta cuando está expandida -->
+      @if (isSpaceExpanded(space._id)) {
+        <div class="space-children">
+          <!-- 1. Notas directas dentro de este directorio -->
+          @for (note of getNotesForSpace(space); track note._id) {
+            <button
+              type="button"
+              class="tree-row note-row"
+              [class.selected]="notesService.currentNote()?._id === note._id"
+              (click)="openNote(note)"
+              [title]="note.title || 'Untitled'"
+            >
+              <app-icon name="file-text" [size]="13"></app-icon>
+              <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
+            </button>
+          }
+
+          <!-- 2. Subdirectorios hijos (recursivos) -->
+          @if (space.children && space.children.length > 0) {
+            @for (subSpace of space.children; track subSpace._id) {
+              <ng-container *ngTemplateOutlet="spaceNode; context: { $implicit: subSpace }"></ng-container>
+            }
+          }
+        </div>
+      }
+    </div>
+  </ng-template>
 
   <!-- Pie de la barra lateral con perfil real del usuario -->
   <div class="sidebar-bottom">

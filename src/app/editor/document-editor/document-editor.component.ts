@@ -17,6 +17,7 @@ import { ImageBlockComponent } from '../../blocks/image-block/image-block.compon
 import { SheetBlockComponent } from '../../blocks/sheet-block/sheet-block.component';
 import { CodeBlockComponent } from '../../blocks/code-block/code-block.component';
 import { MermaidBlockComponent } from '../../blocks/mermaid-block/mermaid-block.component';
+import { FileBlockComponent } from '../../blocks/file-block/file-block.component';
 import { BlockType } from '../../core/models/block.model';
 
 /**
@@ -40,6 +41,7 @@ import { BlockType } from '../../core/models/block.model';
     SheetBlockComponent,
     CodeBlockComponent,
     MermaidBlockComponent,
+    FileBlockComponent,
   ],
   templateUrl: './document-editor.component.html',
   styleUrl: './document-editor.component.scss',
@@ -50,6 +52,11 @@ export class DocumentEditorComponent {
 
   readonly showSlashMenu = signal<boolean>(false);
   private insertAfterIndex?: number;
+
+  formatSpacePath(space?: string): string {
+    if (!space) return 'General';
+    return space.split('/').join(' / ');
+  }
 
   onTitleBlur(event: FocusEvent): void {
     const el = event.target as HTMLElement;

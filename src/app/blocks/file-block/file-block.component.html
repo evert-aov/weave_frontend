@@ -1,0 +1,136 @@
+<div class="file-attachment-block" [class.reading-mode]="notesService.isReadingMode()">
+  @if (!fileUrl()) {
+    <!-- Estado de carga: Arrastrar o seleccionar archivo -->
+    <div
+      class="upload-dropzone"
+      [class.dragging]="isDragging()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (click)="fileInput.click()"
+    >
+      <input
+        #fileInput
+        type="file"
+        class="hidden-input"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        (change)="onFileSelected($event)"
+      />
+
+      <div class="dropzone-content">
+        <div class="icon-circle">
+          <app-icon name="paperclip" [size]="20" class="text-accent"></app-icon>
+        </div>
+        <div class="dropzone-text">
+          <strong class="dropzone-title">
+            {{ i18n.currentLang() === 'es' ? 'Subir documento o archivo adjunto' : 'Upload document or file attachment' }}
+          </strong>
+          <span class="dropzone-sub">
+            {{ i18n.currentLang() === 'es' ? 'Soporta PDF, Word (.docx), Excel (.xlsx) y PowerPoint (.pptx) hasta 50MB' : 'Supports PDF, Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) up to 50MB' }}
+          </span>
+        </div>
+        @if (isUploading()) {
+          <div class="uploading-spinner">
+            <span class="spinner"></span>
+            <span>{{ i18n.currentLang() === 'es' ? 'Subiendo documento...' : 'Uploading document...' }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  } @else {
+    <!-- Tarjeta del archivo adjunto subido -->
+    <div class="attachment-card" [class.previewable]="isPdf()">
+      <div class="card-left">
+        <div class="type-badge" [ngClass]="fileBadgeClass()">
+          <span class="badge-ext">{{ fileExtension() | uppercase }}</span>
+        </div>
+
+        <div class="card-details">
+          <a
+            [href]="fileUrl()"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="file-name"
+            [title]="fileName()"
+          >
+            {{ fileName() }}
+          </a>
+          <div class="file-meta">
+            <span class="file-size">{{ formatFileSize(fileSize()) }}</span>
+            <span class="dot-separator">•</span>
+            <span class="file-type-label">{{ getFileTypeLabel() }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-right">
+        <!-- Botón de descarga -->
+        <a
+          [href]="fileUrl()"
+          [download]="fileName()"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="action-btn download-btn"
+          [title]="i18n.currentLang() === 'es' ? 'Descargar archivo' : 'Download file'"
+        >
+          <app-icon name="download" [size]="14"></app-icon>
+          <span class="btn-text">{{ i18n.currentLang() === 'es' ? 'Descargar' : 'Download' }}</span>
+        </a>
+
+        <!-- Botón de previsualización (para PDF) -->
+        @if (isPdf()) {
+          <button
+            type="button"
+            class="action-btn toggle-preview-btn"
+            (click)="togglePdfPreview()"
+            [title]="showPdfViewer() ? (i18n.currentLang() === 'es' ? 'Ocultar visor PDF' : 'Hide PDF viewer') : (i18n.currentLang() === 'es' ? 'Mostrar visor PDF' : 'Show PDF viewer')"
+          >
+            <app-icon name="eye" [size]="14"></app-icon>
+            <span class="btn-text">{{ showPdfViewer() ? (i18n.currentLang() === 'es' ? 'Ocultar' : 'Hide') : (i18n.currentLang() === 'es' ? 'Ver PDF' : 'Preview') }}</span>
+          </button>
+        }
+
+        <!-- Botón para abrir en pestaña nueva -->
+        <a
+          [href]="fileUrl()"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="action-btn open-btn"
+          [title]="i18n.currentLang() === 'es' ? 'Abrir en pestaña nueva' : 'Open in new tab'"
+        >
+          <app-icon name="share" [size]="14"></app-icon>
+        </a>
+
+        @if (!notesService.isReadingMode()) {
+          <!-- Reemplazar archivo -->
+          <button
+            type="button"
+            class="action-btn replace-btn"
+            (click)="replaceInput.click()"
+            [title]="i18n.currentLang() === 'es' ? 'Reemplazar archivo' : 'Replace file'"
+          >
+            <app-icon name="refresh" [size]="14"></app-icon>
+            <input
+              #replaceInput
+              type="file"
+              class="hidden-input"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+              (change)="onFileSelected($event)"
+            />
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Si es PDF y el usuario desea vista previa integrada -->
+    @if (isPdf() && showPdfViewer()) {
+      <div class="pdf-viewer-container">
+        <iframe
+          [src]="safePdfUrl()"
+          class="pdf-frame"
+          title="PDF Preview"
+        ></iframe>
+      </div>
+    }
+  }
+</div>
