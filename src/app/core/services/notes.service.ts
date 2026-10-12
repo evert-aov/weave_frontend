@@ -1,12 +1,14 @@
-import { Injectable, signal, inject } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError, of, Subject, debounceTime, switchMap } from 'rxjs';
 import { Note } from '../models/note.model';
 import { Block, BlockType } from '../models/block.model';
+import { DocumentTab } from '../models/tab.model';
 
 /**
  * Servicio de Gestión de Notas y Bloques.
- * Administra el documento activo, la lista de notas, el autoguardado y la sincronización con el backend.
+ * Administra el documento activo, la lista de notas, pestañas abiertas en simultáneo,
+ * el autoguardado y la sincronización con el backend.
  */
 @Injectable({
   providedIn: 'root',
@@ -23,6 +25,25 @@ export class NotesService {
   readonly isSidebarCollapsed = signal<boolean>(false);
   readonly isReadingMode = signal<boolean>(true);
   readonly documentZoom = signal<number>(1.0);
+
+  // Gestión de pestañas simultáneas (Multi-tab)
+  readonly openTabs = signal<DocumentTab[]>([]);
+
+  readonly hasPreviousTab = computed<boolean>(() => {
+    const currentId = this.currentNote()?._id;
+    if (!currentId) return false;
+    const tabs = this.openTabs();
+    const idx = tabs.findIndex((t) => t.noteId === currentId);
+    return idx > 0;
+  });
+
+  readonly hasNextTab = computed<boolean>(() => {
+    const currentId = this.currentNote()?._id;
+    if (!currentId) return false;
+    const tabs = this.openTabs();
+    const idx = tabs.findIndex((t) => t.noteId === currentId);
+    return idx >= 0 && idx < tabs.length - 1;
+  });
 
   /**
    * Alterna entre el modo edición y el modo lectura inmersivo.
@@ -89,10 +110,93 @@ export class NotesService {
   clearState(): void {
     this.notesList.set([]);
     this.currentNote.set(null);
+    this.openTabs.set([]);
     this.activeSpace.set('Research');
     this.lastSavedPayload = '';
     this.saveStatus.set('saved');
     this.isReadingMode.set(true);
+  }
+
+  /**
+   * Abre o enfoca una pestaña con la nota indicada.
+   */
+  openTab(note: Note): void {
+    const tabs = this.openTabs();
+    const existing = tabs.find((t) => t.noteId === note._id);
+    if (!existing) {
+      this.openTabs.update((prev) => [
+        ...prev,
+        {
+          noteId: note._id,
+          title: note.title || 'Untitled',
+          space: note.space,
+        },
+      ]);
+    } else if (existing.title !== note.title) {
+      this.openTabs.update((prev) =>
+        prev.map((t) => (t.noteId === note._id ? { ...t, title: note.title || 'Untitled' } : t)),
+      );
+    }
+  }
+
+  /**
+   * Cierra una pestaña abierta. Si es la pestaña activa, cambia automáticamente
+   * a la pestaña vecina más próxima.
+   */
+  closeTab(noteId: string, event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    const currentTabs = this.openTabs();
+    const index = currentTabs.findIndex((t) => t.noteId === noteId);
+    if (index === -1) return;
+
+    const updatedTabs = currentTabs.filter((t) => t.noteId !== noteId);
+    this.openTabs.set(updatedTabs);
+
+    if (this.currentNote()?._id === noteId) {
+      if (updatedTabs.length > 0) {
+        const nextIndex = Math.min(index, updatedTabs.length - 1);
+        const nextTab = updatedTabs[nextIndex];
+        this.loadNoteById(nextTab.noteId).subscribe();
+      } else {
+        this.currentNote.set(null);
+      }
+    }
+  }
+
+  /**
+   * Cambia a una pestaña específica.
+   */
+  switchTab(noteId: string): void {
+    if (this.currentNote()?._id === noteId) return;
+    this.loadNoteById(noteId).subscribe();
+  }
+
+  /**
+   * Navega a la pestaña anterior en el orden de pestañas.
+   */
+  goToPreviousTab(): void {
+    const currentId = this.currentNote()?._id;
+    if (!currentId) return;
+    const tabs = this.openTabs();
+    const idx = tabs.findIndex((t) => t.noteId === currentId);
+    if (idx > 0) {
+      this.loadNoteById(tabs[idx - 1].noteId).subscribe();
+    }
+  }
+
+  /**
+   * Navega a la siguiente pestaña en el orden de pestañas.
+   */
+  goToNextTab(): void {
+    const currentId = this.currentNote()?._id;
+    if (!currentId) return;
+    const tabs = this.openTabs();
+    const idx = tabs.findIndex((t) => t.noteId === currentId);
+    if (idx >= 0 && idx < tabs.length - 1) {
+      this.loadNoteById(tabs[idx + 1].noteId).subscribe();
+    }
   }
 
   /**
@@ -115,11 +219,15 @@ export class NotesService {
             this.lastSavedPayload = this.getNotePayload(notes[0]);
             this.saveStatus.set('saved');
             this.isReadingMode.set(true);
+            this.openTab(notes[0]);
+          } else {
+            this.openTab(current);
           }
         } else {
           this.currentNote.set(null);
           this.lastSavedPayload = '';
           this.saveStatus.set('saved');
+          this.openTabs.set([]);
         }
       }),
     );
@@ -135,6 +243,7 @@ export class NotesService {
         this.lastSavedPayload = this.getNotePayload(note);
         this.saveStatus.set('saved');
         this.isReadingMode.set(true);
+        this.openTab(note);
       }),
     );
   }
@@ -168,6 +277,7 @@ export class NotesService {
           this.currentNote.set(created);
           this.lastSavedPayload = this.getNotePayload(created);
           this.saveStatus.set('saved');
+          this.openTab(created);
         }),
       );
   }
@@ -180,7 +290,12 @@ export class NotesService {
     if (!note) return;
 
     let hasChanged = false;
-    if (updates.title !== undefined && updates.title !== note.title) hasChanged = true;
+    if (updates.title !== undefined && updates.title !== note.title) {
+      hasChanged = true;
+      this.openTabs.update((tabs) =>
+        tabs.map((t) => (t.noteId === note._id ? { ...t, title: updates.title! } : t)),
+      );
+    }
     if (updates.lead !== undefined && updates.lead !== note.lead) hasChanged = true;
     if (updates.tags !== undefined && JSON.stringify(updates.tags) !== JSON.stringify(note.tags)) hasChanged = true;
 
@@ -334,11 +449,12 @@ export class NotesService {
     const note = this.currentNote();
     if (!note) return of(null);
 
-    return this.http.delete(`${this.apiUrl}/${note._id}`).pipe(
+    const noteIdToDelete = note._id;
+    return this.http.delete(`${this.apiUrl}/${noteIdToDelete}`).pipe(
       tap(() => {
-        const remaining = this.notesList().filter((n) => n._id !== note._id);
+        this.closeTab(noteIdToDelete);
+        const remaining = this.notesList().filter((n) => n._id !== noteIdToDelete);
         this.notesList.set(remaining);
-        this.currentNote.set(remaining.length > 0 ? remaining[0] : null);
       }),
     );
   }

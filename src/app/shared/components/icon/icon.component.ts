@@ -47,7 +47,9 @@ export type IconName =
   | 'file-text'
   | 'paperclip'
   | 'folder-input'
-  | 'move';
+  | 'move'
+  | 'arrow-left'
+  | 'arrow-right';
 
 /**
  * Componente de Iconos vectoriales de Weave.

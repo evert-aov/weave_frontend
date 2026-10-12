@@ -1,0 +1,64 @@
+<div class="tabs-bar-root">
+  <!-- Flechas de navegación previa / siguiente pestaña -->
+  <div class="tabs-nav-actions">
+    <button
+      type="button"
+      class="nav-arrow-btn"
+      [disabled]="!notesService.hasPreviousTab()"
+      (click)="notesService.goToPreviousTab()"
+      [title]="i18n.currentLang() === 'es' ? 'Pestaña anterior' : 'Previous tab'"
+    >
+      <app-icon name="arrow-left" [size]="13"></app-icon>
+    </button>
+
+    <button
+      type="button"
+      class="nav-arrow-btn"
+      [disabled]="!notesService.hasNextTab()"
+      (click)="notesService.goToNextTab()"
+      [title]="i18n.currentLang() === 'es' ? 'Siguiente pestaña' : 'Next tab'"
+    >
+      <app-icon name="arrow-right" [size]="13"></app-icon>
+    </button>
+  </div>
+
+  <!-- Contenedor scrollable de pestañas -->
+  <div class="tabs-scroll-container">
+    @for (tab of notesService.openTabs(); track tab.noteId) {
+      <div
+        class="tab-item"
+        [class.active]="notesService.currentNote()?._id === tab.noteId"
+        (click)="onTabClick(tab)"
+        (auxclick)="onAuxClick(tab, $event)"
+        [title]="tab.title || (i18n.currentLang() === 'es' ? 'Nueva pestaña' : 'New tab')"
+      >
+        <span class="tab-icon">
+          <app-icon name="file-text" [size]="13"></app-icon>
+        </span>
+
+        <span class="tab-title">
+          {{ tab.title || (i18n.currentLang() === 'es' ? 'Nueva pestaña' : 'New tab') }}
+        </span>
+
+        <button
+          type="button"
+          class="tab-close-btn"
+          (click)="onTabClose(tab, $event)"
+          [title]="i18n.currentLang() === 'es' ? 'Cerrar pestaña' : 'Close tab'"
+        >
+          <app-icon name="close" [size]="10"></app-icon>
+        </button>
+      </div>
+    }
+
+    <!-- Botón para abrir una nueva pestaña (+) -->
+    <button
+      type="button"
+      class="tab-add-btn"
+      (click)="createNewTab()"
+      [title]="i18n.currentLang() === 'es' ? 'Abrir nueva pestaña' : 'Open new tab'"
+    >
+      <app-icon name="plus" [size]="13"></app-icon>
+    </button>
+  </div>
+</div>
