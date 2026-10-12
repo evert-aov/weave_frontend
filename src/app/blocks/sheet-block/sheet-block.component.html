@@ -2,7 +2,7 @@
   class="univer-sheet-block"
   [class.reading-mode]="notesService.isReadingMode()"
 >
-  <!-- Barra superior de información del bloque -->
+  <!-- Barra superior de información y zoom del bloque -->
   <div class="sheet-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
     <div class="sheet-info-group">
       <span class="badge-icon">📊</span>
@@ -15,12 +15,41 @@
         </span>
       }
     </div>
+
+    <!-- Controles de Zoom para Hoja de Cálculo (Edición y Lectura) -->
+    <div class="sheet-zoom-controls">
+      <button
+        type="button"
+        class="zoom-btn"
+        (click)="zoomOut()"
+        [title]="i18n.currentLang() === 'es' ? 'Reducir zoom' : 'Zoom out'"
+      >
+        <span class="zoom-icon">−</span>
+      </button>
+      <button
+        type="button"
+        class="zoom-display-btn"
+        (click)="resetZoom()"
+        [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
+      >
+        {{ Math.round(currentZoom() * 100) }}%
+      </button>
+      <button
+        type="button"
+        class="zoom-btn"
+        (click)="zoomIn()"
+        [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom' : 'Zoom in'"
+      >
+        <span class="zoom-icon">+</span>
+      </button>
+    </div>
   </div>
 
   <div
     class="sheet-container-wrapper"
     [class.reading-mode]="notesService.isReadingMode()"
     [style.height.px]="notesService.isReadingMode() ? readingHeight() : 460"
+    (wheel)="onWheelScroll($event)"
   >
     <div
       #sheetContainer

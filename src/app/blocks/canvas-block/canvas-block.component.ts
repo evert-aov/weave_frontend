@@ -7,6 +7,7 @@ import {
   ViewChild,
   inject,
   effect,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as React from 'react';
@@ -15,6 +16,7 @@ import { Excalidraw } from '@excalidraw/excalidraw';
 import { Block } from '../../core/models/block.model';
 import { NotesService } from '../../core/services/notes.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { I18nService } from '../../core/services/i18n.service';
 
 // Asegurar polyfill de process para librerías basadas en React en el navegador
 if (typeof window !== 'undefined' && !(window as any).process) {
@@ -40,6 +42,11 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
 
   readonly notesService = inject(NotesService);
   private readonly themeService = inject(ThemeService);
+  readonly i18n = inject(I18nService);
+
+  readonly currentZoom = signal<number>(1.0);
+  readonly Math = Math;
+
   private reactRoot?: Root;
   private syncTimeout?: any;
   private currentElements: any[] = [];
@@ -86,6 +93,35 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
     setTimeout(() => this.centerToContent(), 250);
   }
 
+  zoomIn(): void {
+    const next = Math.min(Math.round((this.currentZoom() + 0.15) * 100) / 100, 3.0);
+    this.applyZoom(next);
+  }
+
+  zoomOut(): void {
+    const next = Math.max(Math.round((this.currentZoom() - 0.15) * 100) / 100, 0.3);
+    this.applyZoom(next);
+  }
+
+  resetZoom(): void {
+    this.applyZoom(1.0);
+  }
+
+  applyZoom(ratio: number): void {
+    this.currentZoom.set(ratio);
+    try {
+      if (this.excalidrawAPI && typeof this.excalidrawAPI.updateScene === 'function') {
+        this.excalidrawAPI.updateScene({
+          appState: {
+            zoom: { value: ratio },
+          },
+        });
+      }
+    } catch (e) {
+      console.warn('[CanvasBlockComponent] Error applying zoom:', e);
+    }
+  }
+
   /**
    * Centra el viewport del lienzo hacia donde se encuentran los dibujos y figuras.
    */
@@ -125,6 +161,9 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
     const handleChange = (elements: readonly any[], appState: any) => {
       this.currentElements = [...elements];
       this.currentAppState = { ...appState };
+      if (appState?.zoom?.value && Math.abs(appState.zoom.value - this.currentZoom()) > 0.02) {
+        this.currentZoom.set(Math.round(appState.zoom.value * 100) / 100);
+      }
       const bg = appState.viewBackgroundColor || (isDark ? '#111b2e' : '#ffffff');
       const currentSignature = computeElementsSignature(elements, bg);
 

@@ -40,6 +40,8 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   readonly i18n = inject(I18nService);
 
   readonly readingHeight = signal<number>(160);
+  readonly currentZoom = signal<number>(1.0);
+  readonly Math = Math;
 
   private univerInstance: any = null;
   private univerAPI: any = null;
@@ -52,7 +54,7 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
       const isReading = this.notesService.isReadingMode();
       this.notesService.documentZoom();
       this.updateHeadersVisibility(isReading);
-      this.applyDocZoom(1.0);
+      this.applyDocZoom(this.currentZoom());
       this.updateReadingHeight();
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
@@ -68,26 +70,68 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
     this.updateReadingHeight();
     setTimeout(() => {
       this.updateHeadersVisibility(this.notesService.isReadingMode());
-      this.applyDocZoom(1.0);
+      this.applyDocZoom(this.currentZoom());
       window.dispatchEvent(new Event('resize'));
     }, 120);
   }
 
+  zoomIn(): void {
+    const next = Math.min(Math.round((this.currentZoom() + 0.15) * 100) / 100, 2.5);
+    this.applyZoom(next);
+  }
+
+  zoomOut(): void {
+    const next = Math.max(Math.round((this.currentZoom() - 0.15) * 100) / 100, 0.4);
+    this.applyZoom(next);
+  }
+
+  resetZoom(): void {
+    this.applyZoom(1.0);
+  }
+
+  applyZoom(ratio: number): void {
+    this.currentZoom.set(ratio);
+    this.applyDocZoom(ratio);
+    this.updateReadingHeight();
+  }
+
   /**
-   * Mantiene el motor vectorial de Univer Sheets en escala 1.0 (100%)
-   * para que las celdas y fórmulas internas no se distorsionen con el zoom.
+   * Mantiene o ajusta el zoom en el motor vectorial de Univer Sheets.
    */
-  applyDocZoom(_zoomRatio?: number): void {
+  applyDocZoom(zoomRatio?: number): void {
     try {
       if (this.univerAPI) {
         const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
         const activeSheet = activeWorkbook?.getActiveSheet?.();
         if (activeSheet && typeof activeSheet.zoom === 'function') {
-          activeSheet.zoom(1.0);
+          activeSheet.zoom(zoomRatio ?? this.currentZoom());
         }
       }
     } catch (e) {
       console.warn('[SheetBlockComponent] Could not set Univer zoom:', e);
+    }
+  }
+
+  /**
+   * Permite desplazamiento (scroll) con la rueda del ratón en la hoja de cálculo
+   * tanto en modo edición como en modo lectura, sin permitir editar celdas bloqueadas.
+   */
+  onWheelScroll(event: WheelEvent): void {
+    try {
+      if (this.univerAPI) {
+        const deltaX = event.deltaX;
+        const deltaY = event.deltaY;
+        if (deltaX !== 0 || deltaY !== 0) {
+          if (typeof this.univerAPI.executeCommand === 'function') {
+            this.univerAPI.executeCommand('sheet.command.set-scroll-relative', {
+              offsetX: deltaX,
+              offsetY: deltaY,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // Ignorar de forma segura si la hoja aún no está lista
     }
   }
 

@@ -1,9 +1,63 @@
 <div class="excalidraw-block-container" [class.reading-mode]="notesService.isReadingMode()">
-  <div
-    #canvasMount
-    class="excalidraw-mount-point"
-    [style.zoom]="1 / notesService.documentZoom()"
-    [style.width.%]="100 * notesService.documentZoom()"
-    [style.height.%]="100 * notesService.documentZoom()"
-  ></div>
+  <!-- Barra superior con información y controles de zoom / centrado -->
+  <div class="canvas-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
+    <div class="canvas-info-group">
+      <span class="badge-icon">🎨</span>
+      <span class="badge-title">
+        {{ i18n.currentLang() === 'es' ? 'Lienzo de Dibujo' : 'Drawing Canvas' }}
+      </span>
+      @if (!notesService.isReadingMode()) {
+        <span class="badge-subtitle">
+          {{ i18n.currentLang() === 'es' ? 'Pizarra y diagramas vectoriales' : 'Vector whiteboard & diagrams' }}
+        </span>
+      }
+    </div>
+
+    <!-- Controles de Zoom y Centrado (Modo Edición y Lectura) -->
+    <div class="canvas-zoom-controls">
+      <button
+        type="button"
+        class="zoom-action-btn"
+        (click)="centerToContent()"
+        [title]="i18n.currentLang() === 'es' ? 'Centrar al contenido del dibujo' : 'Center to drawing content'"
+      >
+        <span class="btn-text">🎯 {{ i18n.currentLang() === 'es' ? 'Centrar' : 'Center' }}</span>
+      </button>
+
+      <button
+        type="button"
+        class="zoom-btn"
+        (click)="zoomOut()"
+        [title]="i18n.currentLang() === 'es' ? 'Reducir zoom' : 'Zoom out'"
+      >
+        <span class="zoom-icon">−</span>
+      </button>
+      <button
+        type="button"
+        class="zoom-display-btn"
+        (click)="resetZoom()"
+        [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
+      >
+        {{ Math.round(currentZoom() * 100) }}%
+      </button>
+      <button
+        type="button"
+        class="zoom-btn"
+        (click)="zoomIn()"
+        [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom' : 'Zoom in'"
+      >
+        <span class="zoom-icon">+</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="canvas-mount-wrapper">
+    <div
+      #canvasMount
+      class="excalidraw-mount-point"
+      [style.zoom]="1 / notesService.documentZoom()"
+      [style.width.%]="100 * notesService.documentZoom()"
+      [style.height.%]="100 * notesService.documentZoom()"
+    ></div>
+  </div>
 </div>
