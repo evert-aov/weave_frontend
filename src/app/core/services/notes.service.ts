@@ -22,12 +22,27 @@ export class NotesService {
   readonly saveStatus = signal<'saved' | 'saving' | 'unsaved'>('saved');
   readonly isSidebarCollapsed = signal<boolean>(false);
   readonly isReadingMode = signal<boolean>(true);
+  readonly documentZoom = signal<number>(1.0);
 
   /**
    * Alterna entre el modo edición y el modo lectura inmersivo.
    */
   toggleReadingMode(): void {
     this.isReadingMode.update((v) => !v);
+  }
+
+  zoomIn(): void {
+    const next = Math.min(Math.round((this.documentZoom() + 0.1) * 10) / 10, 2.0);
+    this.documentZoom.set(next);
+  }
+
+  zoomOut(): void {
+    const next = Math.max(Math.round((this.documentZoom() - 0.1) * 10) / 10, 0.5);
+    this.documentZoom.set(next);
+  }
+
+  resetZoom(): void {
+    this.documentZoom.set(1.0);
   }
 
   private readonly autoSaveSubject = new Subject<Note>();

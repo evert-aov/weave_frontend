@@ -272,6 +272,15 @@ export class HtmlExportStrategy implements ExportStrategy {
         cssProps.push(`font-size: ${styleObj.fs}pt`);
       }
 
+      // Padding configurado en la hoja de cálculo (si no está configurado, 0 por defecto)
+      if (styleObj?.pd) {
+        const t = styleObj.pd.t ?? 0;
+        const r = styleObj.pd.r ?? 0;
+        const b = styleObj.pd.b ?? 0;
+        const l = styleObj.pd.l ?? 0;
+        cssProps.push(`padding: ${t}px ${r}px ${b}px ${l}px`);
+      }
+
       // Bordes personalizados si están definidos
       if (styleObj?.bd) {
         const getBorderCss = (b: any) => {
@@ -303,8 +312,18 @@ export class HtmlExportStrategy implements ExportStrategy {
     });
 
     mergeData.forEach((m) => {
-      const rootCell = cellData[m.startRow]?.[m.startColumn];
-      if (getCellValue(rootCell).trim().length > 0 || m.startRow <= maxRow) {
+      let mergeHasContent = false;
+      for (let r = m.startRow; r <= m.endRow; r++) {
+        for (let c = m.startColumn; c <= m.endColumn; c++) {
+          if (getCellValue(cellData[r]?.[c]).trim().length > 0) {
+            mergeHasContent = true;
+            break;
+          }
+        }
+        if (mergeHasContent) break;
+      }
+
+      if (mergeHasContent) {
         if (m.endRow > maxRow) maxRow = m.endRow;
         if (m.endColumn > maxCol) maxCol = m.endColumn;
       }
@@ -317,9 +336,12 @@ export class HtmlExportStrategy implements ExportStrategy {
     const coveredCells = new Set<string>();
 
     mergeData.forEach((m) => {
+      const rowSpan = m.endRow - m.startRow + 1;
+      const colSpan = m.endColumn - m.startColumn + 1;
+
       mergeRoots.set(`${m.startRow},${m.startColumn}`, {
-        rowSpan: m.endRow - m.startRow + 1,
-        colSpan: m.endColumn - m.startColumn + 1,
+        rowSpan,
+        colSpan,
       });
       for (let r = m.startRow; r <= m.endRow; r++) {
         for (let c = m.startColumn; c <= m.endColumn; c++) {
@@ -330,7 +352,33 @@ export class HtmlExportStrategy implements ExportStrategy {
       }
     });
 
-    let html = '<div class="block table-box"><table style="width: 100%; border-collapse: collapse; border-spacing: 0;"><tbody>';
+    const columnData = sheet.columnData || {};
+    const defaultColWidth = sheet.defaultColumnWidth || 80;
+    const colWidths: number[] = [];
+    for (let c = 0; c <= maxCol; c++) {
+      const colItem = columnData[c];
+      if (colItem?.hd === 1) {
+        colWidths.push(0);
+      } else if (colItem?.w != null) {
+        colWidths.push(Number(colItem.w));
+      } else {
+        colWidths.push(defaultColWidth);
+      }
+    }
+    const totalColsWidth = colWidths.reduce((sum, w) => sum + w, 0);
+
+    let html = '<div class="block table-box"><table style="width: 100%; table-layout: fixed; border-collapse: collapse; border-spacing: 0;">';
+
+    if (totalColsWidth > 0) {
+      html += '<colgroup>';
+      for (let c = 0; c <= maxCol; c++) {
+        const pct = ((colWidths[c] / totalColsWidth) * 100).toFixed(2);
+        html += `<col style="width: ${pct}%;" />`;
+      }
+      html += '</colgroup>';
+    }
+
+    html += '<tbody>';
 
     for (let r = 0; r <= maxRow; r++) {
       const row = cellData[r] || {};
@@ -351,7 +399,7 @@ export class HtmlExportStrategy implements ExportStrategy {
         }
 
         const inlineStyle = getCellInlineStyle(cell, isNumeric);
-        const baseStyle = 'border: 1px solid #e5e7eb; padding: 6px 10px; word-break: break-word; line-height: 1.5; vertical-align: top;';
+        const baseStyle = 'border: 1px solid #e5e7eb; padding: 0; word-break: normal; overflow-wrap: break-word; line-height: 1.4; vertical-align: top; box-sizing: border-box;';
         const fullStyle = inlineStyle ? `${baseStyle} ${inlineStyle}` : baseStyle;
 
         html += `<td style="${fullStyle}"${spanAttrs}>${formattedVal}</td>`;

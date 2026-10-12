@@ -84,6 +84,34 @@ import { ExportModalComponent } from '../../export/components/export-modal/expor
           <span>{{ notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Editar' : 'Edit') : (i18n.currentLang() === 'es' ? 'Lectura' : 'Lectura') }}</span>
         </button>
 
+        <!-- Controles de Zoom del documento (Lectura y Edición) -->
+        <div class="doc-zoom-strip">
+          <button
+            type="button"
+            class="zoom-btn"
+            (click)="notesService.zoomOut()"
+            [title]="i18n.currentLang() === 'es' ? 'Reducir zoom del documento' : 'Zoom out document'"
+          >
+            <span>−</span>
+          </button>
+          <button
+            type="button"
+            class="zoom-val-btn"
+            (click)="notesService.resetZoom()"
+            [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
+          >
+            {{ Math.round(notesService.documentZoom() * 100) }}%
+          </button>
+          <button
+            type="button"
+            class="zoom-btn"
+            (click)="notesService.zoomIn()"
+            [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom del documento' : 'Zoom in document'"
+          >
+            <span>+</span>
+          </button>
+        </div>
+
         <!-- Botón para Exportar documento (PDF, Markdown, etc.) -->
         <button
           type="button"
@@ -283,6 +311,52 @@ import { ExportModalComponent } from '../../export/components/export-modal/expor
       .share-btn:hover {
         opacity: 0.95;
       }
+      .doc-zoom-strip {
+        display: inline-flex;
+        align-items: center;
+        background: var(--soft);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        overflow: hidden;
+        height: 31px;
+      }
+      .zoom-btn {
+        width: 26px;
+        height: 100%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+      .zoom-btn:hover {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .zoom-val-btn {
+        padding: 0 6px;
+        height: 100%;
+        background: transparent;
+        border: none;
+        border-left: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text);
+        cursor: pointer;
+        min-width: 44px;
+        text-align: center;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+      .zoom-val-btn:hover {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
     `,
   ],
 })
@@ -290,6 +364,7 @@ export class TopbarComponent {
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
   readonly themeService = inject(ThemeService);
+  readonly Math = Math;
 
   readonly isCopiedLink = signal<boolean>(false);
   readonly showExportModal = signal<boolean>(false);

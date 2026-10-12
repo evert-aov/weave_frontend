@@ -618,6 +618,15 @@ export class PdfExportStrategy implements ExportStrategy {
         cssProps.push(`font-size: ${styleObj.fs}pt`);
       }
 
+      // Padding configurado en la hoja de cálculo (si no está configurado, 0 por defecto)
+      if (styleObj?.pd) {
+        const t = styleObj.pd.t ?? 0;
+        const r = styleObj.pd.r ?? 0;
+        const b = styleObj.pd.b ?? 0;
+        const l = styleObj.pd.l ?? 0;
+        cssProps.push(`padding: ${t}px ${r}px ${b}px ${l}px`);
+      }
+
       // Bordes personalizados si están definidos
       if (styleObj?.bd) {
         const getBorderCss = (b: any) => {
@@ -634,12 +643,12 @@ export class PdfExportStrategy implements ExportStrategy {
       return cssProps.length > 0 ? cssProps.join('; ') + ';' : '';
     };
 
-    // Identificar qué celdas están ocupadas y cuáles rangos abarcan
+    // Identificar qué celdas están ocupadas con datos reales (sin arrastrar columnas vacías)
     const rowKeys = Object.keys(cellData).map(Number);
     let maxRow = -1;
     let maxCol = -1;
 
-    // Buscar filas y columnas con contenido
+    // Buscar filas y columnas con contenido real
     rowKeys.forEach((r) => {
       const row = cellData[r] || {};
       const colKeys = Object.keys(row).map(Number);
@@ -652,10 +661,20 @@ export class PdfExportStrategy implements ExportStrategy {
       });
     });
 
-    // Incluir también los rangos de celdas combinadas
+    // Incluir celdas combinadas únicamente si contienen contenido real
     mergeData.forEach((m) => {
-      const rootCell = cellData[m.startRow]?.[m.startColumn];
-      if (getCellValue(rootCell).trim().length > 0 || m.startRow <= maxRow) {
+      let mergeHasContent = false;
+      for (let r = m.startRow; r <= m.endRow; r++) {
+        for (let c = m.startColumn; c <= m.endColumn; c++) {
+          if (getCellValue(cellData[r]?.[c]).trim().length > 0) {
+            mergeHasContent = true;
+            break;
+          }
+        }
+        if (mergeHasContent) break;
+      }
+
+      if (mergeHasContent) {
         if (m.endRow > maxRow) maxRow = m.endRow;
         if (m.endColumn > maxCol) maxCol = m.endColumn;
       }
@@ -688,8 +707,35 @@ export class PdfExportStrategy implements ExportStrategy {
       }
     });
 
+    // Extraer anchos de columnas desde los metadatos de Univer para respetar proporciones exactas
+    const columnData = sheet.columnData || {};
+    const defaultColWidth = sheet.defaultColumnWidth || 80;
+    const colWidths: number[] = [];
+    for (let c = 0; c <= maxCol; c++) {
+      const colItem = columnData[c];
+      if (colItem?.hd === 1) {
+        colWidths.push(0);
+      } else if (colItem?.w != null) {
+        colWidths.push(Number(colItem.w));
+      } else {
+        colWidths.push(defaultColWidth);
+      }
+    }
+    const totalColsWidth = colWidths.reduce((sum, w) => sum + w, 0);
+
     let tableHtml = '<div class="pdf-block pdf-sheet-wrapper page-break-avoid">';
-    tableHtml += '<table class="pdf-sheet-table"><tbody>';
+    tableHtml += '<table class="pdf-sheet-table" style="table-layout: fixed; width: 100%; border-collapse: collapse;">';
+
+    if (totalColsWidth > 0) {
+      tableHtml += '<colgroup>';
+      for (let c = 0; c <= maxCol; c++) {
+        const pct = ((colWidths[c] / totalColsWidth) * 100).toFixed(2);
+        tableHtml += `<col style="width: ${pct}%;" />`;
+      }
+      tableHtml += '</colgroup>';
+    }
+
+    tableHtml += '<tbody>';
 
     for (let r = 0; r <= maxRow; r++) {
       const row = cellData[r] || {};
@@ -951,12 +997,13 @@ export class PdfExportStrategy implements ExportStrategy {
       }
       .pdf-sheet-td {
         border: 1px solid #e5e7eb;
-        padding: 6px 10px;
+        padding: 0;
         color: #1f2937;
         box-sizing: border-box;
-        word-break: break-word;
+        word-break: normal;
+        overflow-wrap: break-word;
         vertical-align: top;
-        line-height: 1.5;
+        line-height: 1.4;
       }
       .pdf-sheet-td.text-right {
         text-align: right;

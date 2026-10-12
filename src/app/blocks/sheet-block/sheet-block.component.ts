@@ -30,7 +30,7 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
   imports: [CommonModule],
   template: `
     <div class="univer-sheet-block" [class.reading-mode]="notesService.isReadingMode()">
-      <!-- Barra superior unificada: información y controles de Zoom -->
+      <!-- Barra superior de información del bloque -->
       <div class="sheet-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
         <div class="sheet-info-group">
           <span class="badge-icon">📊</span>
@@ -42,34 +42,6 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
               {{ i18n.currentLang() === 'es' ? 'Cálculos matemáticos reales en vivo' : 'Live real-time formulas & computing' }}
             </span>
           }
-        </div>
-
-        <!-- Controles de Zoom universales (Lectura y Edición) -->
-        <div class="sheet-zoom-controls">
-          <button
-            type="button"
-            class="zoom-btn"
-            (click)="zoomOut()"
-            [title]="i18n.currentLang() === 'es' ? 'Reducir zoom' : 'Zoom out'"
-          >
-            <span class="zoom-icon">−</span>
-          </button>
-          <button
-            type="button"
-            class="zoom-display-btn"
-            (click)="resetZoom()"
-            [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
-          >
-            {{ Math.round(currentZoom() * 100) }}%
-          </button>
-          <button
-            type="button"
-            class="zoom-btn"
-            (click)="zoomIn()"
-            [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom' : 'Zoom in'"
-          >
-            <span class="zoom-icon">+</span>
-          </button>
         </div>
       </div>
 
@@ -248,8 +220,6 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   readonly i18n = inject(I18nService);
 
   readonly readingHeight = signal<number>(160);
-  readonly currentZoom = signal<number>(1.0);
-  readonly Math = Math;
 
   private univerInstance: any = null;
   private univerAPI: any = null;
@@ -278,36 +248,6 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
       this.updateHeadersVisibility(this.notesService.isReadingMode());
       window.dispatchEvent(new Event('resize'));
     }, 120);
-  }
-
-  zoomIn(): void {
-    const next = Math.min(Math.round((this.currentZoom() + 0.15) * 100) / 100, 2.5);
-    this.applyZoom(next);
-  }
-
-  zoomOut(): void {
-    const next = Math.max(Math.round((this.currentZoom() - 0.15) * 100) / 100, 0.4);
-    this.applyZoom(next);
-  }
-
-  resetZoom(): void {
-    this.applyZoom(1.0);
-  }
-
-  applyZoom(ratio: number): void {
-    this.currentZoom.set(ratio);
-    try {
-      if (this.univerAPI) {
-        const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
-        const activeSheet = activeWorkbook?.getActiveSheet?.();
-        if (activeSheet && typeof activeSheet.zoom === 'function') {
-          activeSheet.zoom(ratio);
-        }
-      }
-    } catch (err) {
-      console.warn('[SheetBlockComponent] Error setting zoom:', err);
-    }
-    this.updateReadingHeight();
   }
 
   /**
@@ -379,14 +319,14 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Calcula y actualiza la altura exacta necesaria para mostrar las celdas ocupadas considerando zoom.
+   * Calcula y actualiza la altura exacta necesaria para mostrar las celdas ocupadas.
    */
   updateReadingHeight(): void {
     const rows = this.getOccupiedRowsCount();
     const isReading = this.notesService.isReadingMode();
     const headerHeight = isReading ? 0 : 26;
     const basePadding = 18;
-    const calculated = Math.round((headerHeight + rows * 24) * this.currentZoom() + basePadding);
+    const calculated = headerHeight + rows * 24 + basePadding;
     const clamped = Math.min(Math.max(calculated, 90), 560);
     this.readingHeight.set(clamped);
   }

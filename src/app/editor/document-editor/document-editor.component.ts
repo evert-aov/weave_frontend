@@ -44,7 +44,11 @@ import { BlockType } from '../../core/models/block.model';
   template: `
     <div class="document-scroll">
       @if (notesService.currentNote(); as note) {
-        <article class="document" [class.reading-mode]="notesService.isReadingMode()">
+        <article
+          class="document"
+          [class.reading-mode]="notesService.isReadingMode()"
+          [style.zoom]="notesService.documentZoom()"
+        >
           <!-- Metadatos de la nota -->
           <div class="doc-meta">
             <span class="space-badge">{{ note.space }}</span>
