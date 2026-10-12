@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError, of, Subject, debounceTime, switchMap } from 'rxjs';
-import { Note } from '../models/note.model';
+import { Note, DocType } from '../models/note.model';
 import { Block, BlockType } from '../models/block.model';
 import { DocumentTab } from '../models/tab.model';
 
@@ -81,6 +81,8 @@ export class NotesService {
               title: note.title,
               lead: note.lead,
               space: note.space,
+              docType: note.docType,
+              docData: note.docData,
               tags: note.tags,
               blocks: note.blocks,
             })
@@ -130,11 +132,16 @@ export class NotesService {
           noteId: note._id,
           title: note.title || 'Untitled',
           space: note.space,
+          docType: note.docType || 'block',
         },
       ]);
-    } else if (existing.title !== note.title) {
+    } else if (existing.title !== note.title || existing.docType !== note.docType) {
       this.openTabs.update((prev) =>
-        prev.map((t) => (t.noteId === note._id ? { ...t, title: note.title || 'Untitled' } : t)),
+        prev.map((t) =>
+          t.noteId === note._id
+            ? { ...t, title: note.title || 'Untitled', docType: note.docType || 'block' }
+            : t,
+        ),
       );
     }
   }
@@ -249,27 +256,40 @@ export class NotesService {
   }
 
   /**
-   * Crea una nueva nota en el espacio activo.
+   * Crea una nueva nota en el espacio activo del tipo especificado (bloque, hoja, doc, lienzo).
    */
-  createNote(title?: string, space?: string): Observable<Note> {
+  createNote(title?: string, space?: string, docType: DocType = 'block'): Observable<Note> {
     const s = space || this.activeSpace();
-    const t = title || 'Untitled note';
+    const defaultTitles: Record<DocType, string> = {
+      block: 'Untitled note',
+      sheet: 'Nueva Hoja de Cálculo',
+      doc: 'Nuevo Documento',
+      canvas: 'Nuevo Lienzo',
+    };
+    const t = title || defaultTitles[docType] || 'Untitled note';
+
+    const initialBlocks: Block[] =
+      docType === 'block'
+        ? [
+            {
+              id: `b-${Date.now()}-1`,
+              type: 'text',
+              order: 0,
+              content: { html: '<p>Start writing your thoughts...</p>' },
+              metadata: {},
+            },
+          ]
+        : [];
 
     return this.http
       .post<Note>(this.apiUrl, {
         title: t,
         space: s,
+        docType,
+        docData: null,
         lead: '',
         tags: [],
-        blocks: [
-          {
-            id: `b-${Date.now()}-1`,
-            type: 'text',
-            order: 0,
-            content: { html: '<p>Start writing your thoughts...</p>' },
-            metadata: {},
-          },
-        ],
+        blocks: initialBlocks,
       })
       .pipe(
         tap((created) => {
@@ -280,6 +300,21 @@ export class NotesService {
           this.openTab(created);
         }),
       );
+  }
+
+  /**
+   * Actualiza los datos especializados del documento (Univer Sheet, Univer Doc o Lienzo) y dispara el autoguardado.
+   */
+  updateDocData(docData: any): void {
+    const note = this.currentNote();
+    if (!note) return;
+
+    const updatedNote: Note = {
+      ...note,
+      docData,
+    };
+    this.currentNote.set(updatedNote);
+    this.triggerAutoSave(updatedNote);
   }
 
   /**
@@ -553,6 +588,8 @@ export class NotesService {
       title: note.title,
       lead: note.lead,
       space: note.space,
+      docType: note.docType,
+      docData: note.docData,
       tags: note.tags,
       blocks: note.blocks,
     });

@@ -1,4 +1,4 @@
-<div class="tabs-bar-root">
+<div class="tabs-bar-root" (click)="showTypeMenu.set(false)">
   <!-- Flechas de navegación previa / siguiente pestaña -->
   <div class="tabs-nav-actions">
     <button
@@ -32,8 +32,8 @@
         (auxclick)="onAuxClick(tab, $event)"
         [title]="tab.title || (i18n.currentLang() === 'es' ? 'Nueva pestaña' : 'New tab')"
       >
-        <span class="tab-icon">
-          <app-icon name="file-text" [size]="13"></app-icon>
+        <span class="tab-icon" [ngClass]="tab.docType || 'block'">
+          <app-icon [name]="getTabIcon(tab.docType)" [size]="13"></app-icon>
         </span>
 
         <span class="tab-title">
@@ -51,14 +51,64 @@
       </div>
     }
 
-    <!-- Botón para abrir una nueva pestaña (+) -->
-    <button
-      type="button"
-      class="tab-add-btn"
-      (click)="createNewTab()"
-      [title]="i18n.currentLang() === 'es' ? 'Abrir nueva pestaña' : 'Open new tab'"
-    >
-      <app-icon name="plus" [size]="13"></app-icon>
-    </button>
+    <!-- Botón para abrir una nueva pestaña (+) con menú selector de tipo -->
+    <div class="add-tab-wrapper">
+      <button
+        type="button"
+        class="tab-add-btn"
+        (click)="toggleTypeMenu($event)"
+        [title]="i18n.t('doc_type.create_title')"
+      >
+        <app-icon name="plus" [size]="12"></app-icon>
+      </button>
+
+      @if (showTypeMenu()) {
+        <div class="new-tab-menu" (click)="$event.stopPropagation()">
+          <div class="menu-header">
+            <span>{{ i18n.t('doc_type.create_title') }}</span>
+          </div>
+
+          <button type="button" class="type-menu-item" (click)="createNewTabOfType('block')">
+            <span class="item-icon block">
+              <app-icon name="file-text" [size]="13"></app-icon>
+            </span>
+            <div class="item-text">
+              <strong>{{ i18n.t('doc_type.block_title') }}</strong>
+              <small>{{ i18n.t('doc_type.block_desc') }}</small>
+            </div>
+          </button>
+
+          <button type="button" class="type-menu-item" (click)="createNewTabOfType('sheet')">
+            <span class="item-icon sheet">
+              <app-icon name="sheet" [size]="13"></app-icon>
+            </span>
+            <div class="item-text">
+              <strong>{{ i18n.t('doc_type.sheet_title') }}</strong>
+              <small>{{ i18n.t('doc_type.sheet_desc') }}</small>
+            </div>
+          </button>
+
+          <button type="button" class="type-menu-item" (click)="createNewTabOfType('doc')">
+            <span class="item-icon doc">
+              <app-icon name="file-text" [size]="13"></app-icon>
+            </span>
+            <div class="item-text">
+              <strong>{{ i18n.t('doc_type.doc_title') }}</strong>
+              <small>{{ i18n.t('doc_type.doc_desc') }}</small>
+            </div>
+          </button>
+
+          <button type="button" class="type-menu-item" (click)="createNewTabOfType('canvas')">
+            <span class="item-icon canvas">
+              <app-icon name="canvas" [size]="13"></app-icon>
+            </span>
+            <div class="item-text">
+              <strong>{{ i18n.t('doc_type.canvas_title') }}</strong>
+              <small>{{ i18n.t('doc_type.canvas_desc') }}</small>
+            </div>
+          </button>
+        </div>
+      }
+    </div>
   </div>
 </div>

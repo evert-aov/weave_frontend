@@ -1,10 +1,21 @@
-<div class="document-scroll">
-  @if (notesService.currentNote(); as note) {
-    <article
-      class="document"
-      [class.reading-mode]="notesService.isReadingMode()"
-      [style.zoom]="notesService.documentZoom()"
-    >
+@if (notesService.currentNote(); as note) {
+  @switch (note.docType) {
+    @case ('sheet') {
+      <app-pure-sheet-editor [note]="note"></app-pure-sheet-editor>
+    }
+    @case ('doc') {
+      <app-pure-doc-editor [note]="note"></app-pure-doc-editor>
+    }
+    @case ('canvas') {
+      <app-pure-canvas-editor [note]="note"></app-pure-canvas-editor>
+    }
+    @default {
+      <div class="document-scroll">
+        <article
+          class="document"
+          [class.reading-mode]="notesService.isReadingMode()"
+          [style.zoom]="notesService.documentZoom()"
+        >
       <!-- Metadatos de la nota -->
       <div class="doc-meta">
         <span class="space-badge">{{ formatSpacePath(note.space) }}</span>
@@ -109,13 +120,15 @@
 
       <div class="bottom-space"></div>
     </article>
-  } @else {
-    <div class="no-note-selected">
-      <p>{{ i18n.t('doc.empty_note') }}</p>
-      <button type="button" class="btn-create" (click)="createNewNote()">
-        <app-icon name="plus" [size]="14"></app-icon>
-        {{ i18n.t('topbar.new_note') }}
-      </button>
-    </div>
+  </div>
+    }
   }
-</div>
+} @else {
+  <div class="no-note-selected">
+    <p>{{ i18n.t('doc.empty_note') }}</p>
+    <button type="button" class="btn-create" (click)="createNewNote()">
+      <app-icon name="plus" [size]="14"></app-icon>
+      {{ i18n.t('topbar.new_note') }}
+    </button>
+  </div>
+}

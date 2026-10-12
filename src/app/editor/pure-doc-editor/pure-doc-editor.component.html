@@ -1,0 +1,66 @@
+<div class="pure-doc-workspace">
+  <!-- Cabecera de Documento Especializado -->
+  <header class="doc-header">
+    <div class="header-left">
+      <div class="doc-badge-group">
+        <span class="type-badge doc">
+          <app-icon name="file-text" [size]="14"></app-icon>
+          <span>{{ i18n.t('doc_type.doc_title') }}</span>
+        </span>
+        <span class="space-badge">{{ formatSpacePath(note.space) }}</span>
+      </div>
+
+      <h1
+        class="doc-title"
+        contenteditable="true"
+        (blur)="onTitleBlur($event)"
+        [textContent]="note.title"
+      ></h1>
+    </div>
+
+    <div class="header-right">
+      <!-- Indicador de guardado -->
+      <span class="save-indicator" [class.saving]="notesService.saveStatus() === 'saving'">
+        <span class="indicator-dot"></span>
+        <span>
+          {{ notesService.saveStatus() === 'saving'
+              ? (i18n.currentLang() === 'es' ? 'Guardando...' : 'Saving...')
+              : (i18n.currentLang() === 'es' ? 'Guardado' : 'Saved') }}
+        </span>
+      </span>
+
+      <!-- Control de Zoom interactivo -->
+      <div class="zoom-controls">
+        <button
+          type="button"
+          class="zoom-btn"
+          (click)="zoomOut()"
+          [title]="i18n.currentLang() === 'es' ? 'Alejar documento' : 'Zoom out'"
+        >
+          <app-icon name="zoom-out" [size]="13"></app-icon>
+        </button>
+        <button
+          type="button"
+          class="zoom-reset-btn"
+          (click)="resetZoom()"
+          [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom al 100%' : 'Reset zoom to 100%'"
+        >
+          {{ Math.round(currentZoom() * 100) }}%
+        </button>
+        <button
+          type="button"
+          class="zoom-btn"
+          (click)="zoomIn()"
+          [title]="i18n.currentLang() === 'es' ? 'Acercar documento' : 'Zoom in'"
+        >
+          <app-icon name="zoom-in" [size]="13"></app-icon>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenedor completo de Univer Docs -->
+  <main class="doc-mount-container" [style.zoom]="currentZoom()">
+    <div #docContainer class="univer-pure-doc-mount"></div>
+  </main>
+</div>

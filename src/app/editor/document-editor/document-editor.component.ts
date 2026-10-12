@@ -20,6 +20,10 @@ import { MermaidBlockComponent } from '../../blocks/mermaid-block/mermaid-block.
 import { FileBlockComponent } from '../../blocks/file-block/file-block.component';
 import { BlockType } from '../../core/models/block.model';
 
+import { PureSheetEditorComponent } from '../pure-sheet-editor/pure-sheet-editor.component';
+import { PureDocEditorComponent } from '../pure-doc-editor/pure-doc-editor.component';
+import { PureCanvasEditorComponent } from '../pure-canvas-editor/pure-canvas-editor.component';
+
 /**
  * Editor Principal del Documento de Weave.
  * Orquesta los bloques utilizando un layout con canalón independiente para que los controles
@@ -42,6 +46,9 @@ import { BlockType } from '../../core/models/block.model';
     CodeBlockComponent,
     MermaidBlockComponent,
     FileBlockComponent,
+    PureSheetEditorComponent,
+    PureDocEditorComponent,
+    PureCanvasEditorComponent,
   ],
   templateUrl: './document-editor.component.html',
   styleUrl: './document-editor.component.scss',

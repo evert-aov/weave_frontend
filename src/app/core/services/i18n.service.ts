@@ -38,6 +38,17 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'doc.drop_here': 'Soltar bloque aquí',
     'doc.empty_note': 'Este documento aún no tiene bloques. Presiona "/" o el botón "+" para comenzar.',
 
+    // Tipos de documentos especializados
+    'doc_type.create_title': 'Crear documento especializado',
+    'doc_type.block_title': 'Documento Estándar',
+    'doc_type.block_desc': 'Bloques interactivos de texto, código, LaTeX y medios',
+    'doc_type.sheet_title': 'Hoja de Cálculo (Excel)',
+    'doc_type.sheet_desc': 'Libro completo Univer Sheets con fórmulas y hojas',
+    'doc_type.doc_title': 'Documento de Texto (Word)',
+    'doc_type.doc_desc': 'Procesador de texto formal Univer Docs enriquecido',
+    'doc_type.canvas_title': 'Lienzo de Dibujo',
+    'doc_type.canvas_desc': 'Pizarra vectorial infinita para bocetos y diagramas',
+
     // Rail y Bloques
     'rail.add_block': 'Insertar bloque debajo',
     'rail.drag': 'Arrastrar para reordenar',
@@ -137,6 +148,17 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'doc.add_tag': 'Add tag',
     'doc.drop_here': 'Drop block here',
     'doc.empty_note': 'This document has no blocks yet. Type "/" or press "+" to start.',
+
+    // Specialized document types
+    'doc_type.create_title': 'Create specialized document',
+    'doc_type.block_title': 'Standard Document',
+    'doc_type.block_desc': 'Interactive blocks of text, code, LaTeX, and media',
+    'doc_type.sheet_title': 'Spreadsheet (Excel)',
+    'doc_type.sheet_desc': 'Full Univer Sheets workbook with formulas and sheets',
+    'doc_type.doc_title': 'Word Document',
+    'doc_type.doc_desc': 'Formal Univer Docs word processor with page layout',
+    'doc_type.canvas_title': 'Vector Canvas',
+    'doc_type.canvas_desc': 'Infinite vector whiteboard for diagrams and sketches',
 
     // Rail & Blocks
     'rail.add_block': 'Add block below',

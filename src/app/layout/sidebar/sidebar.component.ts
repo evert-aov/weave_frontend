@@ -12,8 +12,8 @@ import { NotesService } from '../../core/services/notes.service';
 import { AuthService } from '../../core/services/auth.service';
 import { SpacesService } from '../../core/services/spaces.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { IconComponent } from '../../shared/components/icon/icon.component';
-import { Note } from '../../core/models/note.model';
+import { IconComponent, IconName } from '../../shared/components/icon/icon.component';
+import { Note, DocType } from '../../core/models/note.model';
 import { Space } from '../../core/models/space.model';
 
 export interface DraggedItem {
@@ -210,26 +210,64 @@ export class SidebarComponent implements OnInit {
     this.notesService.loadNoteById(note._id).subscribe();
   }
 
-  createNoteInActiveSpace(): void {
-    const active = this.notesService.activeSpace();
-    const space = active && active !== 'all' ? active : 'Research';
-    this.notesService.createNote(undefined, space).subscribe();
-  }
+  // Estados del modal interactivo de creación de documento especializado
+  readonly showCreateDocModal = signal<boolean>(false);
+  readonly targetSpaceForNewDoc = signal<Space | null>(null);
 
-  createNoteInSpace(space: Space, event?: MouseEvent): void {
+  openCreateDocModal(space?: Space, event?: MouseEvent): void {
     if (event) {
       event.stopPropagation();
     }
-    const targetPath = space.path || space.name;
-    this.notesService.createNote(undefined, targetPath).subscribe({
+    this.targetSpaceForNewDoc.set(space || null);
+    this.showCreateDocModal.set(true);
+  }
+
+  closeCreateDocModal(): void {
+    this.showCreateDocModal.set(false);
+    this.targetSpaceForNewDoc.set(null);
+  }
+
+  createSpecializedDoc(docType: DocType): void {
+    const space = this.targetSpaceForNewDoc();
+    const targetPath = space
+      ? space.path || space.name
+      : this.notesService.activeSpace() && this.notesService.activeSpace() !== 'all'
+      ? this.notesService.activeSpace()
+      : 'Research';
+
+    this.notesService.createNote(undefined, targetPath, docType).subscribe({
       next: () => {
-        this.expandedSpaces.update((prev) => {
-          const next = new Set(prev);
-          next.add(space._id);
-          return next;
-        });
+        if (space) {
+          this.expandedSpaces.update((prev) => {
+            const next = new Set(prev);
+            next.add(space._id);
+            return next;
+          });
+        }
+        this.closeCreateDocModal();
       },
     });
+  }
+
+  getNoteIcon(docType?: string): IconName {
+    switch (docType) {
+      case 'sheet':
+        return 'sheet';
+      case 'doc':
+        return 'file-text';
+      case 'canvas':
+        return 'canvas';
+      default:
+        return 'file-text';
+    }
+  }
+
+  createNoteInActiveSpace(): void {
+    this.openCreateDocModal();
+  }
+
+  createNoteInSpace(space: Space, event?: MouseEvent): void {
+    this.openCreateDocModal(space, event);
   }
 
   promptCreateSpace(): void {

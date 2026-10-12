@@ -202,7 +202,7 @@
                 (click)="openNote(note)"
                 [title]="note.title || 'Untitled'"
               >
-                <app-icon name="file-text" [size]="13"></app-icon>
+                <app-icon [name]="getNoteIcon(note.docType)" [size]="13" [ngClass]="note.docType || 'block'"></app-icon>
                 <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
               </button>
 
@@ -294,6 +294,78 @@
           <button type="button" class="btn-confirm" (click)="confirmModalMove()">
             {{ i18n.currentLang() === 'es' ? 'Mover aquí' : 'Move here' }}
           </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Modal interactivo para seleccionar tipo de documento especializado -->
+  @if (showCreateDocModal()) {
+    <div class="create-doc-modal-backdrop" (click)="closeCreateDocModal()">
+      <div class="create-doc-modal-dialog" (click)="$event.stopPropagation()">
+        <div class="create-doc-modal-header">
+          <div class="header-left">
+            <app-icon name="plus" [size]="16" class="text-accent"></app-icon>
+            <strong>{{ i18n.t('doc_type.create_title') }}</strong>
+          </div>
+          <button type="button" class="close-btn" (click)="closeCreateDocModal()">
+            <app-icon name="close" [size]="14"></app-icon>
+          </button>
+        </div>
+
+        <div class="create-doc-modal-body">
+          @if (targetSpaceForNewDoc(); as targetSpace) {
+            <p class="target-space-info">
+              <span>{{ i18n.currentLang() === 'es' ? 'Ubicación:' : 'Location:' }}</span>
+              <span class="space-badge">{{ targetSpace.path || targetSpace.name }}</span>
+            </p>
+          }
+
+          <div class="doc-types-grid">
+            <!-- 1. Documento Estándar -->
+            <button type="button" class="type-card" (click)="createSpecializedDoc('block')">
+              <span class="card-icon block">
+                <app-icon name="file-text" [size]="20"></app-icon>
+              </span>
+              <div class="card-info">
+                <strong>{{ i18n.t('doc_type.block_title') }}</strong>
+                <p>{{ i18n.t('doc_type.block_desc') }}</p>
+              </div>
+            </button>
+
+            <!-- 2. Hoja de Cálculo (Univer Sheets) -->
+            <button type="button" class="type-card" (click)="createSpecializedDoc('sheet')">
+              <span class="card-icon sheet">
+                <app-icon name="sheet" [size]="20"></app-icon>
+              </span>
+              <div class="card-info">
+                <strong>{{ i18n.t('doc_type.sheet_title') }}</strong>
+                <p>{{ i18n.t('doc_type.sheet_desc') }}</p>
+              </div>
+            </button>
+
+            <!-- 3. Documento de Texto (Univer Docs) -->
+            <button type="button" class="type-card" (click)="createSpecializedDoc('doc')">
+              <span class="card-icon doc">
+                <app-icon name="file-text" [size]="20"></app-icon>
+              </span>
+              <div class="card-info">
+                <strong>{{ i18n.t('doc_type.doc_title') }}</strong>
+                <p>{{ i18n.t('doc_type.doc_desc') }}</p>
+              </div>
+            </button>
+
+            <!-- 4. Lienzo de Dibujo (Canvas) -->
+            <button type="button" class="type-card" (click)="createSpecializedDoc('canvas')">
+              <span class="card-icon canvas">
+                <app-icon name="canvas" [size]="20"></app-icon>
+              </span>
+              <div class="card-info">
+                <strong>{{ i18n.t('doc_type.canvas_title') }}</strong>
+                <p>{{ i18n.t('doc_type.canvas_desc') }}</p>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </div>
