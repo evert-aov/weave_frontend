@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import * as katex from 'katex';
 import { Block } from '../../core/models/block.model';
 import { NotesService } from '../../core/services/notes.service';
@@ -52,13 +53,14 @@ export class LatexBlockComponent implements OnInit, AfterViewInit {
 
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly isEditing = signal<boolean>(false);
   readonly showToolbox = signal<boolean>(true);
   readonly activeCategoryId = signal<string>('basics');
 
   rawFormula = '';
-  private readonly renderedChipsMap = new Map<string, string>();
+  private readonly renderedChipsMap = new Map<string, SafeHtml>();
 
   readonly categories: LatexCategory[] = [
     {
@@ -263,9 +265,10 @@ export class LatexBlockComponent implements OnInit, AfterViewInit {
 
   /**
    * Renderiza el snippet matemático KaTeX en HTML para mostrarlo en el botón/chip.
-   * Utiliza caché en memoria para garantizar rendimiento óptimo instantáneo.
+   * Utiliza DomSanitizer para evitar que Angular elimine las etiquetas SVG (como la raíz)
+   * o los estilos en línea (como la línea divisoria de la fracción).
    */
-  renderKatexSnippet(math: string): string {
+  renderKatexSnippet(math: string): SafeHtml {
     if (this.renderedChipsMap.has(math)) {
       return this.renderedChipsMap.get(math)!;
     }
@@ -273,11 +276,15 @@ export class LatexBlockComponent implements OnInit, AfterViewInit {
       const rendered = katex.renderToString(math, {
         throwOnError: false,
         displayMode: false,
+        output: 'html',
       });
-      this.renderedChipsMap.set(math, rendered);
-      return rendered;
+      const safe = this.sanitizer.bypassSecurityTrustHtml(rendered);
+      this.renderedChipsMap.set(math, safe);
+      return safe;
     } catch {
-      return math;
+      const safe = this.sanitizer.bypassSecurityTrustHtml(math);
+      this.renderedChipsMap.set(math, safe);
+      return safe;
     }
   }
 

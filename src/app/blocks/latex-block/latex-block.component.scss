@@ -270,10 +270,11 @@
   align-items: center;
 
   .tool-chip {
-    min-height: 28px;
-    min-width: 32px;
-    padding: 3px 8px;
-    border-radius: 5px;
+    min-height: 32px;
+    height: auto;
+    min-width: 36px;
+    padding: 4px 9px;
+    border-radius: 6px;
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--text);
@@ -281,8 +282,9 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 12px;
     user-select: none;
+    overflow: visible;
     transition: all 0.12s ease;
 
     &:hover {
@@ -298,7 +300,35 @@
     }
 
     ::ng-deep .katex {
-      font-size: 0.95em;
+      font-size: 1.05em;
+      line-height: normal;
+      display: inline-block;
+      text-align: center;
+    }
+
+    ::ng-deep .katex-html {
+      overflow: visible;
+    }
+
+    ::ng-deep .frac-line {
+      border-bottom-style: solid !important;
+      border-bottom-width: 1.2px !important;
+      min-height: 1px;
+    }
+
+    ::ng-deep .sqrt {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    ::ng-deep .hide-tail {
+      overflow: hidden;
+      position: relative;
+    }
+
+    ::ng-deep .hide-tail svg {
+      fill: currentColor;
+      stroke: currentColor;
     }
   }
 }
