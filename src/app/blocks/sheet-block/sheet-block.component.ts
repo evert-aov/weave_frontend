@@ -107,6 +107,9 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
           if (typeof activeSheet.setColumnHeaderHeight === 'function') {
             activeSheet.setColumnHeaderHeight(isReading ? 0 : 24);
           }
+          if (typeof activeSheet.refreshCanvas === 'function') {
+            activeSheet.refreshCanvas();
+          }
         }
       }
     } catch (e) {
