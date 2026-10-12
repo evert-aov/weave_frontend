@@ -39,15 +39,33 @@ export class PdfExportStrategy implements ExportStrategy {
     filename: string,
     options: ExportOptions,
   ): Promise<void> {
+    const format = (options.pageSize || 'a4').toLowerCase();
+    const orientation = options.orientation || 'portrait';
+    const pdf = new jsPDF({
+      orientation,
+      unit: 'mm',
+      format,
+    });
+
+    const pageWidthMm = pdf.internal.pageSize.getWidth();
+    const pageHeightMm = pdf.internal.pageSize.getHeight();
+
+    // Proporción exacta a 96 DPI estándar de pantalla para concordancia 1:1 física con el tamaño de página
+    const pxPerMm = 96 / 25.4;
+    const widthPx = Math.round(pageWidthMm * pxPerMm);
+
     const renderContainer = document.createElement('div');
     renderContainer.className = 'weave-pdf-export-render-box';
     renderContainer.style.position = 'fixed';
     renderContainer.style.top = '0';
     renderContainer.style.left = '0';
-    renderContainer.style.width = '794px'; // ~210mm a 96dpi estándar para tamaño A4
+    renderContainer.style.width = `${widthPx}px`;
+    renderContainer.style.maxWidth = `${widthPx}px`;
+    renderContainer.style.minWidth = `${widthPx}px`;
     renderContainer.style.background = '#ffffff';
     renderContainer.style.color = '#111827';
-    renderContainer.style.padding = '36px 44px';
+    renderContainer.style.padding = '0';
+    renderContainer.style.margin = '0';
     renderContainer.style.fontFamily = "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
     renderContainer.style.boxSizing = 'border-box';
     renderContainer.style.zIndex = '-9999';
@@ -59,7 +77,7 @@ export class PdfExportStrategy implements ExportStrategy {
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
       <style>${this.getPdfStyles()}</style>
-      <div class="weave-pdf-document">
+      <div class="weave-pdf-document" style="box-sizing: border-box; padding: 16mm 18mm 20mm 18mm; width: 100%; margin: 0 auto;">
         ${this.buildNoteHtmlContent(note, options)}
       </div>
     `;
@@ -76,23 +94,10 @@ export class PdfExportStrategy implements ExportStrategy {
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: 794,
+        windowWidth: widthPx,
       });
 
-      const pdf = new jsPDF({
-        orientation: options.orientation || 'portrait',
-        unit: 'mm',
-        format: options.pageSize?.toLowerCase() || 'a4',
-      });
-
-      const pageWidthMm = pdf.internal.pageSize.getWidth();
-      const pageHeightMm = pdf.internal.pageSize.getHeight();
-      const marginMm = 12;
-      const contentWidthMm = pageWidthMm - marginMm * 2;
-      const contentHeightMm = pageHeightMm - marginMm * 2;
-
-      const pxPerMm = fullCanvas.width / contentWidthMm;
-      const maxPageHeightPx = contentHeightMm * pxPerMm;
+      const maxPageHeightPx = Math.round((pageHeightMm * fullCanvas.width) / pageWidthMm);
 
       const containerRect = renderContainer.getBoundingClientRect();
       const breakableNodes = Array.from(
@@ -126,14 +131,14 @@ export class PdfExportStrategy implements ExportStrategy {
             (b) => b.top < theoreticalBottom && b.bottom > theoreticalBottom
           );
 
-          if (crossing && crossing.top > currentY + 100) {
+          if (crossing && crossing.top > currentY + 120) {
             breakY = crossing.top;
           } else {
             // Evitar encabezados huérfanos al pie de página
             const orphanHeading = elementBounds.find(
-              (b) => b.isHeading && b.top < theoreticalBottom && b.top > theoreticalBottom - 120
+              (b) => b.isHeading && b.top < theoreticalBottom && b.top > theoreticalBottom - 140
             );
-            if (orphanHeading && orphanHeading.top > currentY + 100) {
+            if (orphanHeading && orphanHeading.top > currentY + 120) {
               breakY = orphanHeading.top;
             }
           }
@@ -146,7 +151,7 @@ export class PdfExportStrategy implements ExportStrategy {
         }
 
         const sliceHeightPx = breakY - currentY;
-        const sliceHeightMm = (sliceHeightPx * contentWidthMm) / fullCanvas.width;
+        const sliceHeightMm = (sliceHeightPx * pageWidthMm) / fullCanvas.width;
 
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = fullCanvas.width;
@@ -169,11 +174,11 @@ export class PdfExportStrategy implements ExportStrategy {
           );
 
           if (pageIndex > 0) {
-            pdf.addPage();
+            pdf.addPage(format, orientation);
           }
 
           const imgData = pageCanvas.toDataURL('image/jpeg', 0.98);
-          pdf.addImage(imgData, 'JPEG', marginMm, marginMm, contentWidthMm, sliceHeightMm);
+          pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, sliceHeightMm);
           pageIndex++;
         }
 
@@ -214,7 +219,7 @@ export class PdfExportStrategy implements ExportStrategy {
           <style>
             @page {
               size: ${options.pageSize || 'A4'} ${options.orientation || 'portrait'};
-              margin: 16mm 16mm 20mm 16mm;
+              margin: 16mm 18mm 20mm 18mm;
             }
             body {
               font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -223,7 +228,7 @@ export class PdfExportStrategy implements ExportStrategy {
               line-height: 1.65;
               font-size: 14px;
               margin: 0;
-              padding: 24px;
+              padding: 0;
             }
             @media print {
               body {
@@ -796,7 +801,9 @@ export class PdfExportStrategy implements ExportStrategy {
   private getPdfStyles(): string {
     return `
       .weave-pdf-document {
-        max-width: 800px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
         margin: 0 auto;
         color: #111827;
       }
