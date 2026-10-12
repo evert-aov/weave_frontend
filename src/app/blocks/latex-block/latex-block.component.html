@@ -1,5 +1,5 @@
 <div class="latex-block-root" [class.editing]="isEditing()" [class.reading-mode]="notesService.isReadingMode()">
-  <!-- Modo Edición: Textarea auto-expandible con cabecera y vista previa en vivo -->
+  <!-- Modo Edición: Textarea auto-expandible con cuadro de herramientas y vista previa en vivo -->
   @if (isEditing()) {
     <div class="latex-editor-card">
       <div class="editor-bar">
@@ -7,20 +7,81 @@
           <span class="sigma-glyph">∑</span>
           <span class="badge-text">LaTeX Formula</span>
         </div>
+
         <div class="bar-actions">
+          <!-- Botón para alternar la visibilidad de la caja de herramientas -->
+          <button
+            type="button"
+            class="toolbox-toggle-btn"
+            [class.active]="showToolbox()"
+            (click)="toggleToolbox()"
+            [title]="i18n.currentLang() === 'es' ? 'Mostrar/Ocultar herramientas LaTeX' : 'Toggle LaTeX toolbox'"
+          >
+            <app-icon name="sliders" [size]="13"></app-icon>
+            <span>{{ i18n.currentLang() === 'es' ? 'Herramientas' : 'Toolbox' }}</span>
+          </button>
+
+          <!-- Botón para limpiar -->
+          @if (rawFormula) {
+            <button
+              type="button"
+              class="clear-btn"
+              (click)="clearFormula()"
+              [title]="i18n.currentLang() === 'es' ? 'Borrar fórmula' : 'Clear formula'"
+            >
+              <app-icon name="trash" [size]="12"></app-icon>
+            </button>
+          }
+
           <span class="hint-key">Ctrl + Enter</span>
+
           <button type="button" class="done-btn" (mousedown)="finishEditing($event)">
             {{ i18n.currentLang() === 'es' ? 'Listo' : 'Done' }}
           </button>
         </div>
       </div>
 
+      <!-- Cuadro de Herramientas Interactivo -->
+      @if (showToolbox()) {
+        <div class="toolbox-panel">
+          <!-- Pestañas de categorías -->
+          <div class="category-tabs">
+            @for (cat of categories; track cat.id) {
+              <button
+                type="button"
+                class="cat-tab"
+                [class.active]="activeCategoryId() === cat.id"
+                (mousedown)="$event.preventDefault(); selectCategory(cat.id)"
+              >
+                {{ i18n.currentLang() === 'es' ? cat.nameEs : cat.nameEn }}
+              </button>
+            }
+          </div>
+
+          <!-- Paleta de símbolos y plantillas de la categoría activa -->
+          <div class="palette-scroll">
+            <div class="palette-grid">
+              @for (item of currentCategory().items; track item.label) {
+                <button
+                  type="button"
+                  class="tool-chip"
+                  (mousedown)="$event.preventDefault(); insertSnippet(item.snippet)"
+                  [title]="item.tooltip"
+                  [innerHTML]="renderKatexSnippet(item.label)"
+                ></button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Textarea de edición directa -->
       <textarea
         #textareaEl
         [(ngModel)]="rawFormula"
         (input)="onFormulaInput()"
         (keydown.control.enter)="saveAndPreview()"
-        (blur)="onBlurEditor()"
+        (blur)="onBlurEditor($event)"
         [placeholder]="'Ej: \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}'"
         class="latex-textarea"
       ></textarea>
@@ -38,7 +99,7 @@
     <div
       class="latex-display-card"
       (click)="onCardClick()"
-      [title]="notesService.isReadingMode() ? '' : 'Haz clic para editar la fórmula'"
+      [title]="notesService.isReadingMode() ? '' : (i18n.currentLang() === 'es' ? 'Haz clic para editar la fórmula' : 'Click to edit formula')"
     >
       @if (!notesService.isReadingMode()) {
         <div class="top-tag">
