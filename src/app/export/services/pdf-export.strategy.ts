@@ -861,6 +861,8 @@ export class PdfExportStrategy implements ExportStrategy {
         display: block;
         page-break-inside: auto !important;
         break-inside: auto !important;
+        zoom: 1.2;
+        font-size: 16.8px;
       }
       .page-break-avoid,
       .pdf-sheet-wrapper,
@@ -874,16 +876,16 @@ export class PdfExportStrategy implements ExportStrategy {
       }
       .pdf-text-block p {
         margin: 0 0 10px 0;
-        font-size: 14px;
+        font-size: 16.8px;
         line-height: 1.68;
         color: #1f2937;
         orphans: 2;
         widows: 2;
       }
       .pdf-text-block h1 {
-        font-size: 22px;
+        font-size: 26.4px;
         font-weight: 700;
-        margin: 20px 0 8px;
+        margin: 22px 0 10px;
         color: #111827;
         border-bottom: 1px solid #e5e7eb;
         padding-bottom: 4px;
@@ -891,41 +893,41 @@ export class PdfExportStrategy implements ExportStrategy {
         break-after: avoid !important;
       }
       .pdf-text-block h2 {
-        font-size: 18px;
+        font-size: 21.6px;
         font-weight: 700;
-        margin: 16px 0 6px;
+        margin: 18px 0 8px;
         color: #111827;
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
       .pdf-text-block h3 {
-        font-size: 15px;
+        font-size: 18px;
+        font-weight: 600;
+        margin: 14px 0 6px;
+        color: #1f2937;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+      }
+      .pdf-text-block h4 {
+        font-size: 16.8px;
         font-weight: 600;
         margin: 12px 0 4px;
         color: #1f2937;
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
-      .pdf-text-block h4 {
-        font-size: 14px;
+      .pdf-text-block h5 {
+        font-size: 15.6px;
         font-weight: 600;
         margin: 10px 0 4px;
-        color: #1f2937;
-        page-break-after: avoid !important;
-        break-after: avoid !important;
-      }
-      .pdf-text-block h5 {
-        font-size: 13px;
-        font-weight: 600;
-        margin: 8px 0 3px;
         color: #374151;
         page-break-after: avoid !important;
         break-after: avoid !important;
       }
       .pdf-text-block h6 {
-        font-size: 12px;
+        font-size: 14.4px;
         font-weight: 600;
-        margin: 8px 0 3px;
+        margin: 10px 0 4px;
         color: #4b5563;
         page-break-after: avoid !important;
         break-after: avoid !important;
@@ -935,13 +937,15 @@ export class PdfExportStrategy implements ExportStrategy {
         padding: 0;
       }
       .pdf-text-block li {
-        margin-bottom: 4px;
+        margin-bottom: 5px;
+        font-size: 16.8px;
         orphans: 2;
         widows: 2;
       }
       .pdf-text-block blockquote {
-        margin: 12px 0;
-        padding: 8px 16px;
+        margin: 14px 0;
+        padding: 10px 18px;
+        font-size: 16px;
         background: #f9fafb;
         border-left: 3px solid #6366f1;
         color: #4b5563;
@@ -951,13 +955,18 @@ export class PdfExportStrategy implements ExportStrategy {
         background: #f9fafb;
         border: 1px solid #e5e7eb;
         border-radius: 6px;
-        padding: 14px 20px;
-        margin: 12px 0;
+        padding: 10px 16px;
+        margin: 10px 0;
+        font-size: 11.5px;
       }
       .pdf-latex-inner {
         display: flex;
         justify-content: center;
         overflow-x: auto;
+        font-size: 11.5px;
+      }
+      .pdf-latex-block .katex {
+        font-size: 1em !important;
       }
       .pdf-code-block {
         background: #1f2937;

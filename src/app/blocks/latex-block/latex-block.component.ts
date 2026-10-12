@@ -181,16 +181,16 @@ import { I18nService } from '../../core/services/i18n.service';
         overflow: visible; /* Elimina cualquier scroll forzado */
       }
       .main-display {
-        font-size: 17px;
-        padding: 6px 0;
+        font-size: 11.5px;
+        padding: 4px 0;
       }
 
       ::ng-deep .math-render-surface .katex-display {
-        margin: 0.4em 0;
+        margin: 0.25em 0;
         overflow: visible !important;
       }
       ::ng-deep .math-render-surface .katex {
-        font-size: 1.15em;
+        font-size: 1em;
         text-rendering: auto;
       }
 
