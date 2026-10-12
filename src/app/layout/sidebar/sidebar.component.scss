@@ -163,6 +163,34 @@
   &.selected-space {
     background: color-mix(in srgb, var(--soft) 70%, var(--accent-soft));
   }
+
+  &.drag-over-target {
+    background: var(--accent-soft, rgba(99, 102, 241, 0.15)) !important;
+    outline: 2px dashed var(--accent, #6366f1);
+  }
+}
+
+.root-drop-indicator {
+  margin: 4px 6px 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border-strong, #cbd5e1);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg);
+  transition: all 0.15s ease;
+
+  &.active {
+    border-color: var(--accent, #6366f1);
+    background: var(--accent-soft, rgba(99, 102, 241, 0.1));
+    color: var(--accent, #6366f1);
+    font-weight: 600;
+    transform: scale(1.01);
+  }
 }
 
 .tree-row {
@@ -278,10 +306,34 @@
   gap: 1px;
 }
 
+.note-row-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 5px;
+  position: relative;
+  transition: background 0.12s ease;
+  cursor: grab;
+
+  &:hover {
+    background: var(--soft);
+
+    .note-actions {
+      opacity: 1;
+    }
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
 .tree-row.note-row {
+  flex: 1;
+  min-width: 0;
   height: 28px;
   padding-left: calc(22px + (var(--tree-level, 0) * 12px));
-  padding-right: 8px;
+  padding-right: 4px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -289,10 +341,10 @@
   font-size: 11.5px;
   color: var(--muted);
   cursor: pointer;
+  background: transparent;
   transition: all 0.12s ease;
 
   &:hover {
-    background: var(--soft);
     color: var(--text);
   }
 
@@ -307,6 +359,31 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 11.5px;
+  }
+}
+
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.note-action-btn {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--faint);
+  background: transparent;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text);
+    background: var(--bg);
   }
 }
 
@@ -436,4 +513,189 @@
 .user-menu-item.logout-item:hover {
   color: #ef4444;
   background: rgba(239, 68, 68, 0.08);
+}
+
+/* Modal interactivo Mover a... */
+.move-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+}
+
+.move-modal-dialog {
+  width: 90%;
+  max-width: 440px;
+  background: var(--panel, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalIn 0.15s ease-out;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.move-modal-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+
+    strong {
+      font-size: 13px;
+      color: var(--text, #1e293b);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .target-name {
+      color: var(--accent, #6366f1);
+      margin-left: 4px;
+    }
+  }
+
+  .close-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted, #64748b);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: grid;
+    place-items: center;
+
+    &:hover {
+      color: var(--text, #1e293b);
+      background: var(--soft, #f1f5f9);
+    }
+  }
+}
+
+.move-modal-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  .destination-label {
+    font-size: 11.5px;
+    color: var(--muted, #64748b);
+    margin: 0;
+    font-weight: 500;
+  }
+
+  .destination-list {
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    padding: 6px;
+    background: var(--bg, #f8fafc);
+
+    .dest-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text, #1e293b);
+      background: transparent;
+      border: 1px solid transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.12s ease;
+
+      &:hover {
+        background: var(--soft, #f1f5f9);
+      }
+
+      &.selected {
+        background: var(--accent-soft, rgba(99, 102, 241, 0.12));
+        border-color: var(--accent, #6366f1);
+        font-weight: 600;
+        color: var(--accent, #6366f1);
+      }
+
+      &.root-dest {
+        font-style: italic;
+        color: var(--muted, #64748b);
+        border-bottom: 1px solid var(--border, #e2e8f0);
+        margin-bottom: 3px;
+      }
+
+      .dest-name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+}
+
+.move-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border, #e2e8f0);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  background: var(--bg, #f8fafc);
+
+  .btn-cancel {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted, #64748b);
+    background: transparent;
+    border: 1px solid var(--border, #e2e8f0);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text, #1e293b);
+      background: var(--soft, #f1f5f9);
+    }
+  }
+
+  .btn-confirm {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    background: var(--accent, #6366f1);
+    border: 1px solid var(--accent, #6366f1);
+    cursor: pointer;
+
+    &:hover {
+      opacity: 0.9;
+    }
+  }
 }

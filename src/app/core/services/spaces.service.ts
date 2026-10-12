@@ -53,11 +53,15 @@ export class SpacesService {
   }
 
   /**
-   * Actualiza el nombre de un espacio existente.
+   * Actualiza el nombre o propiedades de un espacio existente.
    */
-  updateSpace(id: string, name: string): Observable<Space> {
+  updateSpace(
+    id: string,
+    updates: { name?: string; parentId?: string | null; color?: string; icon?: string } | string,
+  ): Observable<Space> {
+    const payload = typeof updates === 'string' ? { name: updates.trim() } : updates;
     return this.http
-      .put<Space>(`${this.apiUrl}/${id}`, { name: name.trim() })
+      .put<Space>(`${this.apiUrl}/${id}`, payload)
       .pipe(
         tap((updated) => {
           this.spacesList.update((prev) =>
@@ -65,6 +69,17 @@ export class SpacesService {
           );
         }),
       );
+  }
+
+  /**
+   * Mueve un directorio a un nuevo directorio padre (o a la raíz si targetParentId es null).
+   */
+  moveSpace(id: string, targetParentId: string | null): Observable<Space> {
+    return this.updateSpace(id, { parentId: targetParentId }).pipe(
+      tap(() => {
+        this.loadSpaces().subscribe();
+      }),
+    );
   }
 
   /**

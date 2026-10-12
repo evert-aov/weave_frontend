@@ -344,6 +344,24 @@ export class NotesService {
   }
 
   /**
+   * Mueve una nota a un directorio o espacio destino.
+   */
+  moveNoteToSpace(noteId: string, targetSpace: string): Observable<Note> {
+    return this.http
+      .put<Note>(`${this.apiUrl}/${noteId}`, { space: targetSpace })
+      .pipe(
+        tap((updated) => {
+          this.notesList.update((list) =>
+            list.map((n) => (n._id === noteId ? { ...n, space: targetSpace } : n)),
+          );
+          if (this.currentNote()?._id === noteId) {
+            this.currentNote.update((curr) => (curr ? { ...curr, space: targetSpace } : null));
+          }
+        }),
+      );
+  }
+
+  /**
    * Sube una imagen al servidor de activos.
    */
   uploadImage(file: File): Observable<{ url: string; originalName: string }> {

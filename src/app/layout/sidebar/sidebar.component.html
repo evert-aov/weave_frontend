@@ -63,6 +63,20 @@
         </button>
       </div>
 
+      <!-- Zona de soltar a la raíz cuando se arrastra un directorio -->
+      @if (draggedItem()?.type === 'space') {
+        <div
+          class="root-drop-indicator"
+          [class.active]="isDragOverRoot()"
+          (dragover)="onDragOverRoot($event)"
+          (dragleave)="onDragLeaveRoot($event)"
+          (drop)="onDropOnRoot($event)"
+        >
+          <app-icon name="folder-input" [size]="13"></app-icon>
+          <span>{{ i18n.currentLang() === 'es' ? 'Mover a nivel raíz' : 'Move to root level' }}</span>
+        </div>
+      }
+
       <!-- Árbol jerárquico de directorios y notas -->
       <div class="spaces-list">
         @for (space of rootSpaces(); track space._id) {
@@ -79,10 +93,17 @@
   <!-- Plantilla recursiva para renderizar cada carpeta y sus subdirectorios/notas -->
   <ng-template #spaceNode let-space>
     <div class="space-node" [style.--tree-level]="space.level || 0">
-      <!-- Fila de la carpeta / espacio -->
+      <!-- Fila de la carpeta / espacio con Drag & Drop -->
       <div
         class="space-row-container"
         [class.selected-space]="notesService.activeSpace() === (space.path || space.name)"
+        [class.drag-over-target]="dragOverSpaceId() === space._id"
+        draggable="true"
+        (dragstart)="onDragStartSpace(space, $event)"
+        (dragend)="onDragEnd()"
+        (dragover)="onDragOverSpace(space, $event)"
+        (dragleave)="onDragLeaveSpace(space, $event)"
+        (drop)="onDropOnSpace(space, $event)"
       >
         <button
           type="button"
@@ -117,7 +138,7 @@
           </span>
         </button>
 
-        <!-- Acciones sobre el directorio: crear subdirectorio, crear nota, renombrar, eliminar -->
+        <!-- Acciones sobre el directorio: crear subdirectorio, crear nota, mover, renombrar, eliminar -->
         <div class="space-actions">
           <button
             type="button"
@@ -135,6 +156,14 @@
             [title]="i18n.currentLang() === 'es' ? 'Nueva nota en ' + space.name : 'New note in ' + space.name"
           >
             <app-icon name="file" [size]="11"></app-icon>
+          </button>
+          <button
+            type="button"
+            class="space-action-btn"
+            (click)="openMoveSpaceModal(space, $event)"
+            [title]="i18n.currentLang() === 'es' ? 'Mover este directorio a otro lugar' : 'Move this directory'"
+          >
+            <app-icon name="folder-input" [size]="11"></app-icon>
           </button>
           <button
             type="button"
@@ -158,18 +187,36 @@
       <!-- Contenido dentro de la carpeta cuando está expandida -->
       @if (isSpaceExpanded(space._id)) {
         <div class="space-children">
-          <!-- 1. Notas directas dentro de este directorio -->
+          <!-- 1. Notas directas dentro de este directorio (Arrastrables) -->
           @for (note of getNotesForSpace(space); track note._id) {
-            <button
-              type="button"
-              class="tree-row note-row"
-              [class.selected]="notesService.currentNote()?._id === note._id"
-              (click)="openNote(note)"
-              [title]="note.title || 'Untitled'"
+            <div
+              class="note-row-container"
+              draggable="true"
+              (dragstart)="onDragStartNote(note, $event)"
+              (dragend)="onDragEnd()"
             >
-              <app-icon name="file-text" [size]="13"></app-icon>
-              <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
-            </button>
+              <button
+                type="button"
+                class="tree-row note-row"
+                [class.selected]="notesService.currentNote()?._id === note._id"
+                (click)="openNote(note)"
+                [title]="note.title || 'Untitled'"
+              >
+                <app-icon name="file-text" [size]="13"></app-icon>
+                <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
+              </button>
+
+              <div class="note-actions">
+                <button
+                  type="button"
+                  class="note-action-btn"
+                  (click)="openMoveNoteModal(note, $event)"
+                  [title]="i18n.currentLang() === 'es' ? 'Mover nota a otro directorio' : 'Move note to another directory'"
+                >
+                  <app-icon name="folder-input" [size]="11"></app-icon>
+                </button>
+              </div>
+            </div>
           }
 
           <!-- 2. Subdirectorios hijos (recursivos) -->
@@ -182,6 +229,75 @@
       }
     </div>
   </ng-template>
+
+  <!-- Modal interactivo "Mover a..." para notas o directorios -->
+  @if (showMoveModal()) {
+    <div class="move-modal-backdrop" (click)="closeMoveModal()">
+      <div class="move-modal-dialog" (click)="$event.stopPropagation()">
+        <div class="move-modal-header">
+          <div class="header-left">
+            <app-icon [name]="movingTarget()?.type === 'space' ? 'folder' : 'file-text'" [size]="16" class="text-accent"></app-icon>
+            <strong>
+              {{
+                movingTarget()?.type === 'space'
+                  ? (i18n.currentLang() === 'es' ? 'Mover directorio' : 'Move directory')
+                  : (i18n.currentLang() === 'es' ? 'Mover nota' : 'Move note')
+              }}:
+              <span class="target-name">{{ movingTarget()?.name }}</span>
+            </strong>
+          </div>
+          <button type="button" class="close-btn" (click)="closeMoveModal()">
+            <app-icon name="close" [size]="14"></app-icon>
+          </button>
+        </div>
+
+        <div class="move-modal-body">
+          <p class="destination-label">
+            {{ i18n.currentLang() === 'es' ? 'Selecciona el directorio de destino:' : 'Select destination directory:' }}
+          </p>
+
+          <div class="destination-list">
+            <!-- Si se mueve un directorio, opción de colocarlo en el nivel raíz -->
+            @if (movingTarget()?.type === 'space') {
+              <button
+                type="button"
+                class="dest-item root-dest"
+                [class.selected]="selectedDestinationId() === null"
+                (click)="selectedDestinationId.set(null)"
+              >
+                <app-icon name="grid" [size]="14"></app-icon>
+                <span>{{ i18n.currentLang() === 'es' ? '[Directorio raíz / Principal]' : '[Root level]' }}</span>
+              </button>
+            }
+
+            <!-- Lista de espacios disponibles -->
+            @for (dest of availableDestinations(); track dest._id) {
+              <button
+                type="button"
+                class="dest-item"
+                [class.selected]="selectedDestinationId() === dest._id"
+                (click)="selectedDestinationId.set(dest._id)"
+              >
+                <span class="folder-icon" [ngClass]="dest.color || 'indigo'">
+                  <app-icon name="folder" [size]="14"></app-icon>
+                </span>
+                <span class="dest-name">{{ dest.path || dest.name }}</span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="move-modal-footer">
+          <button type="button" class="btn-cancel" (click)="closeMoveModal()">
+            {{ i18n.currentLang() === 'es' ? 'Cancelar' : 'Cancel' }}
+          </button>
+          <button type="button" class="btn-confirm" (click)="confirmModalMove()">
+            {{ i18n.currentLang() === 'es' ? 'Mover aquí' : 'Move here' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 
   <!-- Pie de la barra lateral con perfil real del usuario -->
   <div class="sidebar-bottom">
