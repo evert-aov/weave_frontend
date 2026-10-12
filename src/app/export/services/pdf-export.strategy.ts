@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import * as katex from 'katex';
 import { Note } from '../../core/models/note.model';
 import { Block } from '../../core/models/block.model';
@@ -29,8 +30,9 @@ export class PdfExportStrategy implements ExportStrategy {
   }
 
   /**
-   * Genera y descarga un archivo .pdf vectorial maquetado con auto-paginación inteligente
-   * evitando cortar texto o tablas a la mitad entre páginas.
+   * Genera y descarga un archivo .pdf directo con paginación inteligente por límites de elementos:
+   * - Respeta límites entre párrafos, encabezados, tablas y fórmulas KaTeX sin cortar texto a la mitad.
+   * - Incluye estilos completos de fuentes y KaTeX en el contenedor de rasterizado.
    */
   private async generateDirectPdfDownload(
     note: Note,
@@ -45,13 +47,17 @@ export class PdfExportStrategy implements ExportStrategy {
     renderContainer.style.width = '794px'; // ~210mm a 96dpi estándar para tamaño A4
     renderContainer.style.background = '#ffffff';
     renderContainer.style.color = '#111827';
-    renderContainer.style.padding = '40px 48px';
+    renderContainer.style.padding = '36px 44px';
     renderContainer.style.fontFamily = "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
     renderContainer.style.boxSizing = 'border-box';
     renderContainer.style.zIndex = '-9999';
     renderContainer.style.pointerEvents = 'none';
 
     renderContainer.innerHTML = `
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
       <style>${this.getPdfStyles()}</style>
       <div class="weave-pdf-document">
         ${this.buildNoteHtmlContent(note, options)}
@@ -63,8 +69,15 @@ export class PdfExportStrategy implements ExportStrategy {
       if ((document as any).fonts?.ready) {
         await (document as any).fonts.ready;
       }
-      // Tiempo de estabilización para fuentes web, SVG y KaTeX
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      const fullCanvas = await html2canvas(renderContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 794,
+      });
 
       const pdf = new jsPDF({
         orientation: options.orientation || 'portrait',
@@ -72,33 +85,102 @@ export class PdfExportStrategy implements ExportStrategy {
         format: options.pageSize?.toLowerCase() || 'a4',
       });
 
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 12;
-      const contentWidth = pageWidth - margin * 2;
+      const pageWidthMm = pdf.internal.pageSize.getWidth();
+      const pageHeightMm = pdf.internal.pageSize.getHeight();
+      const marginMm = 12;
+      const contentWidthMm = pageWidthMm - marginMm * 2;
+      const contentHeightMm = pageHeightMm - marginMm * 2;
 
-      await new Promise<void>((resolve, reject) => {
-        pdf.html(renderContainer, {
-          x: margin,
-          y: margin,
-          width: contentWidth,
-          windowWidth: 794,
-          autoPaging: 'text',
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff',
-          },
-          callback: (doc) => {
-            try {
-              doc.save(`${filename}.pdf`);
-              resolve();
-            } catch (err) {
-              reject(err);
+      const pxPerMm = fullCanvas.width / contentWidthMm;
+      const maxPageHeightPx = contentHeightMm * pxPerMm;
+
+      const containerRect = renderContainer.getBoundingClientRect();
+      const breakableNodes = Array.from(
+        renderContainer.querySelectorAll<HTMLElement>(
+          '.pdf-doc-header, .pdf-text-block > *, .pdf-sheet-wrapper, .pdf-sheet-table tr, .pdf-latex-block, .pdf-code-block, .pdf-image-block, .pdf-canvas-block, .pdf-doc-footer'
+        )
+      );
+
+      const elementBounds = breakableNodes
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            top: (r.top - containerRect.top) * 2,
+            bottom: (r.bottom - containerRect.top) * 2,
+            isHeading: ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName),
+          };
+        })
+        .filter((b) => b.bottom > b.top);
+
+      let currentY = 0;
+      const totalHeightPx = fullCanvas.height;
+      let pageIndex = 0;
+
+      while (currentY < totalHeightPx) {
+        const theoreticalBottom = currentY + maxPageHeightPx;
+        let breakY = theoreticalBottom;
+
+        if (theoreticalBottom < totalHeightPx) {
+          // Si un elemento queda partido por la mitad al final de la página, cortar antes de él
+          const crossing = elementBounds.find(
+            (b) => b.top < theoreticalBottom && b.bottom > theoreticalBottom
+          );
+
+          if (crossing && crossing.top > currentY + 100) {
+            breakY = crossing.top;
+          } else {
+            // Evitar encabezados huérfanos al pie de página
+            const orphanHeading = elementBounds.find(
+              (b) => b.isHeading && b.top < theoreticalBottom && b.top > theoreticalBottom - 120
+            );
+            if (orphanHeading && orphanHeading.top > currentY + 100) {
+              breakY = orphanHeading.top;
             }
-          },
-        });
-      });
+          }
+        } else {
+          breakY = totalHeightPx;
+        }
+
+        if (breakY <= currentY) {
+          breakY = Math.min(currentY + maxPageHeightPx, totalHeightPx);
+        }
+
+        const sliceHeightPx = breakY - currentY;
+        const sliceHeightMm = (sliceHeightPx * contentWidthMm) / fullCanvas.width;
+
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = fullCanvas.width;
+        pageCanvas.height = sliceHeightPx;
+        const pageCtx = pageCanvas.getContext('2d');
+
+        if (pageCtx) {
+          pageCtx.fillStyle = '#ffffff';
+          pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          pageCtx.drawImage(
+            fullCanvas,
+            0,
+            currentY,
+            fullCanvas.width,
+            sliceHeightPx,
+            0,
+            0,
+            pageCanvas.width,
+            sliceHeightPx,
+          );
+
+          if (pageIndex > 0) {
+            pdf.addPage();
+          }
+
+          const imgData = pageCanvas.toDataURL('image/jpeg', 0.98);
+          pdf.addImage(imgData, 'JPEG', marginMm, marginMm, contentWidthMm, sliceHeightMm);
+          pageIndex++;
+        }
+
+        currentY = breakY;
+      }
+
+      pdf.save(`${filename}.pdf`);
     } finally {
       if (document.body.contains(renderContainer)) {
         document.body.removeChild(renderContainer);
@@ -108,6 +190,7 @@ export class PdfExportStrategy implements ExportStrategy {
 
   /**
    * Abre la ventana nativa de impresión del navegador con estilos optimizados para PDF vectorial.
+   * Flujo continuo sin páginas en blanco artificiales.
    */
   private printViaBrowser(note: Note, options: ExportOptions): void {
     const printWindow = window.open('', '_blank');
@@ -146,8 +229,16 @@ export class PdfExportStrategy implements ExportStrategy {
               body {
                 padding: 0;
               }
-              .page-break-avoid,
+              .pdf-blocks-container {
+                display: block !important;
+              }
               .pdf-block,
+              .pdf-text-block {
+                display: block !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
+              }
+              .page-break-avoid,
               .pdf-sheet-wrapper,
               .pdf-sheet-table tr,
               .pdf-latex-block,
@@ -473,7 +564,9 @@ export class PdfExportStrategy implements ExportStrategy {
         color: #111827;
       }
       .pdf-doc-header {
-        margin-bottom: 24px;
+        margin-bottom: 20px;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       .pdf-space-badge {
         display: inline-block;
@@ -519,15 +612,20 @@ export class PdfExportStrategy implements ExportStrategy {
         margin: 16px 0;
       }
       .pdf-blocks-container {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
+        display: block;
       }
       .pdf-block {
-        margin: 4px 0;
+        display: block;
+        margin: 12px 0;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+      }
+      .pdf-text-block {
+        display: block;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
       }
       .page-break-avoid,
-      .pdf-block,
       .pdf-sheet-wrapper,
       .pdf-sheet-table tr,
       .pdf-latex-block,
@@ -542,6 +640,8 @@ export class PdfExportStrategy implements ExportStrategy {
         font-size: 14px;
         line-height: 1.68;
         color: #1f2937;
+        orphans: 2;
+        widows: 2;
       }
       .pdf-text-block h1 {
         font-size: 22px;
@@ -550,36 +650,48 @@ export class PdfExportStrategy implements ExportStrategy {
         color: #111827;
         border-bottom: 1px solid #e5e7eb;
         padding-bottom: 4px;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .pdf-text-block h2 {
         font-size: 18px;
         font-weight: 700;
         margin: 16px 0 6px;
         color: #111827;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .pdf-text-block h3 {
         font-size: 15px;
         font-weight: 600;
         margin: 12px 0 4px;
         color: #1f2937;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .pdf-text-block h4 {
         font-size: 14px;
         font-weight: 600;
         margin: 10px 0 4px;
         color: #1f2937;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .pdf-text-block h5 {
         font-size: 13px;
         font-weight: 600;
         margin: 8px 0 3px;
         color: #374151;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .pdf-text-block h6 {
         font-size: 12px;
         font-weight: 600;
         margin: 8px 0 3px;
         color: #4b5563;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
       }
       .pdf-text-block ul, .pdf-text-block ol {
         margin: 6px 0 12px 20px;
@@ -587,6 +699,8 @@ export class PdfExportStrategy implements ExportStrategy {
       }
       .pdf-text-block li {
         margin-bottom: 4px;
+        orphans: 2;
+        widows: 2;
       }
       .pdf-text-block blockquote {
         margin: 12px 0;
