@@ -1,0 +1,120 @@
+<div class="modal-backdrop" (click)="close.emit()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <!-- Encabezado del modal -->
+    <div class="modal-header">
+      <div class="modal-title-box">
+        <span class="icon-wrap">
+          <app-icon name="download" [size]="16"></app-icon>
+        </span>
+        <h3 class="modal-title">
+          {{ i18n.currentLang() === 'es' ? 'Exportar Documento' : 'Export Document' }}
+        </h3>
+      </div>
+      <button type="button" class="close-btn" (click)="close.emit()" title="Cerrar">
+        <app-icon name="close" [size]="14"></app-icon>
+      </button>
+    </div>
+
+    <!-- Cuerpo del modal -->
+    <div class="modal-body">
+      <p class="modal-note-title">
+        <span class="label">{{ i18n.currentLang() === 'es' ? 'Documento:' : 'Document:' }}</span>
+        <span class="name">{{ note.title || 'Untitled Note' }}</span>
+      </p>
+
+      <!-- Selector de Formato -->
+      <label class="section-label">
+        {{ i18n.currentLang() === 'es' ? 'Selecciona el formato:' : 'Select format:' }}
+      </label>
+      <div class="format-grid">
+        @for (strat of strategies; track strat.format) {
+          <div
+            class="format-card"
+            [class.selected]="selectedFormat() === strat.format"
+            (click)="selectedFormat.set(strat.format)"
+          >
+            <div class="format-card-header">
+              <span class="format-badge">{{ strat.extension.toUpperCase() }}</span>
+              <span class="format-name">{{ strat.label }}</span>
+            </div>
+            <p class="format-desc">{{ strat.description }}</p>
+          </div>
+        }
+      </div>
+
+      <!-- Opciones adicionales si es PDF -->
+      @if (selectedFormat() === 'pdf') {
+        <div class="options-box">
+          <label class="section-label">
+            {{ i18n.currentLang() === 'es' ? 'Método de generación PDF:' : 'PDF method:' }}
+          </label>
+          <div class="segmented-control">
+            <button
+              type="button"
+              [class.active]="pdfMethod() === 'download'"
+              (click)="pdfMethod.set('download')"
+            >
+              📥 {{ i18n.currentLang() === 'es' ? 'Descargar .PDF' : 'Download .PDF' }}
+            </button>
+            <button
+              type="button"
+              [class.active]="pdfMethod() === 'print'"
+              (click)="pdfMethod.set('print')"
+            >
+              🖨️ {{ i18n.currentLang() === 'es' ? 'Imprimir / PDF Vectorial' : 'Print / Vector PDF' }}
+            </button>
+          </div>
+
+          <div class="settings-grid">
+            <div class="setting-item">
+              <label class="setting-label">{{ i18n.currentLang() === 'es' ? 'Tamaño:' : 'Size:' }}</label>
+              <select [(ngModel)]="pageSize" class="setting-select">
+                <option value="A4">A4 (210 × 297 mm)</option>
+                <option value="letter">Carta / Letter</option>
+              </select>
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">{{ i18n.currentLang() === 'es' ? 'Orientación:' : 'Orientation:' }}</label>
+              <select [(ngModel)]="orientation" class="setting-select">
+                <option value="portrait">{{ i18n.currentLang() === 'es' ? 'Vertical' : 'Portrait' }}</option>
+                <option value="landscape">{{ i18n.currentLang() === 'es' ? 'Horizontal' : 'Landscape' }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Toggles generales -->
+      <div class="toggles-box">
+        <label class="checkbox-row">
+          <input type="checkbox" [(ngModel)]="includeMetadata" />
+          <span>{{ i18n.currentLang() === 'es' ? 'Incluir espacio y fecha de modificación' : 'Include space & update date' }}</span>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" [(ngModel)]="includeTags" />
+          <span>{{ i18n.currentLang() === 'es' ? 'Incluir etiquetas (#tags)' : 'Include tags' }}</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Acciones inferiores -->
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" (click)="close.emit()">
+        {{ i18n.currentLang() === 'es' ? 'Cancelar' : 'Cancel' }}
+      </button>
+      <button
+        type="button"
+        class="btn-export"
+        [disabled]="isExporting()"
+        (click)="doExport()"
+      >
+        @if (isExporting()) {
+          <span>{{ i18n.currentLang() === 'es' ? 'Generando...' : 'Exporting...' }}</span>
+        } @else {
+          <app-icon name="download" [size]="14"></app-icon>
+          <span>{{ i18n.currentLang() === 'es' ? 'Exportar' : 'Export' }}</span>
+        }
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,180 @@
+<aside class="sidebar" [class.collapsed]="notesService.isSidebarCollapsed()">
+  <!-- Cabecera del espacio de trabajo -->
+  <div class="workspace">
+    <div class="brand-mark">W</div>
+    @if (!notesService.isSidebarCollapsed()) {
+      <div class="workspace-copy">
+        <strong>{{ i18n.t('app.name') }}</strong>
+        <span>{{ authService.currentUser()?.name || 'Workspace' }}</span>
+      </div>
+      <button
+        type="button"
+        class="plain"
+        (click)="createNoteInActiveSpace()"
+        [title]="i18n.t('topbar.new_note')"
+      >
+        <app-icon name="plus" [size]="14"></app-icon>
+      </button>
+    }
+  </div>
+
+  <!-- Barra de búsqueda funcional -->
+  @if (!notesService.isSidebarCollapsed()) {
+    <div class="search-box">
+      <app-icon name="search" [size]="14"></app-icon>
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        [placeholder]="i18n.t('nav.search') + '...'"
+        class="search-input"
+      />
+      @if (searchQuery) {
+        <button type="button" class="clear-search" (click)="searchQuery = ''">×</button>
+      }
+    </div>
+  }
+
+  <!-- Navegación primaria: Todas las notas -->
+  <nav class="nav-primary">
+    <button
+      type="button"
+      [class.active]="!notesService.activeSpace() || notesService.activeSpace() === 'all'"
+      (click)="showAllNotes()"
+    >
+      <app-icon name="file" [size]="15"></app-icon>
+      @if (!notesService.isSidebarCollapsed()) {
+        <span>{{ i18n.t('nav.all_documents') }}</span>
+        <small class="count-badge">{{ totalNotesCount() }}</small>
+      }
+    </button>
+  </nav>
+
+  <!-- Sección de Espacios (Directorios reales en MongoDB) -->
+  @if (!notesService.isSidebarCollapsed()) {
+    <div class="sidebar-section">
+      <div class="section-label">
+        <span>{{ i18n.t('nav.spaces') }}</span>
+        <button
+          type="button"
+          (click)="promptCreateSpace()"
+          title="Crear nuevo directorio/espacio"
+        >
+          <app-icon name="plus" [size]="13"></app-icon>
+        </button>
+      </div>
+
+      <!-- Listado de directorios / espacios de la base de datos -->
+      <div class="spaces-list">
+        @for (space of spacesService.spacesList(); track space._id) {
+          <div class="space-item" [class.selected-space]="notesService.activeSpace() === space.name">
+            <button
+              type="button"
+              class="tree-row"
+              (click)="selectSpace(space)"
+            >
+              <span class="dot" [ngClass]="space.color || 'indigo'"></span>
+              <span
+                class="space-title"
+                (dblclick)="renameSpace(space, $event)"
+                [title]="i18n.currentLang() === 'es' ? 'Doble clic para renombrar' : 'Double click to rename'"
+              >{{ space.name }}</span>
+              <app-icon name="chevron" [size]="11"></app-icon>
+            </button>
+
+            <!-- Acciones del directorio: crear nota, renombrar o borrar espacio -->
+            <div class="space-actions">
+              <button
+                type="button"
+                class="space-action-btn"
+                (click)="createNoteInSpace(space.name); $event.stopPropagation()"
+                [title]="i18n.currentLang() === 'es' ? 'Nueva nota en este espacio' : 'New note in space'"
+              >
+                <app-icon name="plus" [size]="11"></app-icon>
+              </button>
+              <button
+                type="button"
+                class="space-action-btn"
+                (click)="renameSpace(space, $event)"
+                [title]="i18n.currentLang() === 'es' ? 'Renombrar directorio' : 'Rename directory'"
+              >
+                <app-icon name="pen" [size]="11"></app-icon>
+              </button>
+              <button
+                type="button"
+                class="space-action-btn delete-space"
+                (click)="deleteSpace(space); $event.stopPropagation()"
+                [title]="i18n.currentLang() === 'es' ? 'Eliminar directorio' : 'Delete directory'"
+              >
+                <app-icon name="trash" [size]="11"></app-icon>
+              </button>
+            </div>
+          </div>
+
+          <!-- Notas dentro del directorio activo -->
+          @if (notesService.activeSpace() === space.name) {
+            <div class="notes-tree">
+              @for (note of filteredNotes(); track note._id) {
+                <button
+                  type="button"
+                  class="tree-row child"
+                  [class.selected]="notesService.currentNote()?._id === note._id"
+                  (click)="openNote(note)"
+                >
+                  <app-icon name="file" [size]="14"></app-icon>
+                  <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
+                </button>
+              } @empty {
+                <div class="empty-space-hint">
+                  <small>Sin notas en este espacio</small>
+                </div>
+              }
+            </div>
+          }
+        } @empty {
+          <div class="empty-space-hint">
+            <small>No hay espacios creados</small>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Pie de la barra lateral con perfil real del usuario -->
+  <div class="sidebar-bottom">
+    <div class="user-card" (click)="$event.stopPropagation()">
+      <div class="avatar">
+        {{ userInitials() }}
+      </div>
+      @if (!notesService.isSidebarCollapsed()) {
+        <div class="user-details">
+          <strong>{{ authService.currentUser()?.name || 'User' }}</strong>
+          <span>{{ authService.currentUser()?.email || '' }}</span>
+        </div>
+        <button
+          type="button"
+          (click)="toggleUserMenu($event)"
+          [title]="i18n.currentLang() === 'es' ? 'Opciones de cuenta' : 'Account options'"
+          class="user-more-btn"
+          [class.active]="showUserMenu()"
+        >
+          <app-icon name="more" [size]="14"></app-icon>
+        </button>
+      }
+
+      <!-- Menú flotante de usuario -->
+      @if (showUserMenu()) {
+        <div class="user-menu-popover" (click)="$event.stopPropagation()">
+          <div class="user-menu-header">
+            <span class="user-menu-name">{{ authService.currentUser()?.name || 'User' }}</span>
+            <span class="user-menu-email">{{ authService.currentUser()?.email || '' }}</span>
+          </div>
+          <div class="user-menu-divider"></div>
+          <button type="button" class="user-menu-item logout-item" (click)="logout()">
+            <app-icon name="close" [size]="13"></app-icon>
+            <span>{{ i18n.t('nav.logout') }}</span>
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</aside>

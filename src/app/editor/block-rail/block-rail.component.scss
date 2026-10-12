@@ -1,0 +1,12 @@
+.rail-container {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+:host-context(.block-row:hover) .rail-container,
+.rail-container.menu-open {
+  opacity: 1;
+}

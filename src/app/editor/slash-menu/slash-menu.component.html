@@ -1,0 +1,36 @@
+<div class="slash-wrap">
+  <div class="slash-input">
+    <span>/</span>
+    <span class="caret"></span>
+  </div>
+  <div class="slash-menu">
+    <div class="slash-title">
+      <span>{{ i18n.t('slash.insert_title') }}</span>
+      <kbd>ESC</kbd>
+    </div>
+    <div class="command-list">
+      @for (item of items; track item.command; let idx = $index) {
+        <button
+          type="button"
+          class="command-item"
+          [class.highlight]="selectedIndex() === idx"
+          (mouseenter)="selectedIndex.set(idx)"
+          (click)="onSelect(item.type)"
+        >
+          <span class="cmd-icon">
+            <app-icon [name]="item.icon" [size]="16"></app-icon>
+          </span>
+          <span class="cmd-copy">
+            <strong>{{ i18n.t(item.titleKey) }}</strong>
+            <small>{{ i18n.t(item.descKey) }}</small>
+          </span>
+          <code>{{ item.command }}</code>
+        </button>
+      }
+    </div>
+    <div class="slash-footer">
+      <span><kbd>↑</kbd><kbd>↓</kbd> {{ i18n.t('slash.navigate') }}</span>
+      <span><kbd>↵</kbd> {{ i18n.t('slash.select') }}</span>
+    </div>
+  </div>
+</div>

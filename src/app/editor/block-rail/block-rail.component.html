@@ -1,0 +1,40 @@
+<div class="rail-container" [class.menu-open]="isMenuOpen()">
+  <!-- Botón rápido para insertar bloque debajo -->
+  <button
+    type="button"
+    class="w-5 h-5 grid place-items-center text-[var(--faint)] rounded bg-transparent hover:bg-[var(--soft)] hover:text-[var(--text)] transition-colors"
+    (click)="addBelow.emit()"
+    [title]="i18n.t('rail.add_block')"
+  >
+    <app-icon name="plus" [size]="13"></app-icon>
+  </button>
+
+  <!-- Botón tirador que despliega las opciones del bloque -->
+  <button
+    type="button"
+    class="w-5 h-5 grid place-items-center text-[var(--faint)] rounded bg-transparent hover:bg-[var(--soft)] hover:text-[var(--text)] transition-colors"
+    (click)="toggleMenu()"
+    [title]="i18n.t('rail.drag')"
+  >
+    <span class="text-sm leading-none text-[var(--faint)] hover:text-[var(--text)]">⠿</span>
+  </button>
+
+  <!-- Menú contextual de acciones flotante (solo al abrir) -->
+  @if (isMenuOpen()) {
+    <div class="absolute top-6 -left-1 z-50 bg-[var(--bg)] border border-[var(--border)] rounded-lg shadow-xl shadow-black/10 p-1 min-w-[130px] animate-[fadeIn_0.12s_ease]">
+      <button type="button" class="w-full flex items-center gap-2 p-1.5 px-2 rounded text-xs text-[var(--text)] text-left hover:bg-[var(--soft)] transition-colors" (click)="onMoveUp()">
+        <app-icon name="up" [size]="13"></app-icon>
+        <span>{{ i18n.t('rail.move_up') }}</span>
+      </button>
+      <button type="button" class="w-full flex items-center gap-2 p-1.5 px-2 rounded text-xs text-[var(--text)] text-left hover:bg-[var(--soft)] transition-colors" (click)="onMoveDown()">
+        <app-icon name="down" [size]="13"></app-icon>
+        <span>{{ i18n.t('rail.move_down') }}</span>
+      </button>
+      <div class="h-px bg-[var(--border)] my-1"></div>
+      <button type="button" class="w-full flex items-center gap-2 p-1.5 px-2 rounded text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 transition-colors text-left" (click)="onDelete()">
+        <app-icon name="trash" [size]="13"></app-icon>
+        <span>{{ i18n.t('rail.delete') }}</span>
+      </button>
+    </div>
+  }
+</div>

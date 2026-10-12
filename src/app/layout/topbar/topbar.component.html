@@ -1,0 +1,137 @@
+<header class="topbar">
+  <!-- Migas de pan y control de barra lateral -->
+  <div class="breadcrumbs">
+    <button
+      type="button"
+      class="icon-btn"
+      (click)="toggleSidebar()"
+      title="Toggle sidebar"
+    >
+      <app-icon name="panel" [size]="17"></app-icon>
+    </button>
+    <span>{{ notesService.activeSpace() || 'Notes' }}</span>
+    <b>/</b>
+    <strong>{{ notesService.currentNote()?.title || 'Untitled' }}</strong>
+  </div>
+
+  <!-- Acciones de cabecera -->
+  <div class="actions">
+    <!-- Indicador de estado de guardado en tiempo real -->
+    <span class="saved">
+      @switch (notesService.saveStatus()) {
+        @case ('saved') {
+          <i class="dot-saved"></i>
+          {{ i18n.t('topbar.saved') }}
+        }
+        @case ('saving') {
+          <i class="dot-saving"></i>
+          {{ i18n.t('topbar.saving') }}
+        }
+        @case ('unsaved') {
+          <i class="dot-unsaved"></i>
+          {{ i18n.t('topbar.unsaved') }}
+        }
+      }
+    </span>
+
+    <!-- Botón de selector de idioma i18n -->
+    <button
+      type="button"
+      class="lang-btn"
+      (click)="i18n.toggleLanguage()"
+      [title]="i18n.t('lang.toggle')"
+    >
+      {{ i18n.currentLang().toUpperCase() }}
+    </button>
+
+    <!-- Botón de alternar tema claro / oscuro -->
+    <button
+      type="button"
+      class="icon-btn"
+      (click)="themeService.toggleTheme()"
+      [title]="i18n.t('theme.toggle')"
+    >
+      <app-icon [name]="themeService.isDark() ? 'sun' : 'moon'" [size]="16"></app-icon>
+    </button>
+
+    <!-- Botón de Modo Lectura / Modo Edición -->
+    <button
+      type="button"
+      class="reading-mode-btn"
+      [class.active]="notesService.isReadingMode()"
+      (click)="notesService.toggleReadingMode()"
+      [title]="notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Volver a modo edición' : 'Switch to edit mode') : (i18n.currentLang() === 'es' ? 'Modo lectura inmersivo' : 'Reading mode')"
+    >
+      <app-icon [name]="notesService.isReadingMode() ? 'pen' : 'book'" [size]="14"></app-icon>
+      <span>{{ notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Editar' : 'Edit') : (i18n.currentLang() === 'es' ? 'Lectura' : 'Lectura') }}</span>
+    </button>
+
+    <!-- Controles de Zoom del documento (Lectura y Edición) -->
+    <div class="doc-zoom-strip">
+      <button
+        type="button"
+        class="zoom-btn"
+        (click)="notesService.zoomOut()"
+        [title]="i18n.currentLang() === 'es' ? 'Reducir zoom del documento' : 'Zoom out document'"
+      >
+        <span>−</span>
+      </button>
+      <button
+        type="button"
+        class="zoom-val-btn"
+        (click)="notesService.resetZoom()"
+        [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
+      >
+        {{ Math.round(notesService.documentZoom() * 100) }}%
+      </button>
+      <button
+        type="button"
+        class="zoom-btn"
+        (click)="notesService.zoomIn()"
+        [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom del documento' : 'Zoom in document'"
+      >
+        <span>+</span>
+      </button>
+    </div>
+
+    <!-- Botón para Exportar documento (PDF, Markdown, etc.) -->
+    <button
+      type="button"
+      class="export-btn"
+      (click)="showExportModal.set(true)"
+      [title]="i18n.currentLang() === 'es' ? 'Exportar documento (PDF, Markdown, HTML)' : 'Export document (PDF, Markdown, HTML)'"
+    >
+      <app-icon name="download" [size]="14"></app-icon>
+      <span>{{ i18n.currentLang() === 'es' ? 'Exportar' : 'Export' }}</span>
+    </button>
+
+    <!-- Botón funcional para compartir o copiar enlace del documento -->
+    <button
+      type="button"
+      class="share-btn"
+      (click)="copyDocumentLink()"
+      title="Copiar enlace del documento"
+    >
+      <app-icon name="share" [size]="14"></app-icon>
+      {{ isCopiedLink() ? '¡Copiado!' : i18n.t('topbar.share') }}
+    </button>
+
+    <!-- Botón para eliminar nota activa en MongoDB -->
+    <button
+      type="button"
+      class="icon-btn delete-note-btn"
+      (click)="deleteCurrentNote()"
+      title="Eliminar documento"
+    >
+      <app-icon name="trash" [size]="15"></app-icon>
+    </button>
+  </div>
+</header>
+
+<!-- Modal de exportación de documentos -->
+@if (showExportModal() && notesService.currentNote(); as current) {
+  <app-export-modal
+    [note]="current"
+    (close)="showExportModal.set(false)"
+  ></app-export-modal>
+}

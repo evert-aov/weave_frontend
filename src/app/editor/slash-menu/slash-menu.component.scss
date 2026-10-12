@@ -1,0 +1,106 @@
+.slash-wrap {
+  position: relative;
+  margin-top: 24px;
+  z-index: 20;
+}
+.slash-input {
+  height: 29px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 14px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.caret {
+  height: 18px;
+  width: 1.5px;
+  background: var(--accent);
+  animation: blink 1s infinite;
+}
+.slash-menu {
+  width: 410px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.14),
+    0 4px 12px rgba(15, 23, 42, 0.08);
+  padding: 7px;
+  position: absolute;
+  top: 29px;
+  left: 0;
+  animation: fadeIn 0.15s ease;
+}
+.slash-title {
+  padding: 7px 8px 8px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+}
+.command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.command-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 7px;
+  text-align: left;
+  gap: 10px;
+  color: var(--text);
+  transition: background 0.1s ease;
+}
+.command-item:hover,
+.command-item.highlight {
+  background: var(--accent-soft);
+}
+.cmd-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+}
+.command-item.highlight .cmd-icon {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.cmd-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.cmd-copy strong {
+  font-size: 11px;
+}
+.cmd-copy small {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+code {
+  font: 9px 'JetBrains Mono', monospace;
+  color: var(--faint);
+}
+.slash-footer {
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  padding: 7px 8px 3px;
+  display: flex;
+  gap: 15px;
+  font-size: 9px;
+  color: var(--faint);
+}
+.slash-footer kbd {
+  margin-right: 2px;
+}
