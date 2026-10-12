@@ -516,6 +516,7 @@ export class PdfExportStrategy implements ExportStrategy {
     if (!sheet) return '';
 
     const cellData = sheet.cellData || {};
+    const stylesDict = workbookData.styles || {};
     const mergeData: Array<{
       startRow: number;
       endRow: number;
@@ -536,6 +537,101 @@ export class PdfExportStrategy implements ExportStrategy {
         return String(cell.m);
       }
       return '';
+    };
+
+    // Helper para extraer estilos CSS de los metadatos de Univer
+    const getCellInlineStyle = (cell: any, isNumeric: boolean): string => {
+      if (!cell) return isNumeric ? 'text-align: right;' : '';
+
+      let styleObj: any = null;
+      if (typeof cell.s === 'string') {
+        styleObj = stylesDict[cell.s];
+      } else if (typeof cell.s === 'object' && cell.s !== null) {
+        styleObj = cell.s;
+      }
+
+      const cssProps: string[] = [];
+
+      // Alineación horizontal
+      if (styleObj?.ht !== undefined) {
+        if (styleObj.ht === 1) cssProps.push('text-align: left');
+        else if (styleObj.ht === 2) cssProps.push('text-align: center');
+        else if (styleObj.ht === 3) cssProps.push('text-align: right');
+        else if (styleObj.ht === 4) cssProps.push('text-align: justify');
+      } else if (isNumeric) {
+        cssProps.push('text-align: right');
+      }
+
+      // Alineación vertical
+      const vt = styleObj?.vt ?? styleObj?.va;
+      if (vt !== undefined) {
+        if (vt === 1) cssProps.push('vertical-align: top');
+        else if (vt === 2) cssProps.push('vertical-align: middle');
+        else if (vt === 3) cssProps.push('vertical-align: bottom');
+      }
+
+      // Color de fondo
+      if (styleObj?.bg) {
+        const bgVal = typeof styleObj.bg === 'string' ? styleObj.bg : styleObj.bg?.rgb;
+        if (bgVal) {
+          cssProps.push(`background-color: ${bgVal}`);
+        }
+      }
+
+      // Color de texto
+      if (styleObj?.cl) {
+        const clVal = typeof styleObj.cl === 'string' ? styleObj.cl : styleObj.cl?.rgb;
+        if (clVal) {
+          cssProps.push(`color: ${clVal}`);
+        }
+      }
+
+      // Negrita
+      if (styleObj?.bl === 1 || styleObj?.bl === true) {
+        cssProps.push('font-weight: 700');
+      }
+
+      // Cursiva
+      if (styleObj?.it === 1 || styleObj?.it === true) {
+        cssProps.push('font-style: italic');
+      }
+
+      // Subrayado / Tachado
+      const textDecorations: string[] = [];
+      if (styleObj?.ul === 1 || styleObj?.ul === true || styleObj?.ul?.s === 1) {
+        textDecorations.push('underline');
+      }
+      if (styleObj?.st === 1 || styleObj?.st === true || styleObj?.st?.s === 1) {
+        textDecorations.push('line-through');
+      }
+      if (textDecorations.length > 0) {
+        cssProps.push(`text-decoration: ${textDecorations.join(' ')}`);
+      }
+
+      // Tipografía
+      if (styleObj?.ff) {
+        cssProps.push(`font-family: ${styleObj.ff}`);
+      }
+
+      // Tamaño de fuente
+      if (styleObj?.fs) {
+        cssProps.push(`font-size: ${styleObj.fs}pt`);
+      }
+
+      // Bordes personalizados si están definidos
+      if (styleObj?.bd) {
+        const getBorderCss = (b: any) => {
+          if (!b) return null;
+          const color = typeof b.cl === 'string' ? b.cl : b.cl?.rgb || '#d1d5db';
+          return `1px solid ${color}`;
+        };
+        if (styleObj.bd.t) cssProps.push(`border-top: ${getBorderCss(styleObj.bd.t)}`);
+        if (styleObj.bd.r) cssProps.push(`border-right: ${getBorderCss(styleObj.bd.r)}`);
+        if (styleObj.bd.b) cssProps.push(`border-bottom: ${getBorderCss(styleObj.bd.b)}`);
+        if (styleObj.bd.l) cssProps.push(`border-left: ${getBorderCss(styleObj.bd.l)}`);
+      }
+
+      return cssProps.length > 0 ? cssProps.join('; ') + ';' : '';
     };
 
     // Identificar qué celdas están ocupadas y cuáles rangos abarcan
@@ -593,20 +689,11 @@ export class PdfExportStrategy implements ExportStrategy {
     });
 
     let tableHtml = '<div class="pdf-block pdf-sheet-wrapper page-break-avoid">';
-    tableHtml += '<table class="pdf-sheet-table">';
-    tableHtml += '<thead><tr>';
-    tableHtml += '<th class="pdf-sheet-th-corner">#</th>';
-    for (let c = 0; c <= maxCol; c++) {
-      const colLetter = String.fromCharCode(65 + (c % 26));
-      tableHtml += `<th class="pdf-sheet-th">${colLetter}</th>`;
-    }
-    tableHtml += '</tr></thead>';
+    tableHtml += '<table class="pdf-sheet-table"><tbody>';
 
-    tableHtml += '<tbody>';
     for (let r = 0; r <= maxRow; r++) {
       const row = cellData[r] || {};
       tableHtml += '<tr>';
-      tableHtml += `<td class="pdf-sheet-row-index">${r + 1}</td>`;
 
       for (let c = 0; c <= maxCol; c++) {
         const key = `${r},${c}`;
@@ -630,7 +717,10 @@ export class PdfExportStrategy implements ExportStrategy {
           if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
         }
 
-        tableHtml += `<td class="pdf-sheet-td ${isNumeric ? 'text-right' : ''}"${spanAttrs}>${formattedVal}</td>`;
+        const inlineStyle = getCellInlineStyle(cell, isNumeric);
+        const styleAttr = inlineStyle ? ` style="${inlineStyle}"` : '';
+
+        tableHtml += `<td class="pdf-sheet-td"${styleAttr}${spanAttrs}>${formattedVal}</td>`;
       }
       tableHtml += '</tr>';
     }
@@ -854,34 +944,13 @@ export class PdfExportStrategy implements ExportStrategy {
       }
       .pdf-sheet-table {
         width: 100%;
-        border-collapse: separate;
+        border-collapse: collapse;
         border-spacing: 0;
         font-size: 11.5px;
         font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       }
-      .pdf-sheet-th-corner, .pdf-sheet-th {
-        background: #f3f4f6;
-        border-bottom: 1px solid #d1d5db;
-        border-right: 1px solid #e5e7eb;
-        padding: 6px 10px;
-        font-weight: 600;
-        color: #4b5563;
-        text-align: center;
-        box-sizing: border-box;
-      }
-      .pdf-sheet-row-index {
-        background: #f9fafb;
-        border-bottom: 1px solid #e5e7eb;
-        border-right: 1px solid #d1d5db;
-        padding: 5px 8px;
-        color: #6b7280;
-        text-align: center;
-        font-weight: 500;
-        box-sizing: border-box;
-      }
       .pdf-sheet-td {
-        border-bottom: 1px solid #e5e7eb;
-        border-right: 1px solid #e5e7eb;
+        border: 1px solid #e5e7eb;
         padding: 6px 10px;
         color: #1f2937;
         box-sizing: border-box;

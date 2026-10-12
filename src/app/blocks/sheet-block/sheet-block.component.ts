@@ -20,9 +20,9 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
 
 /**
  * Bloque de Hoja de Cálculo Avanzado impulsado por Univer Sheets SDK.
- * Proporciona soporte nativo para fórmulas de cálculo reales (=SUM, =AVERAGE, =IF, etc.),
- * inserción/edición ilimitada de filas y columnas, barra de fórmulas interactiva
- * y persistencia automática de snapshots del libro de trabajo.
+ * Proporciona soporte nativo para fórmulas de cálculo reales (=SUM, =AVERAGE, etc.),
+ * celdas combinadas, estilos tipográficos/colores, zoom dinámico (edición y lectura),
+ * y ocultamiento total de cabeceras de filas y columnas en modo lectura.
  */
 @Component({
   selector: 'app-sheet-block',
@@ -30,21 +30,52 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
   imports: [CommonModule],
   template: `
     <div class="univer-sheet-block" [class.reading-mode]="notesService.isReadingMode()">
-      @if (!notesService.isReadingMode()) {
-        <div class="sheet-header-badge">
+      <!-- Barra superior unificada: información y controles de Zoom -->
+      <div class="sheet-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
+        <div class="sheet-info-group">
           <span class="badge-icon">📊</span>
           <span class="badge-title">
-            {{ i18n.currentLang() === 'es' ? 'Hoja de Cálculo Univer' : 'Univer Spreadsheet' }}
+            {{ i18n.currentLang() === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' }}
           </span>
-          <span class="badge-subtitle">
-            {{ i18n.currentLang() === 'es' ? 'Cálculos matemáticos reales en vivo' : 'Live real-time formulas & computing' }}
-          </span>
+          @if (!notesService.isReadingMode()) {
+            <span class="badge-subtitle">
+              {{ i18n.currentLang() === 'es' ? 'Cálculos matemáticos reales en vivo' : 'Live real-time formulas & computing' }}
+            </span>
+          }
         </div>
-      }
+
+        <!-- Controles de Zoom universales (Lectura y Edición) -->
+        <div class="sheet-zoom-controls">
+          <button
+            type="button"
+            class="zoom-btn"
+            (click)="zoomOut()"
+            [title]="i18n.currentLang() === 'es' ? 'Reducir zoom' : 'Zoom out'"
+          >
+            <span class="zoom-icon">−</span>
+          </button>
+          <button
+            type="button"
+            class="zoom-display-btn"
+            (click)="resetZoom()"
+            [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
+          >
+            {{ Math.round(currentZoom() * 100) }}%
+          </button>
+          <button
+            type="button"
+            class="zoom-btn"
+            (click)="zoomIn()"
+            [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom' : 'Zoom in'"
+          >
+            <span class="zoom-icon">+</span>
+          </button>
+        </div>
+      </div>
 
       <div
         class="sheet-container-wrapper"
-        [style.height.px]="notesService.isReadingMode() ? readingHeight() : 440"
+        [style.height.px]="notesService.isReadingMode() ? readingHeight() : 460"
       >
         <div #sheetContainer class="univer-container"></div>
       </div>
@@ -60,15 +91,27 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         background: var(--bg);
         margin: 10px 0;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+        transition: border-color 0.15s ease;
       }
-      .sheet-header-badge {
+      .sheet-toolbar-strip {
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: space-between;
         padding: 6px 14px;
         background: var(--panel);
         border-bottom: 1px solid var(--border);
         font-size: 11.5px;
+        user-select: none;
+      }
+      .sheet-toolbar-strip.reading-mode {
+        padding: 4px 12px;
+        background: color-mix(in srgb, var(--panel) 75%, transparent);
+        font-size: 11px;
+      }
+      .sheet-info-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
       .badge-icon {
         font-size: 13px;
@@ -81,10 +124,56 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         color: var(--muted);
         font-size: 10.5px;
       }
+      .sheet-zoom-controls {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 4px;
+      }
+      .zoom-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.12s ease;
+      }
+      .zoom-btn:hover {
+        background: var(--soft);
+        color: var(--text);
+      }
+      .zoom-btn:active {
+        transform: scale(0.92);
+      }
+      .zoom-display-btn {
+        padding: 1px 6px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        font-size: 10.5px;
+        font-weight: 600;
+        font-family: 'JetBrains Mono', monospace;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background 0.12s ease;
+      }
+      .zoom-display-btn:hover {
+        background: var(--soft);
+        color: var(--accent);
+      }
       .sheet-container-wrapper {
         position: relative;
         width: 100%;
-        height: 440px;
         background: var(--bg);
         overflow: hidden;
         transition: height 0.18s ease;
@@ -94,15 +183,13 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         height: 100%;
         position: relative;
       }
-      /* Modo Lectura: Ocultar barra superior (Start, Formulas, View), barra de fórmulas y pie preservando el canvas de celdas */
+      /* Modo Lectura: Ocultar barras de herramientas, fórmulas y pies de Univer */
       .univer-sheet-block.reading-mode {
         box-shadow: none;
         margin: 6px 0;
       }
-      /* Ocultar barra superior / ribbon (Start, Formulas, View, etc.) */
       ::ng-deep .univer-sheet-block.reading-mode header[data-u-comp='headerbar'],
       ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='toolbar'],
-      ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='headerbar'],
       ::ng-deep .univer-sheet-block.reading-mode .univer-toolbar {
         display: none !important;
         height: 0 !important;
@@ -112,24 +199,22 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         margin: 0 !important;
         overflow: hidden !important;
       }
-      /* Barra de fórmulas: Colapsar a 0 sin romper el layout grid del canvas */
       ::ng-deep .univer-sheet-block.reading-mode section.univer-grid-rows-\[auto_1fr\] {
         grid-template-rows: 0px 1fr !important;
       }
       ::ng-deep .univer-sheet-block.reading-mode section.univer-grid-rows-\[auto_1fr\] > header,
       ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='formula-bar'] {
+        display: none !important;
         height: 0 !important;
         min-height: 0 !important;
         max-height: 0 !important;
         padding: 0 !important;
         margin: 0 !important;
-        border: none !important;
         overflow: hidden !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
       }
-      /* Garantizar que el contenedor del canvas tome todo el ancho (100%) y alto disponible */
       ::ng-deep .univer-sheet-block.reading-mode section.univer-grid-rows-\[auto_1fr\] > section,
       ::ng-deep .univer-sheet-block.reading-mode [data-range-selector='true'] {
         width: 100% !important;
@@ -139,18 +224,12 @@ import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-
         display: block !important;
         visibility: visible !important;
       }
-      /* Ocultar pie de página (tabs de hojas, zoom, etc.) en modo lectura */
       ::ng-deep .univer-sheet-block.reading-mode footer,
       ::ng-deep .univer-sheet-block.reading-mode [data-u-comp='footer'] {
         display: none !important;
         height: 0 !important;
-        min-height: 0 !important;
-        max-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
         overflow: hidden !important;
       }
-      /* Garantizar que el canvas de dibujo de Univer y sus celdas permanezcan visibles */
       ::ng-deep .univer-sheet-block.reading-mode canvas[data-u-comp='render-canvas'],
       ::ng-deep .univer-sheet-block.reading-mode canvas {
         display: block !important;
@@ -168,7 +247,9 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
 
-  readonly readingHeight = signal<number>(180);
+  readonly readingHeight = signal<number>(160);
+  readonly currentZoom = signal<number>(1.0);
+  readonly Math = Math;
 
   private univerInstance: any = null;
   private univerAPI: any = null;
@@ -178,16 +259,15 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   constructor() {
     this.updateReadingHeight();
     effect(() => {
-      // Registrar la dependencia reactiva del modo lectura
       const isReading = this.notesService.isReadingMode();
+      this.updateHeadersVisibility(isReading);
       this.updateReadingHeight();
-      // Notificar a Univer y al navegador para recalcular dimensiones de canvas
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
-      }, 50);
+      }, 60);
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'));
-      }, 150);
+      }, 160);
     });
   }
 
@@ -195,12 +275,66 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
     this.initUniver();
     this.updateReadingHeight();
     setTimeout(() => {
+      this.updateHeadersVisibility(this.notesService.isReadingMode());
       window.dispatchEvent(new Event('resize'));
-    }, 100);
+    }, 120);
+  }
+
+  zoomIn(): void {
+    const next = Math.min(Math.round((this.currentZoom() + 0.15) * 100) / 100, 2.5);
+    this.applyZoom(next);
+  }
+
+  zoomOut(): void {
+    const next = Math.max(Math.round((this.currentZoom() - 0.15) * 100) / 100, 0.4);
+    this.applyZoom(next);
+  }
+
+  resetZoom(): void {
+    this.applyZoom(1.0);
+  }
+
+  applyZoom(ratio: number): void {
+    this.currentZoom.set(ratio);
+    try {
+      if (this.univerAPI) {
+        const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
+        const activeSheet = activeWorkbook?.getActiveSheet?.();
+        if (activeSheet && typeof activeSheet.zoom === 'function') {
+          activeSheet.zoom(ratio);
+        }
+      }
+    } catch (err) {
+      console.warn('[SheetBlockComponent] Error setting zoom:', err);
+    }
+    this.updateReadingHeight();
   }
 
   /**
-   * Determina cuántas filas con contenido real existen en la hoja de cálculo.
+   * Oculta o muestra los nombres de columnas (A, B, C...) y números de filas (1, 2, 3...)
+   * según si se encuentra en modo lectura o edición.
+   */
+  updateHeadersVisibility(isReading: boolean): void {
+    try {
+      if (this.univerAPI) {
+        const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
+        const activeSheet = activeWorkbook?.getActiveSheet?.();
+        if (activeSheet) {
+          if (typeof activeSheet.setRowHeaderWidth === 'function') {
+            activeSheet.setRowHeaderWidth(isReading ? 0 : 46);
+          }
+          if (typeof activeSheet.setColumnHeaderHeight === 'function') {
+            activeSheet.setColumnHeaderHeight(isReading ? 0 : 24);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[SheetBlockComponent] Could not update headers visibility:', e);
+    }
+  }
+
+  /**
+   * Determina cuántas filas con contenido real o celdas combinadas existen en la hoja de cálculo.
    */
   getOccupiedRowsCount(): number {
     try {
@@ -221,21 +355,23 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
       if (savedData?.sheets) {
         const sheet = Object.values(savedData.sheets)[0] as any;
         const cellData = sheet?.cellData;
+        let maxRow = 0;
         if (cellData && typeof cellData === 'object') {
           const rowKeys = Object.keys(cellData);
-          const validRows = rowKeys.filter((r) => {
+          rowKeys.forEach((r) => {
             const row = cellData[r];
-            return (
-              row &&
-              Object.values(row).some(
-                (c: any) => c?.v !== undefined && c?.v !== null && c?.v !== ''
-              )
-            );
+            if (row && Object.values(row).some((c: any) => c?.v !== undefined && c?.v !== null && c?.v !== '')) {
+              const rNum = Number(r);
+              if (rNum > maxRow) maxRow = rNum;
+            }
           });
-          if (validRows.length > 0) {
-            return Math.max(...validRows.map(Number)) + 1;
-          }
         }
+        if (sheet?.mergeData && Array.isArray(sheet.mergeData)) {
+          sheet.mergeData.forEach((m: any) => {
+            if (m.endRow > maxRow) maxRow = m.endRow;
+          });
+        }
+        if (maxRow > 0) return maxRow + 1;
       }
     } catch (e) {}
 
@@ -243,14 +379,15 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Calcula y actualiza la altura exacta necesaria para mostrar únicamente las celdas con datos.
+   * Calcula y actualiza la altura exacta necesaria para mostrar las celdas ocupadas considerando zoom.
    */
   updateReadingHeight(): void {
     const rows = this.getOccupiedRowsCount();
-    // 26px cabecera de columnas (A, B, C...) + 24px por fila de datos + 22px margen y bordes
-    const calculated = 26 + rows * 24 + 22;
-    // Acotar entre 110px y 520px (con scroll si excede)
-    const clamped = Math.min(Math.max(calculated, 110), 520);
+    const isReading = this.notesService.isReadingMode();
+    const headerHeight = isReading ? 0 : 26;
+    const basePadding = 18;
+    const calculated = Math.round((headerHeight + rows * 24) * this.currentZoom() + basePadding);
+    const clamped = Math.min(Math.max(calculated, 90), 560);
     this.readingHeight.set(clamped);
   }
 
@@ -367,10 +504,9 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
       try {
         if (workbook && typeof workbook.save === 'function') {
           const snapshot = workbook.save();
-          // Comparar si las celdas o estructura de las hojas sufrieron modificaciones reales
           const currentString = JSON.stringify(snapshot?.sheets || snapshot);
           if (currentString === this.lastSavedSnapshotString) {
-            return; // Solo fue un desplazamiento (scroll), zoom o cambio de celda activa
+            return;
           }
           this.lastSavedSnapshotString = currentString;
           this.notesService.updateBlockContent(this.block.id, {

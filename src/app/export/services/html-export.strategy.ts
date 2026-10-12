@@ -178,6 +178,7 @@ export class HtmlExportStrategy implements ExportStrategy {
     if (!sheet) return '';
 
     const cellData = sheet.cellData || {};
+    const stylesDict = workbookData.styles || {};
     const mergeData: Array<{
       startRow: number;
       endRow: number;
@@ -191,6 +192,100 @@ export class HtmlExportStrategy implements ExportStrategy {
       if (cell.p?.body?.dataStream) return String(cell.p.body.dataStream).replace(/\r?\n$/, '');
       if (cell.m !== undefined && cell.m !== null && cell.m !== '') return String(cell.m);
       return '';
+    };
+
+    const getCellInlineStyle = (cell: any, isNumeric: boolean): string => {
+      if (!cell) return isNumeric ? 'text-align: right;' : '';
+
+      let styleObj: any = null;
+      if (typeof cell.s === 'string') {
+        styleObj = stylesDict[cell.s];
+      } else if (typeof cell.s === 'object' && cell.s !== null) {
+        styleObj = cell.s;
+      }
+
+      const cssProps: string[] = [];
+
+      // Alineación horizontal
+      if (styleObj?.ht !== undefined) {
+        if (styleObj.ht === 1) cssProps.push('text-align: left');
+        else if (styleObj.ht === 2) cssProps.push('text-align: center');
+        else if (styleObj.ht === 3) cssProps.push('text-align: right');
+        else if (styleObj.ht === 4) cssProps.push('text-align: justify');
+      } else if (isNumeric) {
+        cssProps.push('text-align: right');
+      }
+
+      // Alineación vertical
+      const vt = styleObj?.vt ?? styleObj?.va;
+      if (vt !== undefined) {
+        if (vt === 1) cssProps.push('vertical-align: top');
+        else if (vt === 2) cssProps.push('vertical-align: middle');
+        else if (vt === 3) cssProps.push('vertical-align: bottom');
+      }
+
+      // Color de fondo
+      if (styleObj?.bg) {
+        const bgVal = typeof styleObj.bg === 'string' ? styleObj.bg : styleObj.bg?.rgb;
+        if (bgVal) {
+          cssProps.push(`background-color: ${bgVal}`);
+        }
+      }
+
+      // Color de texto
+      if (styleObj?.cl) {
+        const clVal = typeof styleObj.cl === 'string' ? styleObj.cl : styleObj.cl?.rgb;
+        if (clVal) {
+          cssProps.push(`color: ${clVal}`);
+        }
+      }
+
+      // Negrita
+      if (styleObj?.bl === 1 || styleObj?.bl === true) {
+        cssProps.push('font-weight: 700');
+      }
+
+      // Cursiva
+      if (styleObj?.it === 1 || styleObj?.it === true) {
+        cssProps.push('font-style: italic');
+      }
+
+      // Subrayado / Tachado
+      const textDecorations: string[] = [];
+      if (styleObj?.ul === 1 || styleObj?.ul === true || styleObj?.ul?.s === 1) {
+        textDecorations.push('underline');
+      }
+      if (styleObj?.st === 1 || styleObj?.st === true || styleObj?.st?.s === 1) {
+        textDecorations.push('line-through');
+      }
+      if (textDecorations.length > 0) {
+        cssProps.push(`text-decoration: ${textDecorations.join(' ')}`);
+      }
+
+      // Tipografía
+      if (styleObj?.ff) {
+        cssProps.push(`font-family: ${styleObj.ff}`);
+      }
+
+      // Tamaño de fuente
+      if (styleObj?.fs) {
+        cssProps.push(`font-size: ${styleObj.fs}pt`);
+      }
+
+      // Bordes personalizados si están definidos
+      if (styleObj?.bd) {
+        const getBorderCss = (b: any) => {
+          if (!b) return null;
+          const color = typeof b.cl === 'string' ? b.cl : b.cl?.rgb || '#d1d5db';
+          return `1px solid ${color}`;
+        };
+        if (styleObj.bd.t) cssProps.push(`border-top: ${getBorderCss(styleObj.bd.t)}`);
+        if (styleObj.bd.r) cssProps.push(`border-right: ${getBorderCss(styleObj.bd.r)}`);
+        if (styleObj.bd.b) cssProps.push(`border-bottom: ${getBorderCss(styleObj.bd.b)}`);
+        if (styleObj.bd.l) cssProps.push(`border-left: ${getBorderCss(styleObj.bd.l)}`);
+      }
+
+      return cssProps.length > 0 ? cssProps.join('; ') + ';' : '';
     };
 
     const rowKeys = Object.keys(cellData).map(Number);
@@ -235,21 +330,18 @@ export class HtmlExportStrategy implements ExportStrategy {
       }
     });
 
-    let html = '<div class="block table-box"><table style="width: 100%; border-collapse: separate; border-spacing: 0;">';
-    html += '<thead><tr><th style="background: #f3f4f6; padding: 6px; border: 1px solid #e5e7eb;">#</th>';
-    for (let c = 0; c <= maxCol; c++) {
-      html += `<th style="background: #f3f4f6; padding: 6px; border: 1px solid #e5e7eb;">${String.fromCharCode(65 + (c % 26))}</th>`;
-    }
-    html += '</tr></thead><tbody>';
+    let html = '<div class="block table-box"><table style="width: 100%; border-collapse: collapse; border-spacing: 0;"><tbody>';
 
     for (let r = 0; r <= maxRow; r++) {
       const row = cellData[r] || {};
-      html += `<tr><td style="background: #f9fafb; padding: 5px; text-align: center; border: 1px solid #e5e7eb;">${r + 1}</td>`;
+      html += '<tr>';
       for (let c = 0; c <= maxCol; c++) {
         const key = `${r},${c}`;
         if (coveredCells.has(key)) continue;
 
-        const rawVal = getCellValue(row[c]);
+        const cell = row[c];
+        const rawVal = getCellValue(cell);
+        const isNumeric = rawVal !== '' && !isNaN(Number(rawVal)) && !rawVal.includes('\n');
         const formattedVal = this.escapeHtml(rawVal).replace(/\r?\n/g, '<br/>');
         const mergeInfo = mergeRoots.get(key);
         let spanAttrs = '';
@@ -257,7 +349,12 @@ export class HtmlExportStrategy implements ExportStrategy {
           if (mergeInfo.rowSpan > 1) spanAttrs += ` rowspan="${mergeInfo.rowSpan}"`;
           if (mergeInfo.colSpan > 1) spanAttrs += ` colspan="${mergeInfo.colSpan}"`;
         }
-        html += `<td style="border: 1px solid #e5e7eb; padding: 6px 10px; vertical-align: top;"${spanAttrs}>${formattedVal}</td>`;
+
+        const inlineStyle = getCellInlineStyle(cell, isNumeric);
+        const baseStyle = 'border: 1px solid #e5e7eb; padding: 6px 10px; word-break: break-word; line-height: 1.5; vertical-align: top;';
+        const fullStyle = inlineStyle ? `${baseStyle} ${inlineStyle}` : baseStyle;
+
+        html += `<td style="${fullStyle}"${spanAttrs}>${formattedVal}</td>`;
       }
       html += '</tr>';
     }
