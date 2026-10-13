@@ -94,16 +94,144 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   zoomIn(): void {
     const next = Math.min(Math.round((this.currentZoom() + 0.1) * 10) / 10, 2.0);
-    this.currentZoom.set(next);
+    this.applyZoom(next);
   }
 
   zoomOut(): void {
     const next = Math.max(Math.round((this.currentZoom() - 0.1) * 10) / 10, 0.5);
-    this.currentZoom.set(next);
+    this.applyZoom(next);
   }
 
   resetZoom(): void {
-    this.currentZoom.set(1.0);
+    this.applyZoom(1.0);
+  }
+
+  private applyZoom(zoomVal: number): void {
+    this.currentZoom.set(zoomVal);
+    try {
+      if (this.univerAPI) {
+        const activeDoc = this.univerAPI.getActiveDocument?.();
+        const docId = activeDoc?.getId?.();
+        (this.univerAPI as any).executeCommand('doc.command.set-zoom-ratio', {
+          zoomRatio: zoomVal,
+          documentId: docId,
+        });
+      }
+    } catch (e) {
+      console.warn('[PureDocEditor] Zoom apply warning:', e);
+    }
+  }
+
+  private normalizeDocData(data: any, noteId: string, title?: string): any {
+    if (!data || typeof data !== 'object' || !data.body || !data.body.dataStream) {
+      return {
+        id: `doc-${noteId}`,
+        title: title || 'Nuevo Documento',
+        body: {
+          dataStream: '\r\n',
+          textRuns: [],
+          paragraphs: [
+            {
+              startIndex: 0,
+              paragraphId: `p-${noteId}-0`,
+              paragraphStyle: {},
+            },
+          ],
+          sectionBreaks: [
+            {
+              startIndex: 1,
+              sectionId: `s-${noteId}-0`,
+            },
+          ],
+        },
+        documentStyle: {
+          pageSize: {
+            width: 794,
+            height: 1124,
+          },
+          documentFlavor: 1,
+          marginTop: 72,
+          marginBottom: 72,
+          marginRight: 72,
+          marginLeft: 72,
+        },
+      };
+    }
+
+    const body = { ...data.body };
+    let stream = body.dataStream;
+    if (typeof stream !== 'string' || stream.length === 0) {
+      stream = '\r\n';
+    } else {
+      if (!stream.endsWith('\r\n')) {
+        if (stream.endsWith('\r')) stream += '\n';
+        else if (stream.endsWith('\n')) stream = stream.slice(0, -1) + '\r\n';
+        else stream += '\r\n';
+      }
+    }
+    body.dataStream = stream;
+
+    const returnIndices: number[] = [];
+    for (let i = 0; i < stream.length; i++) {
+      if (stream[i] === '\r') {
+        returnIndices.push(i);
+      }
+    }
+
+    if (returnIndices.length === 0) {
+      body.dataStream = '\r\n';
+      body.paragraphs = [{ startIndex: 0, paragraphId: `p-${noteId}-0`, paragraphStyle: {} }];
+      body.sectionBreaks = [{ startIndex: 1, sectionId: `s-${noteId}-0` }];
+    } else {
+      const validParagraphs = Array.isArray(body.paragraphs) ? body.paragraphs : [];
+      const hasValidParagraphs =
+        validParagraphs.length === returnIndices.length &&
+        validParagraphs.every((p: any, idx: number) => p.startIndex === returnIndices[idx]);
+
+      if (!hasValidParagraphs) {
+        body.paragraphs = returnIndices.map((retIdx, idx) => {
+          const existing = validParagraphs[idx] || {};
+          return {
+            ...existing,
+            startIndex: retIdx,
+            paragraphId: existing.paragraphId || `p-${noteId}-${idx}`,
+            paragraphStyle: existing.paragraphStyle || {},
+          };
+        });
+      }
+
+      if (!Array.isArray(body.sectionBreaks) || body.sectionBreaks.length === 0) {
+        body.sectionBreaks = [
+          {
+            startIndex: stream.length - 1,
+            sectionId: `s-${noteId}-0`,
+          },
+        ];
+      }
+    }
+
+    if (!Array.isArray(body.textRuns)) {
+      body.textRuns = [];
+    }
+
+    return {
+      ...data,
+      id: data.id || `doc-${noteId}`,
+      title: data.title || title || 'Nuevo Documento',
+      body,
+      documentStyle: {
+        pageSize: {
+          width: 794,
+          height: 1124,
+        },
+        documentFlavor: 1,
+        marginTop: 72,
+        marginBottom: 72,
+        marginRight: 72,
+        marginLeft: 72,
+        ...(data.documentStyle || {}),
+      },
+    };
   }
 
   private initUniver(): void {
@@ -129,25 +257,8 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       this.univerInstance = univer;
       this.univerAPI = univerAPI;
 
-      let doc: any = null;
-      const savedData = this.note.docData;
-
-      if (savedData && typeof savedData === 'object' && Object.keys(savedData).length > 0) {
-        doc = univerAPI.createDocument(savedData);
-      } else {
-        const initialDocData = {
-          id: `doc-${this.note._id}`,
-          title: this.note.title || 'Documento',
-          body: {
-            dataStream: `${this.note.title || 'Nuevo Documento'}\r\nComienza a redactar tu contenido aquí con el procesador formal de Univer Docs...\r\n`,
-            paragraphs: [
-              { paragraphId: 'p1', startIndex: 0, paragraphStyle: { headingId: 'k1' } },
-              { paragraphId: 'p2', startIndex: (this.note.title || 'Nuevo Documento').length + 2 },
-            ],
-          },
-        };
-        doc = univerAPI.createDocument(initialDocData as any);
-      }
+      const docDataToLoad = this.normalizeDocData(this.note.docData, this.note._id, this.note.title);
+      univerAPI.createDocument(docDataToLoad);
 
       if (univerAPI && typeof (univerAPI as any).onCommandExecuted === 'function') {
         this.commandSubscription = (univerAPI as any).onCommandExecuted(() => {
