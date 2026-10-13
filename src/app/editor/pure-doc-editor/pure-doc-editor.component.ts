@@ -13,10 +13,16 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { createUniver, LocaleType } from '@univerjs/presets';
-import { ICommandService } from '@univerjs/core';
+import { ICommandService, merge } from '@univerjs/core';
 import { UniverDocsCorePreset } from '@univerjs/preset-docs-core';
+import { UniverDocsDrawingPreset } from '@univerjs/preset-docs-drawing';
+import { UniverDocsHyperLinkPreset } from '@univerjs/preset-docs-hyper-link';
 import UniverPresetDocsCoreEnUS from '@univerjs/preset-docs-core/locales/en-US';
 import UniverPresetDocsCoreEsES from '@univerjs/preset-docs-core/locales/es-ES';
+import UniverPresetDocsDrawingEnUS from '@univerjs/preset-docs-drawing/locales/en-US';
+import UniverPresetDocsDrawingEsES from '@univerjs/preset-docs-drawing/locales/es-ES';
+import UniverPresetDocsHyperLinkEnUS from '@univerjs/preset-docs-hyper-link/locales/en-US';
+import UniverPresetDocsHyperLinkEsES from '@univerjs/preset-docs-hyper-link/locales/es-ES';
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -245,18 +251,35 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       const containerEl = this.docContainer.nativeElement;
       const lang = this.i18n.currentLang() === 'es' ? LocaleType.ES_ES : LocaleType.EN_US;
 
+      const localesEnUS = merge(
+        {},
+        UniverPresetDocsCoreEnUS,
+        UniverPresetDocsDrawingEnUS,
+        UniverPresetDocsHyperLinkEnUS
+      );
+
+      const localesEsES = merge(
+        {},
+        UniverPresetDocsCoreEsES,
+        UniverPresetDocsDrawingEsES,
+        UniverPresetDocsHyperLinkEsES
+      );
+
       const { univer, univerAPI } = createUniver({
         locale: lang,
         locales: {
-          [LocaleType.EN_US]: UniverPresetDocsCoreEnUS,
-          [LocaleType.ES_ES]: UniverPresetDocsCoreEsES,
+          [LocaleType.EN_US]: localesEnUS,
+          [LocaleType.ES_ES]: localesEsES,
         },
         presets: [
           UniverDocsCorePreset({
             container: containerEl,
             header: true,
             toolbar: true,
+            ribbonType: 'grid',
           }),
+          UniverDocsDrawingPreset(),
+          UniverDocsHyperLinkPreset(),
         ],
       });
 

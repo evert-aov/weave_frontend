@@ -13,9 +13,32 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { createUniver, LocaleType } from '@univerjs/presets';
+import { merge } from '@univerjs/core';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
+import { UniverSheetsSortPreset } from '@univerjs/preset-sheets-sort';
+import { UniverSheetsFilterPreset } from '@univerjs/preset-sheets-filter';
+import { UniverSheetsConditionalFormattingPreset } from '@univerjs/preset-sheets-conditional-formatting';
+import { UniverSheetsDataValidationPreset } from '@univerjs/preset-sheets-data-validation';
+import { UniverSheetsFindReplacePreset } from '@univerjs/preset-sheets-find-replace';
+import { UniverSheetsHyperLinkPreset } from '@univerjs/preset-sheets-hyper-link';
+import { UniverSheetsDrawingPreset } from '@univerjs/preset-sheets-drawing';
+
 import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-ES';
+import UniverPresetSheetsSortEnUS from '@univerjs/preset-sheets-sort/locales/en-US';
+import UniverPresetSheetsSortEsES from '@univerjs/preset-sheets-sort/locales/es-ES';
+import UniverPresetSheetsFilterEnUS from '@univerjs/preset-sheets-filter/locales/en-US';
+import UniverPresetSheetsFilterEsES from '@univerjs/preset-sheets-filter/locales/es-ES';
+import UniverPresetSheetsConditionalFormattingEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US';
+import UniverPresetSheetsConditionalFormattingEsES from '@univerjs/preset-sheets-conditional-formatting/locales/es-ES';
+import UniverPresetSheetsDataValidationEnUS from '@univerjs/preset-sheets-data-validation/locales/en-US';
+import UniverPresetSheetsDataValidationEsES from '@univerjs/preset-sheets-data-validation/locales/es-ES';
+import UniverPresetSheetsFindReplaceEnUS from '@univerjs/preset-sheets-find-replace/locales/en-US';
+import UniverPresetSheetsFindReplaceEsES from '@univerjs/preset-sheets-find-replace/locales/es-ES';
+import UniverPresetSheetsHyperLinkEnUS from '@univerjs/preset-sheets-hyper-link/locales/en-US';
+import UniverPresetSheetsHyperLinkEsES from '@univerjs/preset-sheets-hyper-link/locales/es-ES';
+import UniverPresetSheetsDrawingEnUS from '@univerjs/preset-sheets-drawing/locales/en-US';
+import UniverPresetSheetsDrawingEsES from '@univerjs/preset-sheets-drawing/locales/es-ES';
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -132,23 +155,55 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestro
       const containerEl = this.sheetContainer.nativeElement;
       const lang = this.i18n.currentLang() === 'es' ? LocaleType.ES_ES : LocaleType.EN_US;
 
+      const localesEnUS = merge(
+        {},
+        UniverPresetSheetsCoreEnUS,
+        UniverPresetSheetsSortEnUS,
+        UniverPresetSheetsFilterEnUS,
+        UniverPresetSheetsConditionalFormattingEnUS,
+        UniverPresetSheetsDataValidationEnUS,
+        UniverPresetSheetsFindReplaceEnUS,
+        UniverPresetSheetsHyperLinkEnUS,
+        UniverPresetSheetsDrawingEnUS
+      );
+
+      const localesEsES = merge(
+        {},
+        UniverPresetSheetsCoreEsES,
+        UniverPresetSheetsSortEsES,
+        UniverPresetSheetsFilterEsES,
+        UniverPresetSheetsConditionalFormattingEsES,
+        UniverPresetSheetsDataValidationEsES,
+        UniverPresetSheetsFindReplaceEsES,
+        UniverPresetSheetsHyperLinkEsES,
+        UniverPresetSheetsDrawingEsES
+      );
+
       const { univer, univerAPI } = createUniver({
         locale: lang,
         locales: {
-          [LocaleType.EN_US]: UniverPresetSheetsCoreEnUS,
-          [LocaleType.ES_ES]: UniverPresetSheetsCoreEsES,
+          [LocaleType.EN_US]: localesEnUS,
+          [LocaleType.ES_ES]: localesEsES,
         },
         presets: [
           UniverSheetsCorePreset({
             container: containerEl,
             header: true,
             toolbar: true,
+            ribbonType: 'grid',
             formulaBar: true,
             footer: {
               sheetBar: true,
               statisticBar: true,
             },
           }),
+          UniverSheetsDrawingPreset(),
+          UniverSheetsSortPreset(),
+          UniverSheetsFilterPreset(),
+          UniverSheetsConditionalFormattingPreset(),
+          UniverSheetsDataValidationPreset(),
+          UniverSheetsFindReplacePreset(),
+          UniverSheetsHyperLinkPreset(),
         ],
       });
 
