@@ -19,13 +19,19 @@ import { UniverUIPlugin } from '@univerjs/ui';
 import { UniverDocsPlugin } from '@univerjs/docs';
 import { UniverDocsUIPlugin } from '@univerjs/docs-ui';
 import { UniverDrawingPlugin } from '@univerjs/drawing';
-import { UniverSlidesPlugin, PageType } from '@univerjs/slides';
-import { UniverSlidesUIPlugin } from '@univerjs/slides-ui';
+
+import { UniverShapePlugin } from '@univerjs-pro/engine-shape';
+import { UniverShapeEditorPlugin } from '@univerjs-pro/shape-editor';
+import { UniverShapeEditorUIPlugin } from '@univerjs-pro/shape-editor-ui';
+import { UniverSlidesPlugin, getSlidesEmptySnapshot } from '@univerjs-pro/slides';
+import { UniverSlidesUIPlugin } from '@univerjs-pro/slides-ui';
 
 import UniverPresetDocsCoreEnUS from '@univerjs/preset-docs-core/locales/en-US';
 import UniverPresetDocsCoreEsES from '@univerjs/preset-docs-core/locales/es-ES';
-import UniverSlidesUIEnUS from '@univerjs/slides-ui/locale/en-US';
-import UniverSlidesUIEsES from '@univerjs/slides-ui/locale/es-ES';
+import UniverProSlidesUIEnUS from '@univerjs-pro/slides-ui/locale/en-US';
+import UniverProSlidesUIEsES from '@univerjs-pro/slides-ui/locale/es-ES';
+import UniverProShapeEditorUIEnUS from '@univerjs-pro/shape-editor-ui/locale/en-US';
+import UniverProShapeEditorUIEsES from '@univerjs-pro/shape-editor-ui/locale/es-ES';
 
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
@@ -33,10 +39,10 @@ import { I18nService } from '../../core/services/i18n.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 
 /**
- * Editor Especializado Puro: Presentaciones / Diapositivas (Univer Slides).
- * Proporciona un espacio de trabajo completo de diapositivas con barra de herramientas Ribbon,
- * panel lateral de miniaturas de diapositivas, inserción de formas, cajas de texto, imágenes
- * y autoguardado en tiempo real.
+ * Editor Especializado Puro: Presentaciones / Diapositivas (Univer Slides Pro).
+ * Proporciona el entorno completo de diapositivas estilo PowerPoint:
+ * cinta Ribbon con herramientas avanzadas (temas, transiciones, SmartArt, formas, cajas de texto),
+ * regla milimétrica, guías de alineación inteligentes, panel de miniaturas y autoguardado en tiempo real.
  */
 @Component({
   selector: 'app-pure-slide-editor',
@@ -115,43 +121,21 @@ export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestro
     if (
       !data ||
       typeof data !== 'object' ||
-      !data.body ||
-      !data.body.pages ||
-      !data.body.pageOrder ||
-      data.body.pageOrder.length === 0
+      !data.slides ||
+      !data.slideOrder ||
+      !Array.isArray(data.slideOrder) ||
+      data.slideOrder.length === 0
     ) {
-      const defaultPageId = `page-${noteId}-0`;
-      return {
-        id: `slide-${noteId}`,
-        title: title || 'Nueva Presentación',
-        pageSize: {
-          width: 960,
-          height: 540,
-        },
-        body: {
-          pages: {
-            [defaultPageId]: {
-              id: defaultPageId,
-              pageType: PageType.SLIDE,
-              zIndex: 0,
-              title: 'Diapositiva 1',
-              description: '',
-              pageBackgroundFill: {
-                rgb: 'rgb(255,255,255)',
-              },
-              pageElements: {},
-            },
-          },
-          pageOrder: [defaultPageId],
-        },
-      };
+      const emptySnapshot = getSlidesEmptySnapshot();
+      emptySnapshot.id = `slide-${noteId}`;
+      emptySnapshot.name = title || 'Nueva Presentación';
+      return emptySnapshot;
     }
 
     return {
       ...data,
       id: data.id || `slide-${noteId}`,
-      title: title || data.title || 'Nueva Presentación',
-      pageSize: data.pageSize || { width: 960, height: 540 },
+      name: title || data.name || 'Nueva Presentación',
     };
   }
 
@@ -163,13 +147,15 @@ export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestro
       const localesEnUS = merge(
         {},
         UniverPresetDocsCoreEnUS,
-        UniverSlidesUIEnUS
+        UniverProSlidesUIEnUS,
+        UniverProShapeEditorUIEnUS
       );
 
       const localesEsES = merge(
         {},
         UniverPresetDocsCoreEsES,
-        UniverSlidesUIEsES
+        UniverProSlidesUIEsES,
+        UniverProShapeEditorUIEsES
       );
 
       const { univer, univerAPI } = createUniver({
@@ -194,6 +180,9 @@ export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestro
               UniverDocsPlugin,
               UniverDocsUIPlugin,
               UniverDrawingPlugin,
+              UniverShapePlugin,
+              UniverShapeEditorPlugin,
+              UniverShapeEditorUIPlugin,
               UniverSlidesPlugin,
               UniverSlidesUIPlugin,
             ],
@@ -215,7 +204,7 @@ export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestro
         });
       }
     } catch (err) {
-      console.error('[PureSlideEditor] Error initializing Univer Slides:', err);
+      console.error('[PureSlideEditor] Error initializing Univer Slides Pro:', err);
     }
   }
 
@@ -233,7 +222,7 @@ export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestro
           target.snapshot;
 
         if (snapshot) {
-          const currentString = JSON.stringify(snapshot?.body || snapshot);
+          const currentString = JSON.stringify(snapshot?.slides || snapshot);
           if (currentString === this.lastSavedSnapshotString) {
             return;
           }
