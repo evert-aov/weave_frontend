@@ -106,11 +106,11 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
         const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
         const activeSheet = activeWorkbook?.getActiveSheet?.();
         if (activeSheet && typeof activeSheet.zoom === 'function') {
-          activeSheet.zoom(zoomRatio ?? this.currentZoom());
+          Promise.resolve(activeSheet.zoom(zoomRatio ?? this.currentZoom())).catch(() => {});
         }
       }
     } catch (e) {
-      console.warn('[SheetBlockComponent] Could not set Univer zoom:', e);
+      // Ignorar si el controlador de zoom de la hoja aún no está montado
     }
   }
 
@@ -148,10 +148,14 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
         if (activeSheet) {
           const permission = activeSheet.getWorksheetPermission?.();
           if (permission) {
-            if (isReading && typeof permission.setReadOnly === 'function') {
-              await permission.setReadOnly();
-            } else if (!isReading && typeof permission.setEditable === 'function') {
-              await permission.setEditable();
+            try {
+              if (isReading && typeof permission.setReadOnly === 'function') {
+                await permission.setReadOnly();
+              } else if (!isReading && typeof permission.setEditable === 'function') {
+                await permission.setEditable();
+              }
+            } catch {
+              // Protección de hoja no configurada
             }
           }
           if (typeof activeSheet.refreshCanvas === 'function') {
@@ -160,7 +164,7 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
         }
       }
     } catch (e) {
-      console.warn('[SheetBlockComponent] Could not update headers or permissions:', e);
+      // Ignorar de forma segura si la hoja aún no está completamente lista
     }
   }
 

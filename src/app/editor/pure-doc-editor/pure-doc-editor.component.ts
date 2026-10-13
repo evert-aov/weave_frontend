@@ -13,6 +13,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { createUniver, LocaleType } from '@univerjs/presets';
+import { ICommandService } from '@univerjs/core';
 import { UniverDocsCorePreset } from '@univerjs/preset-docs-core';
 import UniverPresetDocsCoreEnUS from '@univerjs/preset-docs-core/locales/en-US';
 import UniverPresetDocsCoreEsES from '@univerjs/preset-docs-core/locales/es-ES';
@@ -263,11 +264,17 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       this.univerAPI = univerAPI;
 
       const docDataToLoad = this.normalizeDocData(this.note.docData, this.note._id, this.note.title);
-      univerAPI.createDocument(docDataToLoad);
+      const doc = univerAPI.createDocument(docDataToLoad);
 
-      if (univerAPI && typeof (univerAPI as any).onCommandExecuted === 'function') {
-        this.commandSubscription = (univerAPI as any).onCommandExecuted(() => {
-          this.scheduleAutoSave();
+      const commandService =
+        (doc as any)?._commandService ||
+        (univer as any)?.__getInjector?.()?.get(ICommandService);
+
+      if (commandService && typeof commandService.onCommandExecuted === 'function') {
+        this.commandSubscription = commandService.onCommandExecuted((commandInfo: any) => {
+          if (!commandInfo?.params?.unitId || commandInfo.params.unitId === doc?.id) {
+            this.scheduleAutoSave(doc);
+          }
         });
       }
     } catch (err) {
@@ -275,27 +282,27 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     }
   }
 
-  private scheduleAutoSave(): void {
+  private scheduleAutoSave(doc?: any): void {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
     this.saveTimeout = setTimeout(() => {
       try {
-        if (!this.univerAPI) return;
-        const activeDoc = this.univerAPI.getActiveDocument?.();
-        if (activeDoc) {
-          const snapshot =
-            activeDoc.getDocumentDataModel?.()?.getSnapshot?.() ||
-            (activeDoc as any).getSnapshot?.();
+        const targetDoc = doc || this.univerAPI?.getActiveDocument?.();
+        if (!targetDoc) return;
 
-          if (snapshot) {
-            const currentString = JSON.stringify(snapshot?.body || snapshot);
-            if (currentString === this.lastSavedSnapshotString) {
-              return;
-            }
-            this.lastSavedSnapshotString = currentString;
-            this.notesService.updateDocData(snapshot);
+        const snapshot =
+          (typeof targetDoc.save === 'function' ? targetDoc.save() : null) ||
+          targetDoc.getDocumentDataModel?.()?.getSnapshot?.() ||
+          (targetDoc as any).getSnapshot?.();
+
+        if (snapshot) {
+          const currentString = JSON.stringify(snapshot?.body || snapshot);
+          if (currentString === this.lastSavedSnapshotString) {
+            return;
           }
+          this.lastSavedSnapshotString = currentString;
+          this.notesService.updateDocData(snapshot);
         }
       } catch (e) {
         console.error('[PureDocEditor] Error during auto-save:', e);
