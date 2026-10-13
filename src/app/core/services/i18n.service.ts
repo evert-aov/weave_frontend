@@ -48,6 +48,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'doc_type.doc_desc': 'Procesador de texto formal Univer Docs enriquecido',
     'doc_type.canvas_title': 'Lienzo de Dibujo',
     'doc_type.canvas_desc': 'Pizarra vectorial infinita para bocetos y diagramas',
+    'doc_type.slide_title': 'Diapositivas (PowerPoint)',
+    'doc_type.slide_desc': 'Presentación Univer Slides con diapositivas, formas y texto',
 
     // Rail y Bloques
     'rail.add_block': 'Insertar bloque debajo',
@@ -159,6 +161,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'doc_type.doc_desc': 'Formal Univer Docs word processor with page layout',
     'doc_type.canvas_title': 'Vector Canvas',
     'doc_type.canvas_desc': 'Infinite vector whiteboard for diagrams and sketches',
+    'doc_type.slide_title': 'Presentation (Slides)',
+    'doc_type.slide_desc': 'Univer Slides presentation with slides, shapes, and text',
 
     // Rail & Blocks
     'rail.add_block': 'Add block below',

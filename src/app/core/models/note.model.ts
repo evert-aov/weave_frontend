@@ -1,6 +1,6 @@
 import { Block } from './block.model';
 
-export type DocType = 'block' | 'sheet' | 'doc' | 'canvas';
+export type DocType = 'block' | 'sheet' | 'doc' | 'canvas' | 'slide';
 
 /**
  * Modelo de documento / nota en Weave.

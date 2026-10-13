@@ -257,6 +257,8 @@ export class SidebarComponent implements OnInit {
         return 'file-text';
       case 'canvas':
         return 'canvas';
+      case 'slide':
+        return 'presentation';
       default:
         return 'file-text';
     }

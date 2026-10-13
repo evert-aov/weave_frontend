@@ -49,7 +49,8 @@ export type IconName =
   | 'folder-input'
   | 'move'
   | 'arrow-left'
-  | 'arrow-right';
+  | 'arrow-right'
+  | 'presentation';
 
 /**
  * Componente de Iconos vectoriales de Weave.

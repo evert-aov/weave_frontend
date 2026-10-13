@@ -233,6 +233,10 @@
         background: #fce8e6;
         color: #c5221f;
       }
+      &.slide {
+        background: #fef3c7;
+        color: #d97706;
+      }
     }
 
     .item-text {
@@ -267,5 +271,8 @@
   }
   &.canvas {
     color: #c5221f !important;
+  }
+  &.slide {
+    color: #d97706 !important;
   }
 }

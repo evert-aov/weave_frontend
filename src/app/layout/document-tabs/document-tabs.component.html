@@ -107,6 +107,16 @@
               <small>{{ i18n.t('doc_type.canvas_desc') }}</small>
             </div>
           </button>
+
+          <button type="button" class="type-menu-item" (click)="createNewTabOfType('slide')">
+            <span class="item-icon slide">
+              <app-icon name="presentation" [size]="13"></app-icon>
+            </span>
+            <div class="item-text">
+              <strong>{{ i18n.t('doc_type.slide_title') }}</strong>
+              <small>{{ i18n.t('doc_type.slide_desc') }}</small>
+            </div>
+          </button>
         </div>
       }
     </div>

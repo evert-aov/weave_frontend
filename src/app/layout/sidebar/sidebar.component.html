@@ -365,6 +365,17 @@
                 <p>{{ i18n.t('doc_type.canvas_desc') }}</p>
               </div>
             </button>
+
+            <!-- 5. Diapositivas (Univer Slides) -->
+            <button type="button" class="type-card" (click)="createSpecializedDoc('slide')">
+              <span class="card-icon slide">
+                <app-icon name="presentation" [size]="20"></app-icon>
+              </span>
+              <div class="card-info">
+                <strong>{{ i18n.t('doc_type.slide_title') }}</strong>
+                <p>{{ i18n.t('doc_type.slide_desc') }}</p>
+              </div>
+            </button>
           </div>
         </div>
       </div>

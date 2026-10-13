@@ -1,0 +1,52 @@
+<div class="pure-slide-workspace">
+  <!-- Cabecera de Documento Especializado de Diapositivas -->
+  <header class="slide-doc-header">
+    <div class="header-left">
+      <div class="doc-badge-group">
+        <span class="type-badge slide">
+          <app-icon name="presentation" [size]="14"></app-icon>
+          <span>{{ i18n.t('doc_type.slide_title') }}</span>
+        </span>
+        <span class="space-badge">{{ formatSpacePath(note.space) }}</span>
+      </div>
+
+      <h1
+        class="slide-doc-title"
+        contenteditable="true"
+        (blur)="onTitleBlur($event)"
+        (keydown.enter)="$event.preventDefault(); onTitleEnter($event)"
+        [textContent]="note.title"
+      ></h1>
+    </div>
+
+    <div class="header-right">
+      <!-- Enlace al archivo físico almacenado en el disco -->
+      @if (note.docUrl) {
+        <a
+          [href]="'http://localhost:3000' + note.docUrl"
+          target="_blank"
+          class="physical-file-badge"
+          [title]="i18n.currentLang() === 'es' ? 'Archivo físico en servidor: ' + note.docUrl : 'Physical file on server: ' + note.docUrl"
+        >
+          <app-icon name="paperclip" [size]="12"></app-icon>
+          <span>{{ i18n.currentLang() === 'es' ? 'Archivo físico' : 'Physical file' }}</span>
+        </a>
+      }
+
+      <!-- Indicador de guardado -->
+      <span class="save-indicator" [class.saving]="notesService.saveStatus() === 'saving'">
+        <span class="indicator-dot"></span>
+        <span>
+          {{ notesService.saveStatus() === 'saving'
+              ? (i18n.currentLang() === 'es' ? 'Guardando...' : 'Saving...')
+              : (i18n.currentLang() === 'es' ? 'Guardado' : 'Saved') }}
+        </span>
+      </span>
+    </div>
+  </header>
+
+  <!-- Contenedor completo de Univer Slides -->
+  <main class="slide-mount-container">
+    <div #slideContainer class="univer-pure-slide-mount"></div>
+  </main>
+</div>

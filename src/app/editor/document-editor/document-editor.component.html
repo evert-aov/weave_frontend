@@ -9,6 +9,9 @@
     @case ('canvas') {
       <app-pure-canvas-editor [note]="note"></app-pure-canvas-editor>
     }
+    @case ('slide') {
+      <app-pure-slide-editor [note]="note"></app-pure-slide-editor>
+    }
     @default {
       <div class="document-scroll">
         <article

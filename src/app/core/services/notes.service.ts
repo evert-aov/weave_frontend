@@ -269,6 +269,7 @@ export class NotesService {
       sheet: 'Nueva Hoja de Cálculo',
       doc: 'Nuevo Documento',
       canvas: 'Nuevo Lienzo',
+      slide: 'Nueva Presentación',
     };
     const t = title || defaultTitles[docType] || 'Untitled note';
 

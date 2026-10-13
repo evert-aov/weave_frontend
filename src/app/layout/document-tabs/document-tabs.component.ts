@@ -62,6 +62,8 @@ export class DocumentTabsComponent {
         return 'file-text';
       case 'canvas':
         return 'canvas';
+      case 'slide':
+        return 'presentation';
       default:
         return 'file-text';
     }

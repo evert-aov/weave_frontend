@@ -23,6 +23,7 @@ import { BlockType } from '../../core/models/block.model';
 import { PureSheetEditorComponent } from '../pure-sheet-editor/pure-sheet-editor.component';
 import { PureDocEditorComponent } from '../pure-doc-editor/pure-doc-editor.component';
 import { PureCanvasEditorComponent } from '../pure-canvas-editor/pure-canvas-editor.component';
+import { PureSlideEditorComponent } from '../pure-slide-editor/pure-slide-editor.component';
 
 /**
  * Editor Principal del Documento de Weave.
@@ -49,6 +50,7 @@ import { PureCanvasEditorComponent } from '../pure-canvas-editor/pure-canvas-edi
     PureSheetEditorComponent,
     PureDocEditorComponent,
     PureCanvasEditorComponent,
+    PureSlideEditorComponent,
   ],
   templateUrl: './document-editor.component.html',
   styleUrl: './document-editor.component.scss',
