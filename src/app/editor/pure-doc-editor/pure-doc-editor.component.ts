@@ -23,6 +23,7 @@ import UniverPresetDocsDrawingEnUS from '@univerjs/preset-docs-drawing/locales/e
 import UniverPresetDocsDrawingEsES from '@univerjs/preset-docs-drawing/locales/es-ES';
 import UniverPresetDocsHyperLinkEnUS from '@univerjs/preset-docs-hyper-link/locales/en-US';
 import UniverPresetDocsHyperLinkEsES from '@univerjs/preset-docs-hyper-link/locales/es-ES';
+import { UniverViewRibbonPlugin } from '../univer-view-menu.plugin';
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -293,6 +294,9 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
           }),
           UniverDocsDrawingPreset(),
           UniverDocsHyperLinkPreset(),
+          {
+            plugins: [UniverViewRibbonPlugin],
+          },
         ],
       });
 

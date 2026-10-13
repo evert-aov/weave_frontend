@@ -21,6 +21,7 @@ import { UniverDocsUIPlugin } from '@univerjs/docs-ui';
 import { UniverDrawingPlugin } from '@univerjs/drawing';
 import { UniverSlidesPlugin, PageType } from '@univerjs/slides';
 import { UniverSlidesUIPlugin } from '@univerjs/slides-ui';
+import { UniverViewRibbonPlugin } from '../univer-view-menu.plugin';
 
 import UniverPresetDocsCoreEnUS from '@univerjs/preset-docs-core/locales/en-US';
 import UniverPresetDocsCoreEsES from '@univerjs/preset-docs-core/locales/es-ES';
@@ -216,6 +217,7 @@ export class PureUniverCanvasEditorComponent implements OnInit, AfterViewInit, O
               UniverDrawingPlugin,
               UniverSlidesPlugin,
               UniverSlidesUIPlugin,
+              UniverViewRibbonPlugin,
             ],
           },
         ],
