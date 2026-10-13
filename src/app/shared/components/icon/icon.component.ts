@@ -50,7 +50,9 @@ export type IconName =
   | 'move'
   | 'arrow-left'
   | 'arrow-right'
-  | 'presentation';
+  | 'presentation'
+  | 'maximize'
+  | 'brush';
 
 /**
  * Componente de Iconos vectoriales de Weave.

@@ -119,6 +119,19 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this.applyZoom(1.0);
   }
 
+  toggleFullscreen(): void {
+    const el = this.docContainer?.nativeElement?.closest('.pure-doc-workspace') as HTMLElement || this.docContainer?.nativeElement;
+    if (!document.fullscreenElement) {
+      if (el?.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  }
+
   private applyZoom(zoomVal: number): void {
     this.currentZoom.set(zoomVal);
     try {

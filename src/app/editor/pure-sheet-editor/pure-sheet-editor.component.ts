@@ -135,6 +135,19 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestro
     this.applyZoom(1.0);
   }
 
+  toggleFullscreen(): void {
+    const el = this.sheetContainer?.nativeElement?.closest('.pure-sheet-workspace') as HTMLElement || this.sheetContainer?.nativeElement;
+    if (!document.fullscreenElement) {
+      if (el?.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  }
+
   private applyZoom(zoomVal: number): void {
     this.currentZoom.set(zoomVal);
     try {

@@ -77,6 +77,14 @@
         >
           <app-icon name="target" [size]="13"></app-icon>
         </button>
+        <button
+          type="button"
+          class="zoom-btn"
+          (click)="toggleFullscreen()"
+          [title]="i18n.currentLang() === 'es' ? 'Pantalla completa' : 'Fullscreen'"
+        >
+          <app-icon name="maximize" [size]="13"></app-icon>
+        </button>
       </div>
     </div>
   </header>

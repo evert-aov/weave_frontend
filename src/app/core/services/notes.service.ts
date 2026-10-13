@@ -268,8 +268,9 @@ export class NotesService {
       block: 'Untitled note',
       sheet: 'Nueva Hoja de Cálculo',
       doc: 'Nuevo Documento',
-      canvas: 'Nuevo Lienzo',
+      canvas: 'Nueva Pizarra Excalidraw',
       slide: 'Nueva Presentación',
+      univer_canvas: 'Nuevo Lienzo Univer',
     };
     const t = title || defaultTitles[docType] || 'Untitled note';
 

@@ -117,6 +117,16 @@
               <small>{{ i18n.t('doc_type.slide_desc') }}</small>
             </div>
           </button>
+
+          <button type="button" class="type-menu-item" (click)="createNewTabOfType('univer_canvas')">
+            <span class="item-icon univer-canvas">
+              <app-icon name="brush" [size]="13"></app-icon>
+            </span>
+            <div class="item-text">
+              <strong>{{ i18n.t('doc_type.univer_canvas_title') }}</strong>
+              <small>{{ i18n.t('doc_type.univer_canvas_desc') }}</small>
+            </div>
+          </button>
         </div>
       }
     </div>

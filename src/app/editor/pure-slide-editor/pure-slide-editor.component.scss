@@ -110,6 +110,48 @@
       animation: pulse 1s infinite;
     }
   }
+
+  .zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+
+    .zoom-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 24px;
+      border-radius: 4px;
+      color: var(--muted);
+      transition: all 0.15s;
+
+      &:hover {
+        background: var(--bg);
+        color: var(--text);
+      }
+    }
+
+    .zoom-reset-btn {
+      font-size: 11px;
+      font-family: monospace;
+      font-weight: 600;
+      padding: 0 6px;
+      height: 24px;
+      color: var(--muted);
+      border-radius: 4px;
+      transition: all 0.15s;
+
+      &:hover {
+        background: var(--bg);
+        color: var(--text);
+      }
+    }
+  }
 }
 
 .slide-mount-container {

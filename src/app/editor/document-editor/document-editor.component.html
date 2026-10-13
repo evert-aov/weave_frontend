@@ -12,6 +12,9 @@
     @case ('slide') {
       <app-pure-slide-editor [note]="note"></app-pure-slide-editor>
     }
+    @case ('univer_canvas') {
+      <app-pure-univer-canvas-editor [note]="note"></app-pure-univer-canvas-editor>
+    }
     @default {
       <div class="document-scroll">
         <article

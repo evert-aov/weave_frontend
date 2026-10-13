@@ -360,6 +360,15 @@
     text-overflow: ellipsis;
     font-size: 11.5px;
   }
+
+  app-icon {
+    &.sheet { color: #137333; }
+    &.doc { color: #1a73e8; }
+    &.canvas { color: #c5221f; }
+    &.slide { color: #d97706; }
+    &.univer_canvas,
+    &.univer-canvas { color: #4338ca; }
+  }
 }
 
 .note-actions {
@@ -832,6 +841,11 @@
       &.slide {
         background: #fef3c7;
         color: #d97706;
+      }
+      &.univer-canvas,
+      &.univer_canvas {
+        background: #e0e7ff;
+        color: #4338ca;
       }
     }
 

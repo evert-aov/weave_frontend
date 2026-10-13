@@ -145,6 +145,20 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  toggleFullscreen(): void {
+    const el = this.canvasMount?.nativeElement?.closest('.pure-canvas-workspace') as HTMLElement || this.canvasMount?.nativeElement;
+    if (!document.fullscreenElement) {
+      if (el?.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  }
+
+
   private applyZoom(zoomValue: number): void {
     this.currentZoom.set(zoomValue);
     if (!this.excalidrawAPI) return;
