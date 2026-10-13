@@ -24,7 +24,6 @@ import { PureSheetEditorComponent } from '../pure-sheet-editor/pure-sheet-editor
 import { PureDocEditorComponent } from '../pure-doc-editor/pure-doc-editor.component';
 import { PureCanvasEditorComponent } from '../pure-canvas-editor/pure-canvas-editor.component';
 import { PureSlideEditorComponent } from '../pure-slide-editor/pure-slide-editor.component';
-import { PureUniverCanvasEditorComponent } from '../pure-univer-canvas-editor/pure-univer-canvas-editor.component';
 
 /**
  * Editor Principal del Documento de Weave.
@@ -52,7 +51,6 @@ import { PureUniverCanvasEditorComponent } from '../pure-univer-canvas-editor/pu
     PureDocEditorComponent,
     PureCanvasEditorComponent,
     PureSlideEditorComponent,
-    PureUniverCanvasEditorComponent,
   ],
   templateUrl: './document-editor.component.html',
   styleUrl: './document-editor.component.scss',

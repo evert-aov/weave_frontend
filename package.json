@@ -19,6 +19,7 @@
     "@angular/router": "^22.1.0",
     "@excalidraw/excalidraw": "^0.18.1",
     "@monaco-editor/loader": "^1.7.0",
+    "@ngx-translate/core": "^18.0.0",
     "@tiptap/core": "^3.31.4",
     "@tiptap/extension-placeholder": "^3.31.4",
     "@tiptap/extension-task-item": "^3.31.4",
@@ -27,6 +28,7 @@
     "@types/katex": "^0.16.8",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
     "@univerjs/preset-docs-core": "^1.0.4",
     "@univerjs/preset-docs-drawing": "^1.0.4",
     "@univerjs/preset-docs-hyper-link": "^1.0.4",
@@ -39,18 +41,21 @@
     "@univerjs/preset-sheets-hyper-link": "^1.0.4",
     "@univerjs/preset-sheets-sort": "^1.0.4",
     "@univerjs/presets": "^1.0.4",
-    "@univerjs/slides": "^1.0.4",
-    "@univerjs/slides-ui": "^1.0.4",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "katex": "^0.19.0",
     "mermaid": "^12.1.0",
     "monaco-editor": "^0.57.0",
+    "pptx-angular-viewer": "^2.21.0",
+    "pptx-viewer-core": "^4.13.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "rxjs": "~7.8.0",
+    "three": "^0.185.1",
     "tldraw": "^5.5.2",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "y-webrtc": "^10.3.0",
+    "y-websocket": "^3.1.0"
   },
   "devDependencies": {
     "@angular/build": "^22.1.6",
@@ -63,5 +68,8 @@
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "vitest": "^4.0.8"
+  },
+  "overrides": {
+    "emf-converter": "1.6.0"
   }
 }

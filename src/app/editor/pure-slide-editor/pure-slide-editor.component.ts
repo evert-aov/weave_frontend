@@ -2,95 +2,47 @@ import {
   Component,
   Input,
   OnInit,
-  AfterViewInit,
-  OnDestroy,
   ElementRef,
   ViewChild,
   inject,
   signal,
-  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { createUniver, LocaleType } from '@univerjs/presets';
-import { ICommandService, UniverInstanceType, merge } from '@univerjs/core';
-import { UniverRenderEnginePlugin } from '@univerjs/engine-render';
-import { UniverUIPlugin } from '@univerjs/ui';
-import { UniverDocsPlugin } from '@univerjs/docs';
-import { UniverDocsUIPlugin } from '@univerjs/docs-ui';
-import { UniverDrawingPlugin } from '@univerjs/drawing';
-import { UniverSlidesPlugin, PageType } from '@univerjs/slides';
-import { UniverSlidesUIPlugin } from '@univerjs/slides-ui';
-import { UniverViewRibbonPlugin } from '../univer-view-menu.plugin';
-
-import UniverPresetDocsCoreEnUS from '@univerjs/preset-docs-core/locales/en-US';
-import UniverPresetDocsCoreEsES from '@univerjs/preset-docs-core/locales/es-ES';
-import UniverSlidesUIEnUS from '@univerjs/slides-ui/locale/en-US';
-import UniverSlidesUIEsES from '@univerjs/slides-ui/locale/es-ES';
+import { PowerPointViewerComponent } from 'pptx-angular-viewer';
 
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { DEFAULT_BLANK_PPTX_BASE64 } from './default-pptx.base64';
 
 /**
- * Editor Especializado Puro: Presentaciones / Diapositivas (Univer Slides 100% Open Source).
- * Proporciona un espacio de trabajo de diapositivas con barra de herramientas Ribbon,
- * panel lateral de miniaturas de diapositivas, inserción de formas, cajas de texto, imágenes
- * y autoguardado en tiempo real sin dependencias comerciales Pro.
+ * Editor Especializado Puro: Presentaciones PowerPoint (.pptx).
+ * Integra el motor nativo pptx-angular-viewer para renderizar, editar y exportar diapositivas
+ * completas con cinta Ribbon oficial, animaciones, transiciones, SmartArt y herramientas de dibujo.
  */
 @Component({
   selector: 'app-pure-slide-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, PowerPointViewerComponent],
   templateUrl: './pure-slide-editor.component.html',
   styleUrls: ['./pure-slide-editor.component.scss'],
 })
-export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestroy {
+export class PureSlideEditorComponent implements OnInit {
   @Input({ required: true }) note!: Note;
-  @ViewChild('slideContainer', { static: true })
-  slideContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('slideWrapper', { static: false })
+  slideWrapper?: ElementRef<HTMLDivElement>;
 
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
 
-  readonly currentZoom = signal<number>(1.0);
-  readonly Math = Math;
+  readonly pptxBytes = signal<Uint8Array | null>(null);
 
-  private univerInstance: any = null;
-  private univerAPI: any = null;
-  private slideUnit: any = null;
-  private commandSubscription: any = null;
   private saveTimeout: any = null;
-  private lastSavedSnapshotString = '';
 
-  constructor() {
-    effect(() => {
-      this.notesService.documentZoom();
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 80);
-    });
-  }
-
-  ngOnInit(): void {}
-
-  ngAfterViewInit(): void {
-    setTimeout(() => {
-      this.initUniver();
-    }, 50);
-  }
-
-  ngOnDestroy(): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
-    }
-    if (this.commandSubscription && typeof this.commandSubscription.dispose === 'function') {
-      this.commandSubscription.dispose();
-    }
-    if (this.univerInstance && typeof this.univerInstance.dispose === 'function') {
-      this.univerInstance.dispose();
-    }
+  ngOnInit(): void {
+    this.loadPptxData();
   }
 
   formatSpacePath(space?: string): string {
@@ -112,22 +64,10 @@ export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestro
     el.blur();
   }
 
-  zoomIn(): void {
-    const next = Math.min(Math.round((this.currentZoom() + 0.1) * 10) / 10, 2.0);
-    this.currentZoom.set(next);
-  }
-
-  zoomOut(): void {
-    const next = Math.max(Math.round((this.currentZoom() - 0.1) * 10) / 10, 0.5);
-    this.currentZoom.set(next);
-  }
-
-  resetZoom(): void {
-    this.currentZoom.set(1.0);
-  }
-
   toggleFullscreen(): void {
-    const el = this.slideContainer?.nativeElement?.closest('.pure-slide-workspace') as HTMLElement || this.slideContainer?.nativeElement;
+    const el =
+      (this.slideWrapper?.nativeElement?.closest('.pure-slide-workspace') as HTMLElement) ||
+      this.slideWrapper?.nativeElement;
     if (!document.fullscreenElement) {
       if (el?.requestFullscreen) {
         el.requestFullscreen().catch(() => {});
@@ -139,139 +79,89 @@ export class PureSlideEditorComponent implements OnInit, AfterViewInit, OnDestro
     }
   }
 
-  private normalizeSlideData(data: any, noteId: string, title?: string): any {
-    if (
-      !data ||
-      typeof data !== 'object' ||
-      !data.body ||
-      !data.body.pages ||
-      !data.body.pageOrder ||
-      data.body.pageOrder.length === 0
-    ) {
-      const defaultPageId = `page-${noteId}-0`;
-      return {
-        id: `slide-${noteId}`,
-        title: title || 'Nueva Presentación',
-        pageSize: {
-          width: 960,
-          height: 540,
-        },
-        body: {
-          pages: {
-            [defaultPageId]: {
-              id: defaultPageId,
-              pageType: PageType.SLIDE,
-              zIndex: 0,
-              title: 'Diapositiva 1',
-              description: '',
-              pageBackgroundFill: {
-                rgb: 'rgb(255,255,255)',
-              },
-              pageElements: {},
-            },
-          },
-          pageOrder: [defaultPageId],
-        },
-      };
-    }
+  async onUploadPptx(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
 
-    return {
-      ...data,
-      id: data.id || `slide-${noteId}`,
-      title: title || data.title || 'Nueva Presentación',
-      pageSize: data.pageSize || { width: 960, height: 540 },
-    };
-  }
-
-  private initUniver(): void {
     try {
-      const containerEl = this.slideContainer.nativeElement;
-      const lang = this.i18n.currentLang() === 'es' ? LocaleType.ES_ES : LocaleType.EN_US;
-
-      const localesEnUS = merge(
-        {},
-        UniverPresetDocsCoreEnUS,
-        UniverSlidesUIEnUS
-      );
-
-      const localesEsES = merge(
-        {},
-        UniverPresetDocsCoreEsES,
-        UniverSlidesUIEsES
-      );
-
-      const { univer, univerAPI } = createUniver({
-        locale: lang,
-        locales: {
-          [LocaleType.EN_US]: localesEnUS,
-          [LocaleType.ES_ES]: localesEsES,
-        },
-        presets: [
-          {
-            plugins: [
-              UniverRenderEnginePlugin,
-              [
-                UniverUIPlugin,
-                {
-                  container: containerEl,
-                  header: true,
-                  toolbar: true,
-                  ribbonType: 'grid',
-                },
-              ],
-              UniverDocsPlugin,
-              UniverDocsUIPlugin,
-              UniverDrawingPlugin,
-              UniverSlidesPlugin,
-              UniverSlidesUIPlugin,
-              UniverViewRibbonPlugin,
-            ],
-          },
-        ],
-      });
-
-      this.univerInstance = univer;
-      this.univerAPI = univerAPI;
-
-      const slideData = this.normalizeSlideData(this.note.docData, this.note._id, this.note.title);
-      const slideUnit = univer.createUnit(UniverInstanceType.UNIVER_SLIDE, slideData);
-      this.slideUnit = slideUnit;
-
-      const commandService = (univer as any)?.__getInjector?.()?.get(ICommandService);
-      if (commandService && typeof commandService.onCommandExecuted === 'function') {
-        this.commandSubscription = commandService.onCommandExecuted((commandInfo: any) => {
-          this.scheduleAutoSave(slideUnit);
-        });
-      }
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      this.pptxBytes.set(bytes);
+      this.savePptxBytes(bytes);
     } catch (err) {
-      console.error('[PureSlideEditor] Error initializing Univer Slides Open Source:', err);
+      console.error('[PureSlideEditor] Error loading uploaded .pptx:', err);
     }
   }
 
-  private scheduleAutoSave(slideUnit?: any): void {
+  downloadPptx(): void {
+    const current = this.pptxBytes();
+    if (!current) return;
+    const blob = new Blob([current as any], {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${this.note.title || 'presentacion'}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  onContentChange(bytes: Uint8Array): void {
+    this.pptxBytes.set(bytes);
+    this.scheduleAutoSave(bytes);
+  }
+
+  private loadPptxData(): void {
+    const docData = this.note.docData;
+    if (docData && typeof docData === 'object' && docData.base64) {
+      try {
+        const bin = atob(docData.base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+          bytes[i] = bin.charCodeAt(i);
+        }
+        this.pptxBytes.set(bytes);
+        return;
+      } catch (err) {
+        console.warn('[PureSlideEditor] Failed decoding stored PPTX base64, falling back to default:', err);
+      }
+    }
+
+    // Cargar plantilla por defecto
+    try {
+      const bin = atob(DEFAULT_BLANK_PPTX_BASE64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) {
+        bytes[i] = bin.charCodeAt(i);
+      }
+      this.pptxBytes.set(bytes);
+    } catch (err) {
+      console.error('[PureSlideEditor] Failed loading default blank PPTX:', err);
+    }
+  }
+
+  private scheduleAutoSave(bytes: Uint8Array): void {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
     this.saveTimeout = setTimeout(() => {
-      try {
-        const target = slideUnit || this.slideUnit;
-        if (!target) return;
+      this.savePptxBytes(bytes);
+    }, 800);
+  }
 
-        const snapshot =
-          (typeof target.getSnapshot === 'function' ? target.getSnapshot() : null) ||
-          target.snapshot;
-
-        if (snapshot) {
-          const currentString = JSON.stringify(snapshot?.body || snapshot);
-          if (currentString === this.lastSavedSnapshotString) {
-            return;
-          }
-          this.lastSavedSnapshotString = currentString;
-          this.notesService.updateDocData(snapshot);
-        }
-      } catch (e) {
-        console.error('[PureSlideEditor] Error during auto-save:', e);
-      }
-    }, 600);
+  private savePptxBytes(bytes: Uint8Array): void {
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+    this.notesService.updateDocData({
+      format: 'pptx',
+      base64,
+      updatedAt: new Date().toISOString(),
+    });
   }
 }

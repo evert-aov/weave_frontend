@@ -64,8 +64,6 @@ export class DocumentTabsComponent {
         return 'canvas';
       case 'slide':
         return 'presentation';
-      case 'univer_canvas':
-        return 'brush';
       default:
         return 'file-text';
     }

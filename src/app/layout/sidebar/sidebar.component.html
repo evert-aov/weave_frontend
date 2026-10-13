@@ -366,7 +366,7 @@
               </div>
             </button>
 
-            <!-- 5. Diapositivas (Univer Slides) -->
+            <!-- 5. Diapositivas (PowerPoint) -->
             <button type="button" class="type-card" (click)="createSpecializedDoc('slide')">
               <span class="card-icon slide">
                 <app-icon name="presentation" [size]="20"></app-icon>
@@ -374,17 +374,6 @@
               <div class="card-info">
                 <strong>{{ i18n.t('doc_type.slide_title') }}</strong>
                 <p>{{ i18n.t('doc_type.slide_desc') }}</p>
-              </div>
-            </button>
-
-            <!-- 6. Univer Canvas -->
-            <button type="button" class="type-card" (click)="createSpecializedDoc('univer_canvas')">
-              <span class="card-icon univer-canvas">
-                <app-icon name="brush" [size]="20"></app-icon>
-              </span>
-              <div class="card-info">
-                <strong>{{ i18n.t('doc_type.univer_canvas_title') }}</strong>
-                <p>{{ i18n.t('doc_type.univer_canvas_desc') }}</p>
               </div>
             </button>
           </div>

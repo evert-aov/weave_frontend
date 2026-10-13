@@ -48,10 +48,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'doc_type.doc_desc': 'Procesador de texto formal Univer Docs enriquecido',
     'doc_type.canvas_title': 'Pizarra Excalidraw',
     'doc_type.canvas_desc': 'Pizarra vectorial con bocetos, notas adhesivas y formas',
-    'doc_type.univer_canvas_title': 'Lienzo Univer Canvas',
-    'doc_type.univer_canvas_desc': 'Lienzo gráfico y dibujos libres del motor UniverJS',
     'doc_type.slide_title': 'Diapositivas (PowerPoint)',
-    'doc_type.slide_desc': 'Presentación Univer Slides con diapositivas, formas y texto',
+    'doc_type.slide_desc': 'Visor y editor PPTX nativo con diapositivas, formas y temas',
 
     // Rail y Bloques
     'rail.add_block': 'Insertar bloque debajo',
@@ -163,10 +161,8 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'doc_type.doc_desc': 'Formal Univer Docs word processor with page layout',
     'doc_type.canvas_title': 'Excalidraw Whiteboard',
     'doc_type.canvas_desc': 'Vector whiteboard with shapes, sticky notes, and freehand',
-    'doc_type.univer_canvas_title': 'Univer Canvas',
-    'doc_type.univer_canvas_desc': 'Freehand drawing and graphics canvas from UniverJS',
-    'doc_type.slide_title': 'Presentation (Slides)',
-    'doc_type.slide_desc': 'Univer Slides presentation with slides, shapes, and text',
+    'doc_type.slide_title': 'Presentation (PowerPoint)',
+    'doc_type.slide_desc': 'Native PPTX viewer and editor with slides, shapes, and themes',
 
     // Rail & Blocks
     'rail.add_block': 'Add block below',

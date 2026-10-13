@@ -269,8 +269,7 @@ export class NotesService {
       sheet: 'Nueva Hoja de Cálculo',
       doc: 'Nuevo Documento',
       canvas: 'Nueva Pizarra Excalidraw',
-      slide: 'Nueva Presentación',
-      univer_canvas: 'Nuevo Lienzo Univer',
+      slide: 'Nueva Presentación PowerPoint',
     };
     const t = title || defaultTitles[docType] || 'Untitled note';
 

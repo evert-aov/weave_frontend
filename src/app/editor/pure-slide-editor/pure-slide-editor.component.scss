@@ -66,28 +66,28 @@
   .header-right {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     flex-shrink: 0;
   }
 
-  .physical-file-badge {
+  .pptx-action-btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     font-size: 11px;
-    font-weight: 500;
-    padding: 3px 8px;
-    border-radius: 5px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
     background: var(--soft);
     border: 1px solid var(--border);
-    color: var(--muted);
-    text-decoration: none;
+    color: var(--text);
+    cursor: pointer;
     transition: all 0.15s ease;
 
     &:hover {
-      color: var(--accent);
-      border-color: var(--accent);
       background: var(--bg);
+      border-color: var(--accent);
+      color: var(--accent);
     }
   }
 
@@ -118,7 +118,6 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 2px;
-    gap: 2px;
 
     .zoom-btn {
       display: flex;
@@ -128,22 +127,6 @@
       height: 24px;
       border-radius: 4px;
       color: var(--muted);
-      transition: all 0.15s;
-
-      &:hover {
-        background: var(--bg);
-        color: var(--text);
-      }
-    }
-
-    .zoom-reset-btn {
-      font-size: 11px;
-      font-family: monospace;
-      font-weight: 600;
-      padding: 0 6px;
-      height: 24px;
-      color: var(--muted);
-      border-radius: 4px;
       transition: all 0.15s;
 
       &:hover {
@@ -162,11 +145,20 @@
   overflow: hidden;
   background: var(--canvas);
 
-  .univer-pure-slide-mount {
-    position: absolute;
-    inset: 0;
+  pptx-viewer {
+    display: block;
     width: 100%;
     height: 100%;
+  }
+
+  .loading-pptx {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--muted);
+    font-size: 14px;
   }
 }
 
