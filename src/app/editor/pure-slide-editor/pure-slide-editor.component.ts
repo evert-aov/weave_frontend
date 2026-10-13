@@ -34,6 +34,7 @@ export class PureSlideEditorComponent implements OnInit {
   @Input({ required: true }) note!: Note;
   @ViewChild('slideWrapper', { static: false })
   slideWrapper?: ElementRef<HTMLDivElement>;
+  @ViewChild('viewer') viewer?: PowerPointViewerComponent;
 
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
@@ -173,8 +174,15 @@ export class PureSlideEditorComponent implements OnInit {
     }
   }
 
-  downloadPptx(): void {
-    const current = this.pptxBytes();
+  async downloadPptx(): Promise<void> {
+    let current = this.pptxBytes();
+    if (this.viewer) {
+      try {
+        current = await this.viewer.getContent();
+      } catch (err) {
+        console.warn('[PureSlideEditor] Failed getting live content from viewer:', err);
+      }
+    }
     if (!current) return;
     const blob = new Blob([current as any], {
       type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

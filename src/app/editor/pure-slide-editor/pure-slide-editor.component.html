@@ -66,8 +66,10 @@
   <main class="slide-mount-container" #slideWrapper>
     @if (pptxBytes(); as bytes) {
       <pptx-viewer
+        #viewer
         [content]="bytes"
         [fileName]="note.title"
+        [canEdit]="true"
         defaultThemeKey="light"
         (contentChange)="onContentChange($event)"
       ></pptx-viewer>
