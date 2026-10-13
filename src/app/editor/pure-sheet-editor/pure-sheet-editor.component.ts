@@ -88,8 +88,14 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestro
     const el = event.target as HTMLElement;
     const text = el.innerText.trim();
     if (text && text !== this.note.title) {
+      this.note = { ...this.note, title: text };
       this.notesService.updateMeta({ title: text });
     }
+  }
+
+  onTitleEnter(event: Event): void {
+    const el = event.target as HTMLElement;
+    el.blur();
   }
 
   zoomIn(): void {

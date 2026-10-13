@@ -91,7 +91,10 @@ export class NotesService {
               tap((updated) => {
                 this.lastSavedPayload = this.getNotePayload(updated);
                 this.saveStatus.set('saved');
-                // Actualizar la nota en la lista general
+                // Sincronizar la nota activa y la lista general
+                if (this.currentNote()?._id === updated._id) {
+                  this.currentNote.set(updated);
+                }
                 this.notesList.update((list) =>
                   list.map((n) => (n._id === updated._id ? updated : n)),
                 );

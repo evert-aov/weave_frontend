@@ -88,8 +88,14 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     const el = event.target as HTMLElement;
     const text = el.innerText.trim();
     if (text && text !== this.note.title) {
+      this.note = { ...this.note, title: text };
       this.notesService.updateMeta({ title: text });
     }
+  }
+
+  onTitleEnter(event: Event): void {
+    const el = event.target as HTMLElement;
+    el.blur();
   }
 
   zoomIn(): void {
@@ -184,26 +190,25 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       body.sectionBreaks = [{ startIndex: 1, sectionId: `s-${noteId}-0` }];
     } else {
       const validParagraphs = Array.isArray(body.paragraphs) ? body.paragraphs : [];
-      const hasValidParagraphs =
-        validParagraphs.length === returnIndices.length &&
-        validParagraphs.every((p: any, idx: number) => p.startIndex === returnIndices[idx]);
+      body.paragraphs = returnIndices.map((retIdx, idx) => {
+        const existing = validParagraphs[idx] || {};
+        return {
+          ...existing,
+          startIndex: retIdx,
+          paragraphId: existing.paragraphId || `p-${noteId}-${idx}`,
+          paragraphStyle: existing.paragraphStyle || {},
+        };
+      });
 
-      if (!hasValidParagraphs) {
-        body.paragraphs = returnIndices.map((retIdx, idx) => {
-          const existing = validParagraphs[idx] || {};
-          return {
-            ...existing,
-            startIndex: retIdx,
-            paragraphId: existing.paragraphId || `p-${noteId}-${idx}`,
-            paragraphStyle: existing.paragraphStyle || {},
-          };
-        });
-      }
-
-      if (!Array.isArray(body.sectionBreaks) || body.sectionBreaks.length === 0) {
+      const maxSectionIndex = stream.length - 1;
+      if (
+        !Array.isArray(body.sectionBreaks) ||
+        body.sectionBreaks.length === 0 ||
+        body.sectionBreaks.some((sb: any) => sb.startIndex > maxSectionIndex)
+      ) {
         body.sectionBreaks = [
           {
-            startIndex: stream.length - 1,
+            startIndex: maxSectionIndex,
             sectionId: `s-${noteId}-0`,
           },
         ];
@@ -217,7 +222,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     return {
       ...data,
       id: data.id || `doc-${noteId}`,
-      title: data.title || title || 'Nuevo Documento',
+      title: title || data.title || 'Nuevo Documento',
       body,
       documentStyle: {
         pageSize: {
