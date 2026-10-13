@@ -68,6 +68,7 @@
       <pptx-viewer
         [content]="bytes"
         [fileName]="note.title"
+        defaultThemeKey="light"
         (contentChange)="onContentChange($event)"
       ></pptx-viewer>
     } @else {

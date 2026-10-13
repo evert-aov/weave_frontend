@@ -9,7 +9,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { PowerPointViewerComponent } from 'pptx-angular-viewer';
+import { PowerPointViewerComponent, translationsEn } from 'pptx-angular-viewer';
+import { TranslateService } from '@ngx-translate/core';
 
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
@@ -36,13 +37,91 @@ export class PureSlideEditorComponent implements OnInit {
 
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
+  private readonly translate = inject(TranslateService);
 
   readonly pptxBytes = signal<Uint8Array | null>(null);
 
   private saveTimeout: any = null;
 
   ngOnInit(): void {
+    this.setupTranslations();
     this.loadPptxData();
+  }
+
+  private setupTranslations(): void {
+    // 1. Cargar diccionario completo oficial en inglés (todas las 500+ claves pptx.*)
+    this.translate.setTranslation('en', translationsEn, true);
+
+    // 2. Cargar diccionario en español con claves amigables para la UI de PowerPoint
+    // y fallback al diccionario base para no dejar ninguna clave técnica expuesta
+    this.translate.setTranslation(
+      'es',
+      {
+        ...translationsEn,
+        // Cinta de opciones (Ribbon Tabs)
+        'pptx.ribbon.tab.file': 'Archivo',
+        'pptx.ribbon.tab.home': 'Inicio',
+        'pptx.ribbon.tab.insert': 'Insertar',
+        'pptx.ribbon.tab.draw': 'Dibujar',
+        'pptx.ribbon.tab.design': 'Diseño',
+        'pptx.ribbon.tab.transitions': 'Transiciones',
+        'pptx.ribbon.tab.animations': 'Animaciones',
+        'pptx.ribbon.tab.slideshow': 'Presentación',
+        'pptx.ribbon.tab.record': 'Grabar',
+        'pptx.ribbon.tab.review': 'Revisar',
+        'pptx.ribbon.tab.view': 'Vista',
+        'pptx.ribbon.tab.help': 'Ayuda',
+
+        // Secciones de la cinta
+        'pptx.ribbon.clipboard': 'Portapapeles',
+        'pptx.ribbon.font': 'Fuente',
+        'pptx.ribbon.paragraph': 'Párrafo',
+        'pptx.ribbon.drawing': 'Dibujo',
+        'pptx.ribbon.editing': 'Edición',
+        'pptx.ribbon.show': 'Mostrar cinta',
+
+        // Botones de Inicio
+        'pptx.home.newSlide': 'Nueva Diapositiva',
+        'pptx.home.slideTemplates': 'Plantillas',
+        'pptx.master.layout': 'Diseño',
+        'pptx.animations.reset': 'Restablecer',
+        'pptx.sections.slides': 'Diapositivas',
+        'pptx.sections.sectionButtonLabel': 'Sección',
+
+        // Barra de estado (Status Bar)
+        'pptx.statusBar.allSaved': 'Guardado',
+        'pptx.statusBar.unsavedChanges': 'Cambios sin guardar',
+        'pptx.statusBar.slideOf': 'Diapositiva {{current}} de {{total}}',
+        'pptx.statusBar.noSlides': 'Sin diapositivas',
+        'pptx.statusBar.language': 'Español',
+        'pptx.statusBar.toggleNotes': 'Notas',
+        'pptx.statusBar.normalView': 'Normal',
+        'pptx.statusBar.slideSorter': 'Clasificador',
+        'pptx.statusBar.slideShow': 'Presentación',
+        'pptx.statusBar.zoomIn': 'Acercar',
+        'pptx.statusBar.zoomOut': 'Alejar',
+        'pptx.statusBar.zoomToFit': 'Ajustar a ventana',
+
+        // Barra de herramientas superior
+        'pptx.toolbar.present': 'Presentar',
+        'pptx.toolbar.share': 'Compartir',
+        'pptx.notes.title': 'Notas de la diapositiva',
+        'pptx.titleBar.autoSave': 'Autoguardado',
+        'pptx.titleBar.save': 'Guardar',
+        'pptx.titleBar.undo': 'Deshacer',
+        'pptx.titleBar.redo': 'Rehacer',
+
+        // Tipografía
+        'pptx.text.characterSpacingNormal': 'Normal',
+        'pptx.font.role.body': 'Cuerpo',
+        'pptx.font.role.heading': 'Título',
+      },
+      true
+    );
+
+    const lang = this.i18n.currentLang() === 'es' ? 'es' : 'en';
+    this.translate.setFallbackLang('en');
+    this.translate.use(lang);
   }
 
   formatSpacePath(space?: string): string {

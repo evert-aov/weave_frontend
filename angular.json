@@ -27,6 +27,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "pptx-angular-viewer.css",
+                "input": "node_modules/pptx-angular-viewer",
+                "output": "."
               }
             ],
             "styles": [
