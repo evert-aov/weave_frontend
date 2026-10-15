@@ -138,25 +138,32 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Asegura que el canvas de Univer esté actualizado y bloquea/desbloquea celdas según el modo.
+   * Asegura que el canvas de Univer esté actualizado y ajusta cabeceras/barras según el modo.
    */
   async updateHeadersVisibility(isReading: boolean): Promise<void> {
     try {
       if (this.univerAPI) {
+        // 1. Visibilidad de barras de Univer a través de UIPartsService
+        const parts = this.univerAPI.Enum?.BuiltInUIPart;
+        const headerPart = parts?.HEADER ?? 'header';
+        const toolbarPart = parts?.TOOLBAR ?? 'toolbar';
+        const footerPart = parts?.FOOTER ?? 'footer';
+
+        if (typeof this.univerAPI.setUIVisible === 'function') {
+          this.univerAPI.setUIVisible(headerPart, !isReading);
+          this.univerAPI.setUIVisible(toolbarPart, !isReading);
+          this.univerAPI.setUIVisible(footerPart, !isReading);
+        }
+
+        // 2. Ocultar o restaurar cabeceras de fila (1, 2, 3...) y columna (A, B, C...)
         const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
         const activeSheet = activeWorkbook?.getActiveSheet?.();
         if (activeSheet) {
-          const permission = activeSheet.getWorksheetPermission?.();
-          if (permission) {
-            try {
-              if (isReading && typeof permission.setReadOnly === 'function') {
-                await permission.setReadOnly();
-              } else if (!isReading && typeof permission.setEditable === 'function') {
-                await permission.setEditable();
-              }
-            } catch {
-              // Protección de hoja no configurada
-            }
+          if (typeof activeSheet.setRowHeaderWidth === 'function') {
+            activeSheet.setRowHeaderWidth(isReading ? 0 : 46);
+          }
+          if (typeof activeSheet.setColumnHeaderHeight === 'function') {
+            activeSheet.setColumnHeaderHeight(isReading ? 0 : 24);
           }
           if (typeof activeSheet.refreshCanvas === 'function') {
             activeSheet.refreshCanvas();
@@ -217,10 +224,27 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
    * Calcula y actualiza la altura exacta necesaria para mostrar las celdas ocupadas.
    */
   updateReadingHeight(): void {
-    const rows = this.getOccupiedRowsCount();
-    // 26px cabecera de columnas + 24px por fila de datos + margen inferior
-    const calculated = 26 + rows * 24 + 24;
-    const clamped = Math.min(Math.max(calculated, 120), 560);
+    let totalHeight = 0;
+    const maxRow = this.getOccupiedRowsCount();
+    try {
+      const savedData = this.block?.content?.['workbookData'];
+      const sheet = savedData?.sheets ? (Object.values(savedData.sheets)[0] as any) : null;
+      const rowData = sheet?.rowData;
+      const defaultRowHeight = sheet?.defaultRowHeight || 24;
+      for (let i = 0; i < maxRow; i++) {
+        const h = rowData?.[i]?.h ?? defaultRowHeight;
+        totalHeight += h;
+      }
+    } catch {
+      totalHeight = maxRow * 24;
+    }
+
+    if (!totalHeight || totalHeight <= 0) {
+      totalHeight = maxRow * 24;
+    }
+    // Margen inferior para airear la última fila
+    const calculated = totalHeight + 20;
+    const clamped = Math.min(Math.max(calculated, 100), 750);
     this.readingHeight.set(clamped);
   }
 

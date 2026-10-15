@@ -103,28 +103,14 @@
   top: 0;
   left: 0;
 }
-/* Modo Lectura: Ocultar barras de herramientas, fórmulas y pies de Univer preservando el canvas intacto */
+/* Modo Lectura: el canvas se muestra limpio sin barras de Univer y bloquea interacción de edición */
 .univer-sheet-block.reading-mode {
   box-shadow: none;
   margin: 6px 0;
 }
-::ng-deep .univer-sheet-block.reading-mode header[data-u-comp='headerbar'],
-::ng-deep .univer-sheet-block.reading-mode [data-u-comp='toolbar'],
-::ng-deep .univer-sheet-block.reading-mode [data-u-comp='headerbar'],
-::ng-deep .univer-sheet-block.reading-mode .univer-toolbar {
-  display: none !important;
+
+.sheet-container-wrapper.reading-mode .univer-container {
+  pointer-events: none;
 }
-::ng-deep .univer-sheet-block.reading-mode [data-u-comp='formula-bar'] {
-  display: none !important;
-}
-::ng-deep .univer-sheet-block.reading-mode footer,
-::ng-deep .univer-sheet-block.reading-mode [data-u-comp='footer'] {
-  display: none !important;
-}
-::ng-deep .univer-sheet-block.reading-mode canvas[data-u-comp='render-canvas'],
-::ng-deep .univer-sheet-block.reading-mode canvas {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
+
 
