@@ -1,5 +1,6 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   HostListener,
   Output,
@@ -35,7 +36,24 @@ export class SlashMenuComponent {
   @Output() closeMenu = new EventEmitter<void>();
 
   readonly i18n = inject(I18nService);
+  private readonly elementRef = inject(ElementRef);
   readonly selectedIndex = signal<number>(0);
+  private isReady = false;
+
+  constructor() {
+    setTimeout(() => {
+      this.isReady = true;
+    }, 100);
+  }
+
+  @HostListener('document:pointerdown', ['$event'])
+  onDocumentPointerDown(event: PointerEvent): void {
+    if (!this.isReady) return;
+    const target = event.target as HTMLElement;
+    if (target && !this.elementRef.nativeElement.contains(target)) {
+      this.closeMenu.emit();
+    }
+  }
 
   readonly items: CommandItem[] = [
     {

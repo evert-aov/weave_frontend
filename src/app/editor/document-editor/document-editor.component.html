@@ -13,18 +13,18 @@
       <app-pure-slide-editor [note]="note"></app-pure-slide-editor>
     }
     @default {
-      <div class="document-scroll">
+      <div
+        class="document-scroll"
+        #scrollContainer
+        [class.is-dragging-active]="draggedBlockIndex() !== null"
+        (dragover)="onContainerDragOver($event)"
+        (drop)="onContainerDrop($event)"
+      >
         <article
           class="document"
           [class.reading-mode]="notesService.isReadingMode()"
           [style.zoom]="notesService.documentZoom()"
         >
-      <!-- Metadatos de la nota -->
-      <div class="doc-meta">
-        <span class="space-badge">{{ formatSpacePath(note.space) }}</span>
-        <span>{{ i18n.t('doc.updated') }}</span>
-      </div>
-
       <h1
         [attr.contenteditable]="!notesService.isReadingMode()"
         (blur)="onTitleBlur($event)"
@@ -32,40 +32,43 @@
         class="doc-title"
       ></h1>
 
-      <!-- Resumen / Lead del documento -->
-      <p
-        class="lead"
-        [attr.contenteditable]="!notesService.isReadingMode()"
-        (blur)="onLeadBlur($event)"
-        [textContent]="note.lead || i18n.t('doc.lead_placeholder')"
-      ></p>
-
-      <!-- Etiquetas interactivas -->
-      <div class="tags">
-        @for (tag of note.tags; track tag) {
-          <span class="tag-chip">{{ tag }}</span>
-        }
-        @if (!notesService.isReadingMode()) {
-          <button type="button" class="add-tag-btn" (click)="addTagPrompt()" [title]="i18n.t('doc.add_tag')">
-            <app-icon name="plus" [size]="12"></app-icon>
-          </button>
-        }
-      </div>
-
       <div class="divider"></div>
 
       <!-- Lista secuencial de bloques con canalón dedicado (sin sobreposición) -->
-      <div class="blocks-container">
+      <div
+        class="blocks-container"
+        [class.is-dragging-active]="draggedBlockIndex() !== null"
+      >
         @for (block of note.blocks; track block.id; let idx = $index) {
-          <div class="block-row" [attr.data-block-id]="block.id">
+          <div
+            class="block-row"
+            [attr.data-block-id]="block.id"
+            [class.is-dragging]="draggedBlockIndex() === idx"
+            (click)="onBlockClick(idx)"
+            (focusin)="onBlockFocus(idx)"
+            (dragover)="onRowDragOver($event, idx)"
+            (dragleave)="onRowDragLeave($event, idx)"
+            (drop)="onRowDrop($event, idx)"
+          >
+            <!-- Indicador visual de soltado (arriba o abajo del bloque) -->
+            @if (draggedBlockIndex() !== null && dropTargetIndex() === idx && draggedBlockIndex() !== idx) {
+              <div
+                class="drop-indicator-line"
+                [class.before]="dropPosition() === 'before'"
+                [class.after]="dropPosition() === 'after'"
+              ></div>
+            }
+
             <!-- Canalón de control completamente fuera del texto -->
             @if (!notesService.isReadingMode()) {
               <div class="block-gutter">
                 <app-block-rail
-                  (addBelow)="openSlashMenuAt(idx)"
+                  (addBelow)="onAddBelow(idx, $event)"
                   (moveUp)="notesService.moveBlock(block.id, 'up')"
                   (moveDown)="notesService.moveBlock(block.id, 'down')"
                   (deleteBlock)="notesService.removeBlock(block.id)"
+                  (dragStarted)="onDragStart(idx)"
+                  (dragEnded)="onDragEnd()"
                 ></app-block-rail>
               </div>
             }
@@ -100,6 +103,16 @@
               }
             </div>
           </div>
+
+          <!-- Menú slash inline (aparece exactamente debajo de dicho bloque) -->
+          @if (showSlashMenu() && !isBottomSlash() && insertAfterIndex() === idx) {
+            <div class="inline-slash-wrapper">
+              <app-slash-menu
+                (selectBlock)="onSlashSelect($event)"
+                (closeMenu)="closeSlashMenu()"
+              ></app-slash-menu>
+            </div>
+          }
         } @empty {
           <div class="empty-doc-placeholder">
             <p>{{ i18n.t('doc.empty_note') }}</p>
@@ -107,17 +120,19 @@
         }
       </div>
 
-      <!-- Línea de inserción rápida y menú slash -->
+      <!-- Línea de inserción rápida al final del documento -->
       @if (!notesService.isReadingMode()) {
-        <div class="drop-line" (click)="showSlashMenu.set(!showSlashMenu())">
+        <div class="drop-line" (click)="openSlashMenuAtBottom(note.blocks.length - 1)">
           <span>{{ i18n.t('doc.drop_here') }}</span>
         </div>
 
-        @if (showSlashMenu()) {
-          <app-slash-menu
-            (selectBlock)="onSlashSelect($event)"
-            (closeMenu)="showSlashMenu.set(false)"
-          ></app-slash-menu>
+        @if (showSlashMenu() && isBottomSlash()) {
+          <div class="inline-slash-wrapper">
+            <app-slash-menu
+              (selectBlock)="onSlashSelect($event)"
+              (closeMenu)="closeSlashMenu()"
+            ></app-slash-menu>
+          </div>
         }
       }
 

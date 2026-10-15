@@ -15,8 +15,9 @@ import { DocumentTab } from '../models/tab.model';
 })
 export class NotesService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'http://localhost:3000/api/notes';
-  private readonly assetsUrl = 'http://localhost:3000/api/assets';
+  private readonly serverBaseUrl = 'http://localhost:3000';
+  private readonly apiUrl = `${this.serverBaseUrl}/api/notes`;
+  private readonly assetsUrl = `${this.serverBaseUrl}/api/assets`;
 
   readonly notesList = signal<Note[]>([]);
   readonly currentNote = signal<Note | null>(null);
@@ -483,6 +484,31 @@ export class NotesService {
   }
 
   /**
+   * Mueve un bloque de un índice a otro en la lista de bloques (arrastrar y soltar).
+   */
+  moveBlockTo(fromIndex: number, toIndex: number): void {
+    const note = this.currentNote();
+    if (!note) return;
+    if (fromIndex < 0 || fromIndex >= note.blocks.length) return;
+    if (toIndex < 0 || toIndex >= note.blocks.length) return;
+    if (fromIndex === toIndex) return;
+
+    const blocks = [...note.blocks];
+    const [movedBlock] = blocks.splice(fromIndex, 1);
+    blocks.splice(toIndex, 0, movedBlock);
+
+    blocks.forEach((b, idx) => (b.order = idx));
+
+    const updatedNote: Note = {
+      ...note,
+      blocks,
+    };
+
+    this.currentNote.set(updatedNote);
+    this.triggerAutoSave(updatedNote);
+  }
+
+  /**
    * Elimina la nota completa.
    */
   deleteCurrentNote(): Observable<any> {
@@ -527,6 +553,15 @@ export class NotesService {
       `${this.assetsUrl}/upload`,
       formData,
     );
+  }
+
+  /**
+   * Carga el contenido binario de un documento especializado desde su URL de
+   * referencia física (por ejemplo, el archivo .pptx guardado en disco en 'docUrl').
+   */
+  loadDocFile(url: string): Observable<ArrayBuffer> {
+    const fullUrl = /^https?:\/\//i.test(url) ? url : `${this.serverBaseUrl}${url}`;
+    return this.http.get(fullUrl, { responseType: 'arraybuffer' });
   }
 
   /**

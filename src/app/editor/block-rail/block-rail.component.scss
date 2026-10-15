@@ -10,3 +10,12 @@
 .rail-container.menu-open {
   opacity: 1;
 }
+
+.drag-handle {
+  cursor: grab !important;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing !important;
+  }
+}

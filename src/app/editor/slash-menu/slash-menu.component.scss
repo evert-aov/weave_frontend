@@ -1,7 +1,7 @@
 .slash-wrap {
   position: relative;
-  margin-top: 24px;
-  z-index: 20;
+  margin-top: 4px;
+  z-index: 60;
 }
 .slash-input {
   height: 29px;
@@ -23,12 +23,13 @@
   border: 1px solid var(--border);
   background: var(--bg);
   border-radius: 10px;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.14),
-    0 4px 12px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18),
+    0 4px 12px rgba(15, 23, 42, 0.1);
   padding: 7px;
   position: absolute;
   top: 29px;
   left: 0;
+  z-index: 70;
   animation: fadeIn 0.15s ease;
 }
 .slash-title {
