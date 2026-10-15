@@ -52,6 +52,7 @@ export type IconName =
   | 'arrow-right'
   | 'presentation'
   | 'maximize'
+  | 'minimize'
   | 'brush';
 
 /**

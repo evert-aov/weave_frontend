@@ -1,4 +1,4 @@
-<div class="pure-slide-workspace">
+<div class="pure-slide-workspace" [class.dark-theme]="isDarkTheme()">
   <!-- Cabecera de Documento Especializado de Diapositivas PPTX -->
   <header class="slide-doc-header">
     <div class="header-left">
@@ -38,13 +38,17 @@
         <span>{{ i18n.currentLang() === 'es' ? 'Descargar .pptx' : 'Export .pptx' }}</span>
       </button>
 
-      <!-- Indicador de guardado -->
-      <span class="save-indicator" [class.saving]="notesService.saveStatus() === 'saving'">
+      <!-- Indicador de guardado automático (siempre activo) -->
+      <span
+        class="save-indicator"
+        [class.saving]="notesService.saveStatus() === 'saving'"
+        [title]="i18n.currentLang() === 'es' ? 'Guardado automático activo' : 'Autosave is on'"
+      >
         <span class="indicator-dot"></span>
         <span>
           {{ notesService.saveStatus() === 'saving'
-              ? (i18n.currentLang() === 'es' ? 'Guardando...' : 'Saving...')
-              : (i18n.currentLang() === 'es' ? 'Guardado' : 'Saved') }}
+              ? (i18n.currentLang() === 'es' ? 'Autoguardando...' : 'Autosaving...')
+              : (i18n.currentLang() === 'es' ? 'Autoguardado' : 'Autosaved') }}
         </span>
       </span>
 
@@ -54,9 +58,11 @@
           type="button"
           class="zoom-btn"
           (click)="toggleFullscreen()"
-          [title]="i18n.currentLang() === 'es' ? 'Pantalla completa' : 'Fullscreen'"
+          [title]="isFullscreen()
+            ? (i18n.currentLang() === 'es' ? 'Salir de pantalla completa' : 'Exit fullscreen')
+            : (i18n.currentLang() === 'es' ? 'Pantalla completa' : 'Fullscreen')"
         >
-          <app-icon name="maximize" [size]="13"></app-icon>
+          <app-icon [name]="isFullscreen() ? 'minimize' : 'maximize'" [size]="13"></app-icon>
         </button>
       </div>
     </div>
@@ -68,10 +74,12 @@
       <pptx-viewer
         #viewer
         [content]="bytes"
-        [fileName]="note.title"
+        [fileName]="note.title || 'Presentación'"
         [canEdit]="true"
-        defaultThemeKey="light"
-        (contentChange)="onContentChange($event)"
+        [theme]="currentTheme()"
+        [defaultThemeKey]="themeKey()"
+        [autosave]="true"
+        (dirtyChange)="onDirtyChange($event)"
       ></pptx-viewer>
     } @else {
       <div class="loading-pptx">
