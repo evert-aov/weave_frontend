@@ -3,7 +3,9 @@ import {
   Input,
   OnInit,
   AfterViewInit,
+  OnChanges,
   OnDestroy,
+  SimpleChanges,
   ElementRef,
   ViewChild,
   inject,
@@ -56,7 +58,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   templateUrl: './pure-sheet-editor.component.html',
   styleUrls: ['./pure-sheet-editor.component.scss'],
 })
-export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestroy {
+export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
   @Input({ required: true }) note!: Note;
   @ViewChild('sheetContainer', { static: true })
   sheetContainer!: ElementRef<HTMLDivElement>;
@@ -72,6 +74,8 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestro
   private commandSubscription: any = null;
   private saveTimeout: any = null;
   private lastSavedSnapshotString = '';
+  private loadedNoteId: string | null = null;
+  private isDestroyed = false;
 
   constructor() {
     effect(() => {
@@ -85,20 +89,59 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestro
   ngOnInit(): void {}
 
   ngAfterViewInit(): void {
+    this.loadedNoteId = this.note?._id || null;
     setTimeout(() => {
-      this.initUniver();
+      if (!this.isDestroyed) {
+        this.initUniver();
+      }
     }, 50);
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['note'] && !changes['note'].firstChange) {
+      const newId = this.note?._id;
+      if (newId && newId !== this.loadedNoteId) {
+        this.loadedNoteId = newId;
+        this.resetAndReload();
+      }
+    }
+  }
+
   ngOnDestroy(): void {
+    this.isDestroyed = true;
+    this.destroyUniver();
+  }
+
+  private resetAndReload(): void {
+    this.destroyUniver();
+    if (!this.isDestroyed) {
+      setTimeout(() => {
+        if (!this.isDestroyed && this.loadedNoteId === this.note?._id) {
+          this.initUniver();
+        }
+      }, 50);
+    }
+  }
+
+  private destroyUniver(): void {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
     }
     if (this.commandSubscription && typeof this.commandSubscription.dispose === 'function') {
-      this.commandSubscription.dispose();
+      try {
+        this.commandSubscription.dispose();
+      } catch {}
+      this.commandSubscription = null;
     }
     if (this.univerInstance && typeof this.univerInstance.dispose === 'function') {
-      this.univerInstance.dispose();
+      try {
+        this.univerInstance.dispose();
+      } catch {}
+      this.univerInstance = null;
+    }
+    if (this.sheetContainer?.nativeElement) {
+      this.sheetContainer.nativeElement.innerHTML = '';
     }
   }
 
@@ -285,10 +328,14 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestro
   }
 
   private scheduleAutoSave(workbook: any): void {
+    if (this.isDestroyed || !this.note?._id) return;
+    const targetNoteId = this.note._id;
+
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
     this.saveTimeout = setTimeout(() => {
+      if (this.isDestroyed || this.note?._id !== targetNoteId) return;
       try {
         if (workbook && typeof workbook.save === 'function') {
           const snapshot = workbook.save();
@@ -297,7 +344,7 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnDestro
             return;
           }
           this.lastSavedSnapshotString = currentString;
-          this.notesService.updateDocData(snapshot);
+          this.notesService.updateDocData(snapshot, targetNoteId);
         }
       } catch (e) {
         console.error('[PureSheetEditor] Error during auto-save:', e);

@@ -112,13 +112,13 @@
 .canvas-mount-wrapper {
   position: relative;
   width: 100%;
-  height: 480px;
+  height: 560px;
   background: var(--bg);
   overflow: hidden;
   transition: height 0.18s ease;
 }
 .excalidraw-block-container.reading-mode .canvas-mount-wrapper {
-  height: 440px;
+  height: 520px;
 }
 .excalidraw-mount-point {
   width: 100%;

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -25,9 +25,39 @@ export class TopbarComponent {
 
   readonly isCopiedLink = signal<boolean>(false);
   readonly showExportModal = signal<boolean>(false);
+  readonly isFullscreen = signal<boolean>(false);
+
+  /** El lienzo (canvas) es un documento especializado que sí admite alternar edición/lectura. */
+  readonly isCanvasDoc = computed<boolean>(
+    () => this.notesService.currentNote()?.docType === 'canvas',
+  );
+
+  /** Muestra el botón de modo edición/lectura para documentos de bloques y el lienzo. */
+  readonly showReadingToggle = computed<boolean>(
+    () => !this.notesService.isSpecializedDoc() || this.isCanvasDoc(),
+  );
+
+  constructor() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('fullscreenchange', () => {
+        this.isFullscreen.set(!!document.fullscreenElement);
+      });
+    }
+  }
 
   toggleSidebar(): void {
     this.notesService.isSidebarCollapsed.update((v) => !v);
+  }
+
+  toggleFullscreen(): void {
+    if (typeof document === 'undefined') return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
   }
 
   copyDocumentLink(): void {

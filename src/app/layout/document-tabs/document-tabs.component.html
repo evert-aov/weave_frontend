@@ -68,6 +68,20 @@
             <span>{{ i18n.t('doc_type.create_title') }}</span>
           </div>
 
+          <!-- Paso 1: Nombre del documento -->
+          <div class="menu-name-field">
+            <input
+              id="new-tab-title-input"
+              type="text"
+              class="menu-name-input"
+              [ngModel]="newTabTitle()"
+              (ngModelChange)="newTabTitle.set($event)"
+              (keydown.enter)="$event.preventDefault()"
+              [placeholder]="i18n.currentLang() === 'es' ? 'Nombre del documento...' : 'Document name...'"
+              autofocus
+            />
+          </div>
+
           <button type="button" class="type-menu-item" (click)="createNewTabOfType('block')">
             <span class="item-icon block">
               <app-icon name="file-text" [size]="13"></app-icon>

@@ -347,6 +347,8 @@ export class PdfExportStrategy implements ExportStrategy {
       for (const block of sortedBlocks) {
         html += this.renderBlockToHtml(block);
       }
+    } else if (note.docType && note.docType !== 'block') {
+      html += this.renderPureDocToHtml(note);
     }
     html += '</main>';
 
@@ -1142,5 +1144,98 @@ export class PdfExportStrategy implements ExportStrategy {
         color: #9ca3af;
       }
     `;
+  }
+
+  /**
+   * Renderiza documentos especializados puros (hojas de cálculo, word, canvas, slides)
+   * que no utilizan bloques individuales tradicionales.
+   */
+  private renderPureDocToHtml(note: Note): string {
+    const docType = note.docType;
+    const docData = note.docData;
+    if (!docData) return '';
+
+    if (docType === 'sheet') {
+      const syntheticBlock: Block = {
+        id: `pure-sheet-${note._id}`,
+        type: 'sheet',
+        order: 0,
+        content: { workbookData: docData },
+      };
+      return this.renderSheetToHtmlTable(syntheticBlock);
+    }
+
+    if (docType === 'canvas') {
+      const mountedCanvas = typeof document !== 'undefined'
+        ? (document.querySelector('.pure-canvas-workspace canvas') as HTMLCanvasElement | null)
+        : null;
+      if (mountedCanvas && mountedCanvas.width > 0 && mountedCanvas.height > 0) {
+        try {
+          const imgUrl = mountedCanvas.toDataURL('image/png');
+          return `
+            <div class="pdf-block pdf-canvas-block page-break-avoid">
+              <div class="pdf-canvas-card">
+                <img src="${imgUrl}" alt="Lienzo Vectorial" class="pdf-canvas-img" />
+              </div>
+            </div>
+          `;
+        } catch {}
+      }
+      return `
+        <div class="pdf-block pdf-canvas-placeholder page-break-avoid">
+          <div class="pdf-canvas-badge">🎨 Pizarra Vectorial Excalidraw</div>
+          <div class="pdf-canvas-note">${docData.elements?.length || 0} elementos vectoriales guardados en Weave</div>
+        </div>
+      `;
+    }
+
+    if (docType === 'doc') {
+      let htmlContent = '';
+      if (docData.type === 'doc' && Array.isArray(docData.content)) {
+        htmlContent = this.proseMirrorToHtml(docData.content);
+      } else if (docData.body?.dataStream) {
+        const text = String(docData.body.dataStream).replace(/\r\n/g, '\n');
+        htmlContent = text
+          .split('\n')
+          .filter((t) => t.trim().length > 0)
+          .map((p) => `<p>${this.escapeHtml(p)}</p>`)
+          .join('');
+      } else if (typeof docData === 'string') {
+        htmlContent = `<p>${this.escapeHtml(docData)}</p>`;
+      }
+      return `
+        <div class="pdf-block pdf-text-block">
+          ${htmlContent || '<p>Documento sin contenido</p>'}
+        </div>
+      `;
+    }
+
+    if (docType === 'slide') {
+      return `
+        <div class="pdf-block pdf-canvas-placeholder page-break-avoid">
+          <div class="pdf-canvas-badge">📊 Presentación PowerPoint (.pptx)</div>
+          <div class="pdf-canvas-note">Documento de diapositivas interactivo registrado en Weave</div>
+        </div>
+      `;
+    }
+
+    return '';
+  }
+
+  private proseMirrorToHtml(contentArray: any[]): string {
+    return contentArray
+      .map((node) => {
+        if (node.type === 'paragraph') {
+          const text = (node.content || []).map((c: any) => this.escapeHtml(c.text || '')).join('');
+          return `<p>${text || '&nbsp;'}</p>`;
+        }
+        if (node.type && typeof node.type === 'string' && node.type.startsWith('heading')) {
+          const level = node.attrs?.level || 1;
+          const text = (node.content || []).map((c: any) => this.escapeHtml(c.text || '')).join('');
+          return `<h${level}>${text}</h${level}>`;
+        }
+        return '';
+      })
+      .join('');
   }
 }

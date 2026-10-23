@@ -8,18 +8,23 @@ import { Injectable, signal, effect } from '@angular/core';
 })
 export class ThemeService {
   readonly isDark = signal<boolean>(
-    localStorage.getItem('weave_theme') === 'dark',
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem('weave_theme') === 'dark'
+      : false,
   );
 
   constructor() {
     effect(() => {
       const dark = this.isDark();
-      if (dark) {
-        document.body.classList.add('dark');
-        localStorage.setItem('weave_theme', 'dark');
-      } else {
-        document.body.classList.remove('dark');
-        localStorage.setItem('weave_theme', 'light');
+      if (typeof document !== 'undefined') {
+        if (dark) {
+          document.body.classList.add('dark');
+        } else {
+          document.body.classList.remove('dark');
+        }
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('weave_theme', dark ? 'dark' : 'light');
       }
     });
   }

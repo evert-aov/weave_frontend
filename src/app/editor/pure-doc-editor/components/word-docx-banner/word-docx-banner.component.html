@@ -1,0 +1,89 @@
+@if (properties; as props) {
+  <div class="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white px-4 py-2.5 border-b border-blue-800/50 shadow-sm no-print">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
+          <svg lucideIcon="file-check-2" [size]="16" class="w-4 h-4"></svg>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-semibold tracking-wide text-blue-200 uppercase">
+            Propiedades .DOCX Oficiales
+          </span>
+          <span class="text-xs font-mono bg-white/10 px-2 py-0.5 rounded text-white">
+            {{ props.fileName }}
+          </span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap text-xs">
+        <!-- Paper Size & Exact Official Page Count -->
+        <div class="flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-400/30 px-2.5 py-1 rounded-lg">
+          <svg lucideIcon="layers" [size]="14" class="w-3.5 h-3.5 text-emerald-300"></svg>
+          <strong class="text-white">{{ props.pageSizeLabel }}</strong>
+          <span class="text-emerald-200 font-mono font-semibold">
+            ({{ props.pageCount }} págs. exactas preservadas)
+          </span>
+        </div>
+
+        <!-- Table of Contents / Índice Detection Badge -->
+        <div
+          (click)="handleTocClick()"
+          [ngClass]="props.hasTableOfContents ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-100 cursor-pointer hover:bg-cyan-500/30' : 'bg-white/5 border-white/10 text-slate-300'"
+          class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border"
+          [title]="props.hasTableOfContents && props.tocPageNumber ? 'Haz clic para ir a la Tabla de Contenido en la Página ' + props.tocPageNumber : 'Estado de detección de Tabla de Contenido / Índice'"
+        >
+          <svg lucideIcon="list-tree" [size]="14" class="w-3.5 h-3.5 text-cyan-300"></svg>
+          <span>Índice/TOC:</span>
+          <strong class="text-white">
+            @if (props.hasTableOfContents) {
+              Sí ({{ props.tocEntriesCount > 0 ? props.tocEntriesCount + ' entradas' : 'Detectado' }}{{ props.tocPageNumber ? ' · Pág. ' + props.tocPageNumber : '' }})
+            } @else {
+              No detectado en archivo
+            }
+          </strong>
+        </div>
+
+        <!-- Font Family & Sizes -->
+        <div class="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg">
+          <svg lucideIcon="type" [size]="14" class="w-3.5 h-3.5 text-blue-300"></svg>
+          <span class="text-slate-300">Fuentes:</span>
+          <strong class="text-white">
+            {{ props.detectedFonts.slice(0, 2).join(', ') }}
+          </strong>
+          <span class="text-blue-300 font-mono">
+            ({{ formatSizes(props.detectedSizesPt) }})
+          </span>
+        </div>
+
+        <!-- Headings H1..H6 with Detected Sizes -->
+        <div class="flex items-center gap-1.5 bg-amber-500/15 border border-amber-400/30 px-2.5 py-1 rounded-lg">
+          <svg lucideIcon="heading" [size]="14" class="w-3.5 h-3.5 text-amber-300"></svg>
+          <span class="text-amber-100">Encabezados ({{ totalHeadings }}):</span>
+          <strong class="text-white font-mono text-[11px]">
+            @if (props.detectedHeadingStylesSummary.length > 0) {
+              {{ props.detectedHeadingStylesSummary.slice(0, 2).join(' · ') }}
+            } @else {
+              H1:{{ props.headingCounts.h1 }} H2:{{ props.headingCounts.h2 }}
+            }
+          </strong>
+        </div>
+
+        <!-- Images Imported -->
+        <div class="flex items-center gap-1.5 bg-purple-500/15 border border-purple-400/30 px-2.5 py-1 rounded-lg">
+          <svg lucideIcon="image" [size]="14" class="w-3.5 h-3.5 text-purple-300"></svg>
+          <span class="text-purple-100">Imágenes:</span>
+          <strong class="text-white">{{ props.imagesCount }}</strong>
+        </div>
+
+        <button
+          type="button"
+          (click)="close.emit()"
+          class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          title="Ocultar inspector .docx"
+        >
+          <svg lucideIcon="x" [size]="16" class="w-4 h-4"></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+}

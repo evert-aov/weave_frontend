@@ -1,0 +1,142 @@
+@if (isOpen) {
+  <div class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+      <!-- Top Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <h3 class="text-base font-bold text-slate-900">
+            {{ isEditingExisting ? 'Editar o Eliminar Fórmula LaTeX' : 'Editor de Fórmulas LaTeX' }}
+          </h3>
+          @if (isEditingExisting) {
+            <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              Fórmula seleccionada en la hoja
+            </span>
+          }
+        </div>
+        <button
+          type="button"
+          (click)="close.emit()"
+          class="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+          title="Cerrar"
+        >
+          <svg lucideIcon="x" [size]="20" class="w-5 h-5"></svg>
+        </button>
+      </div>
+
+      <!-- Scrollable Modal Body -->
+      <div class="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50/40">
+        <!-- Card 1: LaTeX Code Input -->
+        <div class="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <span class="text-xs font-semibold text-slate-700">
+              Código LaTeX :
+            </span>
+            <div class="flex items-center gap-2">
+              @if (isEditingExisting) {
+                <button
+                  type="button"
+                  (click)="handleDeleteFormula()"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-semibold transition-colors"
+                  title="Eliminar esta fórmula del documento"
+                >
+                  <svg lucideIcon="trash-2" [size]="14" class="w-3.5 h-3.5"></svg>
+                  <span>Eliminar fórmula</span>
+                </button>
+              }
+              <button
+                type="button"
+                (click)="clearInput()"
+                class="text-xs font-medium text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                Vaciar
+              </button>
+              <button
+                type="button"
+                [disabled]="!latexInput().trim()"
+                (click)="handleConfirmInsert()"
+                class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+              >
+                {{ isEditingExisting ? 'Actualizar fórmula' : 'Insertar fórmula' }}
+              </button>
+            </div>
+          </div>
+
+          <textarea
+            #latexTextarea
+            rows="3"
+            [value]="latexInput()"
+            (input)="latexInput.set($any($event.target).value)"
+            placeholder="Escribe aquí tu expresión LaTeX, ej: \frac{d}{dt}\frac{\partial L}{\partial \dot{q}_i} - \frac{\partial L}{\partial q_i} = 0"
+            class="w-full px-3.5 py-2.5 font-mono text-xs sm:text-sm text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-y select-text"
+          ></textarea>
+        </div>
+
+        <!-- Card 2: Live Mathematical Preview -->
+        <div class="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs">
+          <div class="text-xs font-semibold text-slate-700 mb-2.5">
+            Vista previa :
+          </div>
+          <div
+            class="bg-slate-50/80 border border-slate-200/80 rounded-lg p-6 min-h-[115px] flex items-center justify-center overflow-x-auto select-text"
+            [innerHTML]="previewHtml()"
+          ></div>
+        </div>
+
+        <!-- Card 3: Symbol & Formula Templates Library -->
+        <div class="bg-white rounded-xl border border-slate-200/90 p-5 shadow-2xs space-y-4">
+          <!-- Primary Domain Tabs -->
+          <div class="flex items-center gap-6 border-b border-slate-200 overflow-x-auto">
+            @for (tab of primaryTabs; track tab.id) {
+              <button
+                type="button"
+                (click)="primaryTab.set(tab.id)"
+                class="relative pb-2.5 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors"
+                [ngClass]="primaryTab() === tab.id ? 'text-blue-600 font-semibold' : 'text-slate-600 hover:text-slate-900'"
+              >
+                {{ tab.label }}
+                @if (primaryTab() === tab.id) {
+                  <span class="absolute bottom-0 left-0 right-0 h-[2.5px] bg-blue-600 rounded-full"></span>
+                }
+              </button>
+            }
+          </div>
+
+          <!-- Secondary Sub-Categories Pill Bar (for Símbolos básicos) -->
+          @if (primaryTab() === 'basic') {
+            <div class="bg-slate-100/90 p-1.5 rounded-xl flex items-center gap-1 overflow-x-auto">
+              @for (sub of basicSubTabs; track sub.id) {
+                <button
+                  type="button"
+                  (click)="basicSubTab.set(sub.id)"
+                  class="px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all"
+                  [ngClass]="basicSubTab() === sub.id ? 'bg-white text-blue-600 font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'"
+                >
+                  {{ sub.label }}
+                </button>
+              }
+            </div>
+          }
+
+          <!-- Grid of Visual Formula Cards -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 pt-1">
+            @for (card of activeCards(); track $index) {
+              <button
+                type="button"
+                (click)="handleInsertSnippetAtCursor(card.latex)"
+                class="group bg-white hover:bg-blue-50/40 border border-slate-200 hover:border-blue-400 rounded-xl p-3.5 flex flex-col items-center justify-center gap-2 transition-all shadow-2xs hover:shadow-sm text-center min-h-[88px]"
+                title="Insertar: {{ card.latex }}"
+              >
+                <div class="text-sm sm:text-base font-serif text-slate-900 group-hover:text-blue-700 font-medium tracking-tight">
+                  {{ card.preview }}
+                </div>
+                <div class="text-[11px] text-slate-400 group-hover:text-blue-600 leading-tight">
+                  {{ card.label }}
+                </div>
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}

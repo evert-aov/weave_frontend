@@ -5,6 +5,7 @@ import { Observable, tap, catchError, of } from 'rxjs';
 import { User, AuthResponse } from '../models/user.model';
 import { NotesService } from './notes.service';
 import { SpacesService } from './spaces.service';
+import { environment } from '../../../environments/environment';
 
 /**
  * Servicio de Autenticación para el frontend.
@@ -18,11 +19,15 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly notesService = inject(NotesService);
   private readonly spacesService = inject(SpacesService);
-  private readonly apiUrl = 'http://localhost:3000/api/auth';
+  private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   readonly currentUser = signal<User | null>(null);
-  readonly token = signal<string | null>(localStorage.getItem('weave_token'));
-  readonly isAuthenticated = signal<boolean>(!!localStorage.getItem('weave_token'));
+  readonly token = signal<string | null>(
+    typeof localStorage !== 'undefined' ? localStorage.getItem('weave_token') : null,
+  );
+  readonly isAuthenticated = signal<boolean>(
+    typeof localStorage !== 'undefined' && !!localStorage.getItem('weave_token'),
+  );
 
   constructor() {
     if (this.token()) {

@@ -213,21 +213,31 @@ export class SidebarComponent implements OnInit {
   // Estados del modal interactivo de creación de documento especializado
   readonly showCreateDocModal = signal<boolean>(false);
   readonly targetSpaceForNewDoc = signal<Space | null>(null);
+  readonly newDocTitle = signal<string>('');
 
   openCreateDocModal(space?: Space, event?: MouseEvent): void {
     if (event) {
       event.stopPropagation();
     }
     this.targetSpaceForNewDoc.set(space || null);
+    this.newDocTitle.set('');
     this.showCreateDocModal.set(true);
   }
 
   closeCreateDocModal(): void {
     this.showCreateDocModal.set(false);
     this.targetSpaceForNewDoc.set(null);
+    this.newDocTitle.set('');
   }
 
   createSpecializedDoc(docType: DocType): void {
+    const title = this.newDocTitle().trim();
+    if (!title) {
+      // El nombre es obligatorio: enfocar el campo para que el usuario lo ingrese.
+      document.getElementById('new-doc-title-input')?.focus();
+      return;
+    }
+
     const space = this.targetSpaceForNewDoc();
     const targetPath = space
       ? space.path || space.name
@@ -235,7 +245,7 @@ export class SidebarComponent implements OnInit {
       ? this.notesService.activeSpace()
       : 'Research';
 
-    this.notesService.createNote(undefined, targetPath, docType).subscribe({
+    this.notesService.createNote(title, targetPath, docType).subscribe({
       next: () => {
         if (space) {
           this.expandedSpaces.update((prev) => {

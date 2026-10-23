@@ -62,6 +62,13 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       if (this.reactRoot) {
         this.renderCanvas(isReading, isDark);
       }
+      if (this.excalidrawAPI && typeof this.excalidrawAPI.updateScene === 'function') {
+        this.excalidrawAPI.updateScene({
+          appState: {
+            theme: isDark ? 'dark' : 'light',
+          },
+        });
+      }
       if (isReading) {
         // Al pasar a modo lectura, centrar suavemente hacia el contenido dibujado
         setTimeout(() => this.centerToContent(), 120);
@@ -84,14 +91,19 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
     const mountEl = this.canvasMount.nativeElement;
     this.reactRoot = createRoot(mountEl);
     this.currentElements = this.block.content?.['elements'] || [];
-    this.currentAppState = this.block.content?.['appState'] || {};
+    this.currentAppState = { ...(this.block.content?.['appState'] || {}) };
+
+    // Limpiar color azul marino residual guardado previamente si estamos en tema claro
+    if (!this.themeService.isDark() && this.currentAppState.viewBackgroundColor === '#111b2e') {
+      delete this.currentAppState.viewBackgroundColor;
+    }
 
     this.renderCanvas(
       this.notesService.isReadingMode(),
       this.themeService.isDark(),
     );
 
-    // Centrar inicialmente el dibujo si existen trazos o figuras
+    // Centrar inicialmente el dibujo si existen trazos o figuras (sin distorsionar zoom)
     setTimeout(() => this.centerToContent(), 250);
   }
 
@@ -125,7 +137,7 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Centra el viewport del lienzo hacia donde se encuentran los dibujos y figuras.
+   * Centra el viewport del lienzo hacia donde se encuentran los dibujos y figuras sin alterar zoom.
    */
   centerToContent(): void {
     try {
@@ -133,11 +145,11 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
         const nonDeletedElements = (this.currentElements || []).filter((el) => !el.isDeleted);
         if (nonDeletedElements.length > 0) {
           this.excalidrawAPI.scrollToContent(nonDeletedElements, {
-            fitToViewport: true,
-            viewportZoomFactor: 0.85,
+            fitToViewport: false,
             animate: true,
             duration: 250,
           });
+          this.currentZoom.set(1.0);
         }
       }
     } catch (e) {
@@ -148,16 +160,16 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
   private renderCanvas(isReading: boolean, isDark: boolean): void {
     if (!this.reactRoot) return;
 
-    const computeElementsSignature = (els: readonly any[], bg: string) => {
+    const computeElementsSignature = (els: readonly any[], bg?: string) => {
       return (
         els.map((el) => `${el.id}:${el.version}:${el.isDeleted}`).join(',') +
-        `|${bg}`
+        `|${bg || ''}`
       );
     };
 
     let lastElementsSignature = computeElementsSignature(
       this.currentElements,
-      this.currentAppState.viewBackgroundColor || (isDark ? '#111b2e' : '#ffffff'),
+      this.currentAppState.viewBackgroundColor,
     );
 
     const handleChange = (elements: readonly any[], appState: any) => {
@@ -166,7 +178,7 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       if (appState?.zoom?.value && Math.abs(appState.zoom.value - this.currentZoom()) > 0.02) {
         this.currentZoom.set(Math.round(appState.zoom.value * 100) / 100);
       }
-      const bg = appState.viewBackgroundColor || (isDark ? '#111b2e' : '#ffffff');
+      const bg = appState.viewBackgroundColor;
       const currentSignature = computeElementsSignature(elements, bg);
 
       if (currentSignature === lastElementsSignature) {
@@ -177,9 +189,10 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       this.syncTimeout = setTimeout(() => {
         try {
           lastElementsSignature = currentSignature;
-          const sanitizedAppState = {
-            viewBackgroundColor: bg,
-          };
+          const sanitizedAppState: any = {};
+          if (bg && bg !== '#111b2e') {
+            sanitizedAppState.viewBackgroundColor = bg;
+          }
           this.notesService.updateBlockContent(this.block.id, {
             elements: [...elements],
             appState: sanitizedAppState,
@@ -190,19 +203,36 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
       }, 1000);
     };
 
+    const initialAppState: any = {
+      ...this.currentAppState,
+      theme: isDark ? 'dark' : 'light',
+      viewModeEnabled: isReading,
+    };
+    if (!isDark && initialAppState.viewBackgroundColor === '#111b2e') {
+      delete initialAppState.viewBackgroundColor;
+    }
+
     this.reactRoot.render(
       React.createElement(Excalidraw, {
         excalidrawAPI: (api: any) => {
           this.excalidrawAPI = api;
         },
+        theme: isDark ? 'dark' : 'light',
         viewModeEnabled: isReading,
+        UIOptions: {
+          canvasActions: {
+            changeViewBackgroundColor: true,
+            clearCanvas: !isReading,
+            export: { saveFileToDisk: true },
+            loadScene: false,
+            saveToActiveFile: false,
+            toggleTheme: true,
+          },
+        },
         initialData: {
           elements: this.currentElements,
-          appState: {
-            theme: isDark ? 'dark' : 'light',
-            viewBackgroundColor: isDark ? '#111b2e' : '#ffffff',
-            ...this.currentAppState,
-          },
+          appState: initialAppState,
+          scrollToContent: false,
         },
         onChange: handleChange,
       }),

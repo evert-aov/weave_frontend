@@ -8,9 +8,6 @@
 @import "@univerjs/preset-sheets-find-replace/lib/index.css";
 @import "@univerjs/preset-sheets-hyper-link/lib/index.css";
 @import "@univerjs/preset-sheets-drawing/lib/index.css";
-@import "@univerjs/preset-docs-core/lib/index.css";
-@import "@univerjs/preset-docs-drawing/lib/index.css";
-@import "@univerjs/preset-docs-hyper-link/lib/index.css";
 
 @tailwind base;
 @tailwind components;
@@ -117,3 +114,120 @@ body.dark mark {
 @keyframes blink {
   50% { opacity: 0; }
 }
+
+/* Ocultar barra de herramientas flotante de JitWord anclada al inicio de la pantalla (0, 0) */
+.px-editor-bubble,
+.tippy-box:has(.px-editor-bubble),
+[data-tippy-root]:has(.px-editor-bubble) {
+  display: none !important;
+}
+
+/* Estilos de modo de vista web fluido para el editor de documentos */
+.word-view-page.web-view-mode {
+  width: 100% !important;
+  max-width: 960px !important;
+  min-height: calc(100vh - 220px) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  border-radius: 8px !important;
+}
+
+/* Elevación y visibilidad de la barra de herramientas y sus menús desplegables */
+.editor-toolbar {
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+.px-editor-categorized-toolbar {
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+.px-editor-toolbar-content {
+  overflow: visible !important;
+}
+
+.px-editor-toolbar-menu {
+  overflow: visible !important;
+}
+
+/* Forzar que los popovers de Tippy (Encabezados, Alineación, etc.) se muestren por encima del lienzo y páginas tanto normal como pantalla completa */
+.tippy-box:has(.px-editor-special-button__heading),
+.tippy-box:has(.px-editor-trigger__content),
+.tippy-box:has(.px-editor-special-button__text-align),
+[data-tippy-root]:has(.px-editor-special-button__heading),
+[data-tippy-root]:has(.px-editor-trigger__content),
+[data-tippy-root]:has(.px-editor-special-button__text-align) {
+  z-index: 999999 !important;
+  pointer-events: auto !important;
+  display: block !important;
+}
+
+.px-editor-special-button__heading {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 170px !important;
+  max-height: 420px !important;
+  overflow-y: auto !important;
+  background-color: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  padding: 6px !important;
+  gap: 3px !important;
+  box-sizing: border-box !important;
+
+  .px-editor-button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    background: transparent !important;
+    border: none !important;
+
+    &:hover {
+      background-color: #f3f4f6 !important;
+    }
+
+    &.active {
+      background-color: #eff6ff !important;
+      color: #2563eb !important;
+
+      span {
+        color: #2563eb !important;
+        font-weight: 600 !important;
+      }
+    }
+
+    span {
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      color: #374151 !important;
+      white-space: nowrap !important;
+    }
+  }
+}
+
+/* Efecto de destello al saltar a un encabezado */
+.heading-jump-highlight {
+  animation: headingHighlightFlash 1.5s ease-out;
+}
+
+@keyframes headingHighlightFlash {
+  0% {
+    background-color: rgba(13, 97, 242, 0.25);
+    border-radius: 4px;
+    outline: 2px solid rgba(13, 97, 242, 0.4);
+  }
+  100% {
+    background-color: transparent;
+    outline: 2px solid transparent;
+  }
+}
+
+
+
+

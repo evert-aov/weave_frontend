@@ -1,88 +1,539 @@
-<div class="pure-doc-workspace">
-  <!-- Cabecera de Documento Especializado -->
-  <header class="doc-header">
-    <div class="header-left">
-      <div class="doc-badge-group">
-        <span class="type-badge doc">
-          <app-icon name="file-text" [size]="14"></app-icon>
-          <span>{{ i18n.t('doc_type.doc_title') }}</span>
-        </span>
-        <span class="space-badge">{{ formatSpacePath(note.space) }}</span>
-      </div>
+<div
+  class="h-full w-full overflow-hidden flex flex-col transition-colors"
+  [ngClass]="darkMode() ? 'bg-slate-900 text-slate-100' : 'bg-slate-100 text-slate-800'"
+>
+  <input
+    #fileInput
+    type="file"
+    accept=".docx,.doc,.html,.htm,.md,.txt"
+    (change)="handleFileImport($event)"
+    class="hidden"
+  />
+  <input
+    #imageFileInput
+    type="file"
+    accept="image/*"
+    (change)="handleImageFileSelected($event)"
+    class="hidden"
+  />
 
-      <h1
-        class="doc-title"
-        contenteditable="true"
-        (blur)="onTitleBlur($event)"
-        (keydown.enter)="$event.preventDefault(); onTitleEnter($event)"
-        [textContent]="note.title"
-      ></h1>
+  <!-- Floating Exit Button when in Focus Mode or Read Mode -->
+  @if (focusMode() || isReadMode()) {
+    <div class="fixed top-4 right-5 z-50 flex items-center gap-2 no-print">
+      <button
+        type="button"
+        (click)="exitFocusOrRead()"
+        class="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-semibold shadow-lg border border-white/15 transition-all"
+      >
+        <svg lucideIcon="minimize-2" [size]="14" class="w-3.5 h-3.5 text-blue-400"></svg>
+        <span>Salir de {{ focusMode() ? 'Modo Enfoque' : 'Modo Lectura' }}</span>
+      </button>
     </div>
+  }
 
-    <div class="header-right">
-      <!-- Enlace al archivo físico almacenado en el disco -->
-      @if (note.docUrl) {
-        <a
-          [href]="'http://localhost:3000' + note.docUrl"
-          target="_blank"
-          class="physical-file-badge"
-          [title]="i18n.currentLang() === 'es' ? 'Archivo físico en servidor: ' + note.docUrl : 'Physical file on server: ' + note.docUrl"
+  <!-- Main Ribbon Toolbar (Hidden in Focus Mode or Read Mode) -->
+  @if (!focusMode() && !isReadMode()) {
+    <app-word-ribbon
+      [activeTab]="activeTab()"
+      (setActiveTab)="activeTab.set($event)"
+      [formats]="formats()"
+      [layoutConfig]="layoutConfig()"
+      (updateLayout)="handleUpdateLayout($event)"
+      (focusHeaderArea)="handleFocusHeaderArea()"
+      [styleTemplates]="styleTemplates()"
+      [activeTemplateId]="activeTemplateId()"
+      (applyTemplateToDocument)="handleApplyTemplateToDocument($event)"
+      (applyRuleToSelection)="handleApplyRuleToSelection($event)"
+      (openStyleModal)="styleModalOpen.set(true)"
+      (openLatexModal)="openLatexModal()"
+      (insertTabCharacter)="handleInsertTabCharacter()"
+      (command)="onRibbonCommand($event)"
+      (applyHeading)="handleApplyHeading($event)"
+      (applyFontSizePt)="handleApplyFontSizePt($event.pt, $event.cmd)"
+      (insertTable)="handleInsertTable($event.rows, $event.cols)"
+      (insertToc)="handleInsertToc()"
+      (insertPageBreak)="handleInsertPageBreak()"
+      (addNewPage)="handleAddNewPageAt(activePageIndex())"
+      (insertChecklist)="handleInsertChecklist()"
+      (insertImage)="handleInsertImage()"
+      (insertLink)="handleInsertLink()"
+      (insertBlockquote)="handleInsertBlockquote()"
+      (insertCodeBlock)="handleInsertCodeBlock($event)"
+      (insertHorizontalRule)="executeCommand('insertHorizontalRule')"
+      (insertCalloutBox)="handleInsertCalloutBox()"
+      (insertChartTable)="handleInsertChartTable()"
+      (insertAudioPlaceholder)="handleInsertAudioPlaceholder()"
+      (insertVideoPlaceholder)="handleInsertVideoPlaceholder()"
+      (applyLineHeight)="handleApplyLineHeight($event)"
+      (applySectionColumns)="handleApplySectionColumns($event)"
+      (applyParagraphSpacingAndIndent)="handleApplyParagraphSpacingAndIndent($event)"
+      (copyFormat)="handleCopyFormat()"
+      [formatPainterActive]="formatPainterActive()"
+      (importClick)="openFilePicker()"
+      (exportWord)="exportWord()"
+      (exportHtml)="exportHtml()"
+      (exportMarkdown)="exportMarkdown()"
+      (exportTxt)="exportTxt()"
+      (print)="printDoc()"
+      [viewMode]="viewMode()"
+      (setViewMode)="viewMode.set($event)"
+      [focusMode]="focusMode()"
+      (setFocusMode)="focusMode.set($event)"
+      (readAloud)="handleReadAloud()"
+      [darkMode]="darkMode()"
+      (setDarkMode)="darkMode.set($event)"
+      [pageMovement]="pageMovement()"
+      (setPageMovement)="pageMovement.set($event)"
+      [showRuler]="showRuler()"
+      (setShowRuler)="showRuler.set($event)"
+      [showGridlines]="showGridlines()"
+      (setShowGridlines)="showGridlines.set($event)"
+      [showTocSidebar]="showTocSidebar()"
+      (setShowTocSidebar)="showTocSidebar.set($event)"
+      [zoom]="zoom()"
+      (setZoom)="zoom.set($event)"
+      (openAiModal)="aiModalOpen.set(true)"
+    ></app-word-ribbon>
+  }
+
+  <!-- Extracted .DOCX Properties Inspector Banner -->
+  @if (!focusMode()) {
+    <app-word-docx-banner
+      [properties]="docxProperties()"
+      (jumpToTocPage)="jumpToPage($event)"
+      (close)="docxProperties.set(null)"
+    ></app-word-docx-banner>
+  }
+
+  <!-- Contextual Table Floating Bar -->
+  @if (activeTableCell() !== null && !isReadMode()) {
+    <div class="bg-blue-50/90 border-b border-blue-200 px-4 py-1.5 flex items-center justify-center gap-2 text-xs text-blue-900 shrink-0 no-print">
+      <span class="font-semibold mr-2">Herramientas de Tabla (Pág. {{ activePageIndex() + 1 }}):</span>
+      <button
+        type="button"
+        (mousedown)="$event.preventDefault()"
+        (click)="modifyActiveTable('addRow')"
+        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-blue-200 hover:bg-blue-100 transition-colors"
+      >
+        <svg lucideIcon="rows" [size]="14" class="w-3.5 h-3.5"></svg>
+        <svg lucideIcon="plus" [size]="12" class="w-3 h-3"></svg>
+        <span>Fila debajo</span>
+      </button>
+      <button
+        type="button"
+        (mousedown)="$event.preventDefault()"
+        (click)="modifyActiveTable('addCol')"
+        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-blue-200 hover:bg-blue-100 transition-colors"
+      >
+        <svg lucideIcon="columns" [size]="14" class="w-3.5 h-3.5"></svg>
+        <svg lucideIcon="plus" [size]="12" class="w-3 h-3"></svg>
+        <span>Columna derecha</span>
+      </button>
+      <button
+        type="button"
+        (mousedown)="$event.preventDefault()"
+        (click)="modifyActiveTable('delRow')"
+        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+      >
+        <span>Eliminar fila</span>
+      </button>
+      <button
+        type="button"
+        (mousedown)="$event.preventDefault()"
+        (click)="modifyActiveTable('delCol')"
+        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+      >
+        <span>Eliminar columna</span>
+      </button>
+      <button
+        type="button"
+        (mousedown)="$event.preventDefault()"
+        (click)="modifyActiveTable('delTable')"
+        class="flex items-center gap-1 px-2.5 py-1 rounded bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors"
+      >
+        <svg lucideIcon="trash-2" [size]="14" class="w-3.5 h-3.5"></svg>
+        <span>Borrar tabla</span>
+      </button>
+    </div>
+  }
+
+  <!-- Workspace Body: Fixed Left TOC Sidebar + Continuous Multi-Page Desk -->
+  <div class="flex-1 min-h-0 flex overflow-hidden">
+    @if (!focusMode()) {
+      <app-word-toc-sidebar
+        [headings]="headings()"
+        [tables]="tables()"
+        [hasDetectedDocxToc]="docxProperties()?.hasTableOfContents"
+        [tocPageNumber]="docxProperties()?.tocPageNumber"
+        (jumpToPage)="jumpToPage($event)"
+        (selectHeading)="handleSelectHeadingInSidebar($event.id, $event.pageIndex)"
+        (selectTable)="handleSelectTableInSidebar($event)"
+        (insertTocInDocument)="handleInsertToc()"
+        (addNewPage)="handleAddNewPageAt(pages().length - 1)"
+        [isOpen]="showTocSidebar()"
+        (close)="showTocSidebar.set(false)"
+      ></app-word-toc-sidebar>
+    }
+
+    <!-- Continuous Scrollable Multi-Page Desk -->
+    <main
+      #mainScroll
+      class="flex-1 min-h-0 overflow-y-auto p-6 sm:p-10 flex flex-col items-center"
+      [ngClass]="darkMode() ? 'bg-slate-900' : 'bg-slate-200/75'"
+    >
+      <!-- Optional Visual Horizontal Ruler -->
+      @if (showRuler() && viewMode() === 'print') {
+        <div
+          [style.width.px]="sheetWidthPx() * (zoom() / 100)"
+          class="mb-3 h-6 bg-white/95 border border-slate-300 rounded-xs shadow-2xs flex items-end px-2 select-none overflow-hidden shrink-0 no-print"
         >
-          <app-icon name="paperclip" [size]="12"></app-icon>
-          <span>{{ i18n.currentLang() === 'es' ? 'Archivo físico' : 'Physical file' }}</span>
-        </a>
+          @for (cmIdx of rulerTicks; track cmIdx) {
+            <div class="flex-1 border-l border-slate-300 h-2.5 relative flex items-start justify-start pl-0.5">
+              @if (cmIdx > 0) {
+                <span class="text-[8px] font-mono text-slate-400 -mt-2.5">{{ cmIdx }}</span>
+              }
+            </div>
+          }
+        </div>
       }
 
-      <!-- Indicador de guardado -->
-      <span class="save-indicator" [class.saving]="notesService.saveStatus() === 'saving'">
-        <span class="indicator-dot"></span>
-        <span>
-          {{ notesService.saveStatus() === 'saving'
-              ? (i18n.currentLang() === 'es' ? 'Guardando...' : 'Saving...')
-              : (i18n.currentLang() === 'es' ? 'Guardado' : 'Saved') }}
-        </span>
-      </span>
+      <!-- Outline View Mode vs Document Sheets -->
+      @if (viewMode() === 'outline') {
+        <div class="max-w-4xl w-full bg-white rounded-xl shadow-md border border-slate-200 p-8 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div>
+              <h2 class="text-base font-bold text-slate-900">
+                Vista de Esquema del Documento ({{ headings().length }} Secciones)
+              </h2>
+              <p class="text-xs text-slate-500">
+                Haz clic en cualquier encabezado o tabla para volver a Diseño de Impresión en esa página.
+              </p>
+            </div>
+            <button
+              type="button"
+              (click)="viewMode.set('print')"
+              class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold"
+            >
+              Volver a Diseño de Impresión
+            </button>
+          </div>
+          <div class="space-y-1.5">
+            @for (h of headings(); track h.id + '-' + $index) {
+              <div
+                (click)="handleOutlineClick(h)"
+                [style.paddingLeft.px]="(h.level - 1) * 20"
+                class="py-1.5 px-3 rounded-lg hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs"
+              >
+                <span [ngClass]="h.level === 1 ? 'font-bold text-slate-900' : 'text-slate-700'">
+                  • {{ h.text }}
+                </span>
+                <span class="font-mono text-slate-400">Página {{ h.pageIndex + 1 }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div
+          id="printable-document-stack"
+          [style.transform]="'scale(' + (zoom() / 100) + ')'"
+          style="transform-origin: top center"
+          [ngClass]="
+            pageMovement() === 'sideBySide'
+              ? 'flex flex-row flex-wrap justify-center gap-8 pb-24 max-w-full'
+              : 'flex flex-col items-center gap-8 pb-24'
+          "
+        >
+          @for (page of pages(); track page.id; let pageIndex = $index) {
+            @let isCurrentPage = activePageIndex() === pageIndex;
+            @let pb = layoutConfig().pageBorder;
+            @let hasPageBorder = pb.style !== 'none';
+            @let cssBorderStyle = pb.style === 'thick' ? 'solid' : pb.style;
+            @let cssBorderWidth = pb.style === 'thick' ? maxOf(3, pb.widthPt + 2) : pb.widthPt;
 
-      <!-- Control de Zoom interactivo -->
-      <div class="zoom-controls">
+            <div
+              (click)="activePageIndex.set(pageIndex)"
+              [style.width.px]="sheetWidthPx()"
+              [style.minHeight.px]="sheetHeightPx()"
+              [style.paddingTop.px]="pagePaddingTop()"
+              [style.paddingRight.px]="pagePaddingRight()"
+              [style.paddingBottom.px]="pagePaddingBottom()"
+              [style.paddingLeft.px]="pagePaddingLeft()"
+              class="word-page-sheet group/page relative bg-white rounded-xs shadow-lg transition-all flex flex-col justify-between box-border"
+              [ngClass]="{
+                'word-dark-sheet': darkMode(),
+                'word-gridlines-bg': showGridlines(),
+                'ring-2 ring-blue-500/60 border border-blue-300': isCurrentPage,
+                'border border-slate-300/90 hover:border-slate-400': !isCurrentPage,
+              }"
+            >
+              <!-- Optional Line Numbers Gutter on Left Margin -->
+              @if (layoutConfig().showLineNumbers) {
+                <div
+                  [style.top.px]="layoutConfig().margins.topPx"
+                  [style.bottom.px]="layoutConfig().margins.bottomPx"
+                  [style.left.px]="maxOf(12, layoutConfig().margins.leftPx - 26)"
+                  class="absolute w-6 border-r border-slate-200 pr-1.5 flex flex-col items-end text-[9px] font-mono text-slate-300 select-none pointer-events-none overflow-hidden leading-[1.65]"
+                >
+                  @for (lnIdx of lineNumberTicks; track lnIdx) {
+                    <span>{{ pageIndex * 42 + lnIdx + 1 }}</span>
+                  }
+                </div>
+              }
+
+              <!-- Decorative / Formal Page Border Overlay -->
+              @if (hasPageBorder) {
+                <div
+                  class="pointer-events-none"
+                  [style.top.px]="pb.offsetPx"
+                  [style.right.px]="pb.offsetPx"
+                  [style.bottom.px]="pb.offsetPx"
+                  [style.left.px]="pb.offsetPx"
+                  [style.borderTop]="pb.top ? cssBorderWidth + 'pt ' + cssBorderStyle + ' ' + pb.color : 'none'"
+                  [style.borderBottom]="pb.bottom ? cssBorderWidth + 'pt ' + cssBorderStyle + ' ' + pb.color : 'none'"
+                  [style.borderLeft]="pb.left ? cssBorderWidth + 'pt ' + cssBorderStyle + ' ' + pb.color : 'none'"
+                  [style.borderRight]="pb.right ? cssBorderWidth + 'pt ' + cssBorderStyle + ' ' + pb.color : 'none'"
+                ></div>
+              }
+
+              <!-- Clean Word-like Top Margin Indicator -->
+              <div
+                [style.left.px]="layoutConfig().margins.leftPx"
+                [style.right.px]="layoutConfig().margins.rightPx"
+                class="absolute top-3 flex items-center justify-between text-[11px] text-slate-400 select-none no-print"
+              >
+                <span class="font-serif text-xs text-slate-500">{{ pageIndex + 1 }}</span>
+                <div class="flex items-center gap-1.5 opacity-0 group-hover/page:opacity-100 transition-opacity">
+                  <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
+                    {{ activePaperPreset().name.split(' ')[0] }} · Hoja {{ pageIndex + 1 }} de
+                    {{ pages().length }}
+                  </span>
+                  @if (pages().length > 1 && !isReadMode()) {
+                    <button
+                      type="button"
+                      (click)="onDeletePageClick($event, pageIndex)"
+                      class="text-slate-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50 transition-colors"
+                      title="Eliminar esta página"
+                    >
+                      <svg lucideIcon="trash-2" [size]="14" class="w-3.5 h-3.5"></svg>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <!-- Editable Document Header Region -->
+              @if (layoutConfig().showHeaderFooter && viewMode() === 'print') {
+                <div class="mb-3 pb-1.5 border-b border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 group/header relative transition-colors">
+                  <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/header:opacity-100 focus-within:opacity-100 transition-opacity no-print">
+                    Encabezado de página (Editable)
+                  </span>
+                  <div
+                    #headerEl
+                    [attr.data-page-header-id]="page.id"
+                    [attr.contenteditable]="!isReadMode()"
+                    (input)="onHeaderInput($event)"
+                    class="text-xs text-slate-500 focus:outline-none min-h-[16px]"
+                    aria-label="Encabezado del documento"
+                  ></div>
+                </div>
+              }
+
+              <!-- Editable Page Body Canvas -->
+              <div
+                #pageBody
+                [attr.data-page-body-id]="page.id"
+                [attr.contenteditable]="!isReadMode()"
+                (focus)="activePageIndex.set(pageIndex)"
+                (blur)="commitPageDomToState(pageIndex)"
+                (keydown)="onPageKeyDown($event, pageIndex)"
+                (input)="onPageInput($event, pageIndex)"
+                (keyup)="updateSelectionFormats()"
+                (mouseup)="handleEditorMouseUp($event)"
+                (paste)="onPagePaste($event, pageIndex)"
+                (dragover)="onPageDragOver($event)"
+                (drop)="onPageDrop($event, pageIndex)"
+                [style.minHeight.px]="maxBodyContentHeightPx() - 10"
+                [style.hyphens]="layoutConfig().hyphenation ? 'auto' : 'manual'"
+                class="word-editor-canvas flex-1 focus:outline-none"
+                [attr.aria-label]="'Área de edición Página ' + (pageIndex + 1)"
+              ></div>
+
+              <!-- Editable Document Footer Region -->
+              @if (layoutConfig().showHeaderFooter && viewMode() === 'print') {
+                <div class="mt-4 pt-2 border-t border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 flex items-center justify-between gap-4 group/footer relative transition-colors">
+                  <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/footer:opacity-100 focus-within:opacity-100 transition-opacity no-print">
+                    Pie de página (Editable)
+                  </span>
+                  <div
+                    #footerEl
+                    [attr.data-page-footer-id]="page.id"
+                    [attr.contenteditable]="!isReadMode()"
+                    (input)="onFooterInput($event)"
+                    class="text-xs text-slate-500 focus:outline-none flex-1 min-h-[16px]"
+                    aria-label="Pie de página del documento"
+                  ></div>
+                  <span class="text-[11px] font-mono text-slate-400 shrink-0 select-none">
+                    Pág. {{ pageIndex + 1 }} de {{ pages().length }}
+                  </span>
+                </div>
+              }
+            </div>
+
+            <!-- Inter-page divider with quick "+ Insert Page Here" button (only in vertical print mode) -->
+            @if (pageMovement() === 'vertical' && !isReadMode()) {
+              <div
+                [style.maxWidth.px]="sheetWidthPx()"
+                class="flex items-center gap-3 w-full justify-center group no-print -my-3"
+              >
+                <div class="h-px flex-1 bg-slate-300/80 group-hover:bg-blue-300 transition-colors"></div>
+                <button
+                  type="button"
+                  (click)="handleAddNewPageAt(pageIndex)"
+                  class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-slate-300 shadow-xs text-[11px] font-medium text-slate-600 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                >
+                  <svg lucideIcon="file-plus-2" [size]="12" class="w-3 h-3 text-blue-600"></svg>
+                  <span>
+                    Insertar Página {{ pageIndex + 2 }} ({{ activePaperPreset().name.split(' ')[0] }}) aquí
+                  </span>
+                </button>
+                <div class="h-px flex-1 bg-slate-300/80 group-hover:bg-blue-300 transition-colors"></div>
+              </div>
+            }
+          }
+        </div>
+      }
+    </main>
+  </div>
+
+  <!-- Bottom Word Status Bar -->
+  <footer
+    class="border-t px-4 py-1.5 text-xs flex items-center justify-between flex-wrap gap-2 select-none shrink-0 no-print"
+    [ngClass]="darkMode() ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'"
+  >
+    <div class="flex items-center gap-3 flex-wrap">
+      <div class="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-slate-800">
         <button
           type="button"
-          class="zoom-btn"
-          (click)="zoomOut()"
-          [title]="i18n.currentLang() === 'es' ? 'Alejar documento' : 'Zoom out'"
+          [disabled]="activePageIndex() <= 0"
+          (click)="jumpToPage(0)"
+          class="p-0.5 hover:bg-white rounded disabled:opacity-40"
+          title="Primera página"
         >
-          <app-icon name="zoom-out" [size]="13"></app-icon>
+          <svg lucideIcon="chevrons-left" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
         <button
           type="button"
-          class="zoom-reset-btn"
-          (click)="resetZoom()"
-          [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom al 100%' : 'Reset zoom to 100%'"
+          [disabled]="activePageIndex() <= 0"
+          (click)="jumpToPage(activePageIndex() - 1)"
+          class="p-0.5 hover:bg-white rounded disabled:opacity-40"
+          title="Página anterior"
         >
-          {{ Math.round(currentZoom() * 100) }}%
+          <svg lucideIcon="chevron-up" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
+        </button>
+        <span class="font-semibold text-slate-800 px-1 flex items-center gap-1">
+          <span>Pág.</span>
+          <input
+            type="number"
+            min="1"
+            [max]="pages().length"
+            [value]="activePageIndex() + 1"
+            (change)="onPageNumberChange($event)"
+            class="w-12 text-center bg-white border border-slate-300 rounded px-1 py-0.2 text-xs font-mono"
+            title="Escribe un número de página para saltar al instante"
+          />
+          <span>de {{ pages().length }}</span>
+        </span>
+        <button
+          type="button"
+          [disabled]="activePageIndex() >= pages().length - 1"
+          (click)="jumpToPage(activePageIndex() + 1)"
+          class="p-0.5 hover:bg-white rounded disabled:opacity-40"
+          title="Página siguiente"
+        >
+          <svg lucideIcon="chevron-down" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
         <button
           type="button"
-          class="zoom-btn"
-          (click)="zoomIn()"
-          [title]="i18n.currentLang() === 'es' ? 'Acercar documento' : 'Zoom in'"
+          [disabled]="activePageIndex() >= pages().length - 1"
+          (click)="jumpToPage(pages().length - 1)"
+          class="p-0.5 hover:bg-white rounded disabled:opacity-40"
+          title="Última página"
         >
-          <app-icon name="zoom-in" [size]="13"></app-icon>
-        </button>
-        <button
-          type="button"
-          class="zoom-btn"
-          (click)="toggleFullscreen()"
-          [title]="i18n.currentLang() === 'es' ? 'Pantalla completa' : 'Fullscreen'"
-        >
-          <app-icon name="maximize" [size]="13"></app-icon>
+          <svg lucideIcon="chevrons-right" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
       </div>
-    </div>
-  </header>
 
-  <!-- Contenedor completo de Univer Docs -->
-  <main class="doc-mount-container">
-    <div #docContainer class="univer-pure-doc-mount"></div>
-  </main>
+      <button
+        type="button"
+        (click)="activeTab.set('layout')"
+        class="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 hover:bg-blue-100 transition-colors"
+        title="Haz clic para configurar formato de hoja, márgenes o columnas"
+      >
+        Hoja: <strong>{{ activePaperPreset().name }}</strong>
+      </button>
+
+      <span>
+        Palabras:
+        <strong [ngClass]="darkMode() ? 'text-slate-200' : 'text-slate-700'">{{ stats().words.toLocaleString() }}</strong>
+      </span>
+      <span class="hidden md:inline">
+        Secciones:
+        <strong [ngClass]="darkMode() ? 'text-slate-200' : 'text-slate-700'">{{ headings().length }}</strong>
+      </span>
+      <span class="hidden md:inline">
+        Tablas:
+        <strong [ngClass]="darkMode() ? 'text-slate-200' : 'text-slate-700'">{{ tables().length }}</strong>
+      </span>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <span class="text-[11px]">
+        Vista: <strong class="text-blue-600 uppercase">{{ viewMode() }}</strong> · Fuente:
+        <strong>{{ formats().fontName }} ({{ formats().fontSize }}pt)</strong> · Elemento:
+        <strong class="text-blue-600">{{ formats().heading }}</strong>
+      </span>
+      <div class="flex items-center gap-1.5">
+        <input
+          type="range"
+          min="50"
+          max="160"
+          step="10"
+          [value]="zoom()"
+          (input)="onZoomInput($event)"
+          aria-label="Control de zoom"
+          class="w-20 accent-blue-600 cursor-pointer"
+        />
+        <span class="font-mono text-[11px] w-9">{{ zoom() }}%</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- LaTeX Formula Editor Modal with Delete Support -->
+  <app-word-latex-modal
+    [isOpen]="latexModalOpen()"
+    (close)="onCloseLatexModal()"
+    [initialLatex]="editingLatexCode()"
+    [isEditingExisting]="editingLatexElement() !== null"
+    (insertFormula)="handleInsertOrUpdateLatexFormula($event)"
+    (deleteFormula)="handleDeleteExistingLatexFormula()"
+  ></app-word-latex-modal>
+
+  <!-- Style Templates Designer Modal -->
+  <app-word-style-templates-modal
+    [isOpen]="styleModalOpen()"
+    (close)="styleModalOpen.set(false)"
+    [templates]="styleTemplates()"
+    [activeTemplateId]="activeTemplateId()"
+    (saveCustomTemplate)="handleSaveCustomTemplate($event)"
+    (deleteCustomTemplate)="handleDeleteCustomTemplate($event)"
+    (applyTemplateToDocument)="handleApplyTemplateToDocument($event)"
+    (applySingleRuleToSelection)="handleApplyRuleToSelection($event)"
+  ></app-word-style-templates-modal>
+
+  <!-- AI Writer Modal -->
+  <app-word-ai-writer-modal
+    [isOpen]="aiModalOpen()"
+    (close)="aiModalOpen.set(false)"
+    [currentHtml]="activePageHtml()"
+    (insertGeneratedHtml)="handleInsertGeneratedHtml($event)"
+  ></app-word-ai-writer-modal>
 </div>

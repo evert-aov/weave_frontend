@@ -2,7 +2,9 @@ import {
   Component,
   Input,
   AfterViewInit,
+  OnChanges,
   OnDestroy,
+  SimpleChanges,
   ElementRef,
   ViewChild,
   inject,
@@ -17,7 +19,6 @@ import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { IconComponent } from '../../shared/components/icon/icon.component';
 
 if (typeof window !== 'undefined' && !(window as any).process) {
   (window as any).process = { env: { NODE_ENV: 'production' } };
@@ -31,11 +32,11 @@ if (typeof window !== 'undefined' && !(window as any).process) {
 @Component({
   selector: 'app-pure-canvas-editor',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [CommonModule],
   templateUrl: './pure-canvas-editor.component.html',
   styleUrls: ['./pure-canvas-editor.component.scss'],
 })
-export class PureCanvasEditorComponent implements AfterViewInit, OnDestroy {
+export class PureCanvasEditorComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input({ required: true }) note!: Note;
   @ViewChild('canvasMount', { static: true })
   canvasMount!: ElementRef<HTMLDivElement>;
@@ -52,6 +53,7 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnDestroy {
   private currentElements: any[] = [];
   private currentAppState: any = {};
   private excalidrawAPI: any = null;
+  private loadedNoteId: string | null = null;
 
   constructor() {
     effect(() => {
@@ -71,6 +73,7 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.loadedNoteId = this.note?._id || null;
     const mountEl = this.canvasMount.nativeElement;
     this.reactRoot = createRoot(mountEl);
     this.currentElements = this.note.docData?.['elements'] || [];
@@ -84,6 +87,16 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnDestroy {
     setTimeout(() => this.centerToContent(), 250);
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['note'] && !changes['note'].firstChange) {
+      const newId = this.note?._id;
+      if (newId && newId !== this.loadedNoteId) {
+        this.loadedNoteId = newId;
+        this.resetAndReload();
+      }
+    }
+  }
+
   ngOnDestroy(): void {
     if (this.syncTimeout) {
       clearTimeout(this.syncTimeout);
@@ -94,6 +107,22 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnDestroy {
       } catch (err) {
         console.warn('[PureCanvasEditor] React unmount warning:', err);
       }
+    }
+  }
+
+  private resetAndReload(): void {
+    if (this.syncTimeout) {
+      clearTimeout(this.syncTimeout);
+      this.syncTimeout = null;
+    }
+    this.currentElements = this.note.docData?.['elements'] || [];
+    this.currentAppState = this.note.docData?.['appState'] || {};
+    if (this.reactRoot) {
+      this.renderCanvas(
+        this.notesService.isReadingMode(),
+        this.themeService.isDark(),
+      );
+      setTimeout(() => this.centerToContent(), 250);
     }
   }
 
@@ -219,14 +248,19 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnDestroy {
           this.currentZoom.set(Math.round(appState.zoom.value * 100) / 100);
         }
 
+        const targetNoteId = this.note._id;
         if (this.syncTimeout) {
           clearTimeout(this.syncTimeout);
         }
         this.syncTimeout = setTimeout(() => {
-          this.notesService.updateDocData({
-            elements: this.currentElements,
-            appState: this.currentAppState,
-          });
+          if (this.note?._id !== targetNoteId) return;
+          this.notesService.updateDocData(
+            {
+              elements: this.currentElements,
+              appState: this.currentAppState,
+            },
+            targetNoteId
+          );
         }, 600);
       },
     });

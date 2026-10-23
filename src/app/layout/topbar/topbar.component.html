@@ -54,45 +54,59 @@
       <app-icon [name]="themeService.isDark() ? 'sun' : 'moon'" [size]="16"></app-icon>
     </button>
 
-    <!-- Botón de Modo Lectura / Modo Edición -->
+    <!-- Botón de Modo Lectura / Modo Edición (bloques y lienzo) -->
+    @if (showReadingToggle()) {
+      <button
+        type="button"
+        class="reading-mode-btn"
+        [class.active]="notesService.isReadingMode()"
+        (click)="notesService.toggleReadingMode()"
+        [title]="notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Volver a modo edición' : 'Switch to edit mode') : (i18n.currentLang() === 'es' ? 'Modo lectura inmersivo' : 'Reading mode')"
+      >
+        <app-icon [name]="notesService.isReadingMode() ? 'pen' : 'book'" [size]="14"></app-icon>
+        <span>{{ notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Editar' : 'Edit') : (i18n.currentLang() === 'es' ? 'Lectura' : 'Lectura') }}</span>
+      </button>
+    }
+
+    <!-- Controles de Zoom del documento de bloques -->
+    @if (!notesService.isSpecializedDoc()) {
+      <div class="doc-zoom-strip">
+        <button
+          type="button"
+          class="zoom-btn"
+          (click)="notesService.zoomOut()"
+          [title]="i18n.currentLang() === 'es' ? 'Reducir zoom del documento' : 'Zoom out document'"
+        >
+          <span>−</span>
+        </button>
+        <button
+          type="button"
+          class="zoom-val-btn"
+          (click)="notesService.resetZoom()"
+          [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
+        >
+          {{ Math.round(notesService.documentZoom() * 100) }}%
+        </button>
+        <button
+          type="button"
+          class="zoom-btn"
+          (click)="notesService.zoomIn()"
+          [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom del documento' : 'Zoom in document'"
+        >
+          <span>+</span>
+        </button>
+      </div>
+    }
+
+    <!-- Botón Pantalla Completa -->
     <button
       type="button"
-      class="reading-mode-btn"
-      [class.active]="notesService.isReadingMode()"
-      (click)="notesService.toggleReadingMode()"
-      [title]="notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Volver a modo edición' : 'Switch to edit mode') : (i18n.currentLang() === 'es' ? 'Modo lectura inmersivo' : 'Reading mode')"
+      class="icon-btn"
+      (click)="toggleFullscreen()"
+      [title]="isFullscreen() ? (i18n.currentLang() === 'es' ? 'Salir de pantalla completa' : 'Exit fullscreen') : (i18n.currentLang() === 'es' ? 'Pantalla completa' : 'Fullscreen')"
     >
-      <app-icon [name]="notesService.isReadingMode() ? 'pen' : 'book'" [size]="14"></app-icon>
-      <span>{{ notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Editar' : 'Edit') : (i18n.currentLang() === 'es' ? 'Lectura' : 'Lectura') }}</span>
+      <app-icon [name]="isFullscreen() ? 'minimize' : 'maximize'" [size]="15"></app-icon>
     </button>
-
-    <!-- Controles de Zoom del documento (Lectura y Edición) -->
-    <div class="doc-zoom-strip">
-      <button
-        type="button"
-        class="zoom-btn"
-        (click)="notesService.zoomOut()"
-        [title]="i18n.currentLang() === 'es' ? 'Reducir zoom del documento' : 'Zoom out document'"
-      >
-        <span>−</span>
-      </button>
-      <button
-        type="button"
-        class="zoom-val-btn"
-        (click)="notesService.resetZoom()"
-        [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
-      >
-        {{ Math.round(notesService.documentZoom() * 100) }}%
-      </button>
-      <button
-        type="button"
-        class="zoom-btn"
-        (click)="notesService.zoomIn()"
-        [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom del documento' : 'Zoom in document'"
-      >
-        <span>+</span>
-      </button>
-    </div>
 
     <!-- Botón para Exportar documento (PDF, Markdown, etc.) -->
     <button

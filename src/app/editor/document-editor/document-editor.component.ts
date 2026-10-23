@@ -314,6 +314,12 @@ export class DocumentEditorComponent {
   }
 
   createNewNote(): void {
-    this.notesService.createNote().subscribe();
+    const isEs = this.i18n.currentLang() === 'es';
+    const name = prompt(isEs ? 'Nombre del documento:' : 'Document name:');
+    if (name === null) {
+      return; // El usuario canceló la creación.
+    }
+    const title = name.trim() || undefined;
+    this.notesService.createNote(title).subscribe();
   }
 }

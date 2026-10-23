@@ -54,10 +54,15 @@ export class MarkdownExportStrategy implements ExportStrategy {
       lines.push('');
     }
 
-    // Bloques
-    const sortedBlocks = [...(note.blocks || [])].sort((a, b) => a.order - b.order);
-    for (const block of sortedBlocks) {
-      lines.push(this.renderBlockToMarkdown(block));
+    // Bloques o documento especializado puro
+    if (note.blocks && note.blocks.length > 0) {
+      const sortedBlocks = [...(note.blocks || [])].sort((a, b) => a.order - b.order);
+      for (const block of sortedBlocks) {
+        lines.push(this.renderBlockToMarkdown(block));
+        lines.push('');
+      }
+    } else if (note.docType && note.docType !== 'block') {
+      lines.push(this.renderPureDocToMarkdown(note));
       lines.push('');
     }
 
@@ -188,5 +193,57 @@ export class MarkdownExportStrategy implements ExportStrategy {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Renderiza documentos especializados puros a Markdown.
+   */
+  private renderPureDocToMarkdown(note: Note): string {
+    const docType = note.docType;
+    const docData = note.docData;
+    if (!docData) return '';
+
+    if (docType === 'sheet') {
+      const syntheticBlock: Block = {
+        id: `pure-sheet-${note._id}`,
+        type: 'sheet',
+        order: 0,
+        content: { workbookData: docData },
+      };
+      return this.renderSheetToMarkdownTable(syntheticBlock);
+    }
+
+    if (docType === 'doc') {
+      if (docData.type === 'doc' && Array.isArray(docData.content)) {
+        return docData.content
+          .map((node: any) => {
+            const text = (node.content || []).map((c: any) => c.text || '').join('');
+            if (node.type?.startsWith('heading')) {
+              const level = node.attrs?.level || 1;
+              return `${'#'.repeat(level)} ${text}\n`;
+            }
+            return text ? `${text}\n` : '';
+          })
+          .filter(Boolean)
+          .join('\n');
+      }
+      if (docData.body?.dataStream) {
+        return String(docData.body.dataStream).replace(/\r\n/g, '\n').trim();
+      }
+      if (typeof docData === 'string') {
+        return docData;
+      }
+    }
+
+    if (docType === 'canvas') {
+      const count = docData.elements?.length || 0;
+      return `> 🎨 *[Pizarra de dibujo Excalidraw interactiva - ${count} elementos vectoriales]*`;
+    }
+
+    if (docType === 'slide') {
+      return `> 📊 *[Presentación PowerPoint (.pptx)]*`;
+    }
+
+    return '';
   }
 }

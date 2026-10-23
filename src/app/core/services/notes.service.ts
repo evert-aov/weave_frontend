@@ -5,6 +5,8 @@ import { Note, DocType } from '../models/note.model';
 import { Block, BlockType } from '../models/block.model';
 import { DocumentTab } from '../models/tab.model';
 
+import { environment } from '../../../environments/environment';
+
 /**
  * Servicio de Gestión de Notas y Bloques.
  * Administra el documento activo, la lista de notas, pestañas abiertas en simultáneo,
@@ -15,9 +17,9 @@ import { DocumentTab } from '../models/tab.model';
 })
 export class NotesService {
   private readonly http = inject(HttpClient);
-  private readonly serverBaseUrl = 'http://localhost:3000';
-  private readonly apiUrl = `${this.serverBaseUrl}/api/notes`;
-  private readonly assetsUrl = `${this.serverBaseUrl}/api/assets`;
+  private readonly serverBaseUrl = environment.serverBaseUrl;
+  private readonly apiUrl = `${environment.apiUrl}/notes`;
+  private readonly assetsUrl = `${environment.apiUrl}/assets`;
 
   readonly notesList = signal<Note[]>([]);
   readonly currentNote = signal<Note | null>(null);
@@ -26,6 +28,12 @@ export class NotesService {
   readonly isSidebarCollapsed = signal<boolean>(false);
   readonly isReadingMode = signal<boolean>(true);
   readonly documentZoom = signal<number>(1.0);
+
+  /** Determina si el documento actual es un editor especializado (Word, Excel, Slide, Canvas) */
+  readonly isSpecializedDoc = computed<boolean>(() => {
+    const docType = this.currentNote()?.docType;
+    return !!docType && ['doc', 'sheet', 'slide', 'canvas'].includes(docType);
+  });
 
   // Gestión de pestañas simultáneas (Multi-tab)
   readonly openTabs = signal<DocumentTab[]>([]);
@@ -310,10 +318,25 @@ export class NotesService {
 
   /**
    * Actualiza los datos especializados del documento (Univer Sheet, Univer Doc o Lienzo) y dispara el autoguardado.
+   * Si se especifica targetNoteId, asegura que sólo se modifique si la nota activa coincide con la nota emisora,
+   * evitando que eventos asíncronos o retrasados de una pestaña sobrescriban otra pestaña abierta.
    */
-  updateDocData(docData: any): void {
+  updateDocData(docData: any, targetNoteId?: string): void {
     const note = this.currentNote();
     if (!note) return;
+
+    if (targetNoteId && note._id !== targetNoteId) {
+      console.warn(
+        `[NotesService] updateDocData ignorado para la nota activa: objetivo=${targetNoteId}, activa=${note._id}`
+      );
+      // Actualizar la nota en la lista general en segundo plano si existe
+      const cached = this.notesList().find((n) => n._id === targetNoteId);
+      if (cached) {
+        const updatedTarget: Note = { ...cached, docData };
+        this.triggerAutoSave(updatedTarget);
+      }
+      return;
+    }
 
     const updatedNote: Note = {
       ...note,
@@ -556,11 +579,26 @@ export class NotesService {
   }
 
   /**
+   * Sube una imagen codificada en base64 / Data URL al servidor, guardándola
+   * físicamente en disco y retornando la URL física persistente.
+   */
+  uploadBase64Image(dataUrl: string, filename?: string): Observable<{ url: string; filename: string }> {
+    return this.http.post<{ url: string; filename: string }>(
+      `${this.assetsUrl}/upload-base64`,
+      { dataUrl, filename },
+    );
+  }
+
+  /**
    * Carga el contenido binario de un documento especializado desde su URL de
    * referencia física (por ejemplo, el archivo .pptx guardado en disco en 'docUrl').
    */
   loadDocFile(url: string): Observable<ArrayBuffer> {
-    const fullUrl = /^https?:\/\//i.test(url) ? url : `${this.serverBaseUrl}${url}`;
+    const fullUrl = /^https?:\/\//i.test(url)
+      ? url
+      : this.serverBaseUrl
+      ? `${this.serverBaseUrl}${url}`
+      : url;
     return this.http.get(fullUrl, { responseType: 'arraybuffer' });
   }
 

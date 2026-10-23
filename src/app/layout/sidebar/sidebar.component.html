@@ -314,6 +314,26 @@
         </div>
 
         <div class="create-doc-modal-body">
+          <!-- Paso 1: Nombre del documento -->
+          <div class="doc-name-field">
+            <label for="new-doc-title-input">
+              {{ i18n.currentLang() === 'es' ? 'Nombre del documento' : 'Document name' }}
+            </label>
+            <input
+              id="new-doc-title-input"
+              type="text"
+              class="doc-name-input"
+              [ngModel]="newDocTitle()"
+              (ngModelChange)="newDocTitle.set($event)"
+              (keydown.enter)="$event.preventDefault()"
+              [placeholder]="i18n.currentLang() === 'es' ? 'Escribe un nombre...' : 'Type a name...'"
+              autofocus
+            />
+            <small class="doc-name-hint">
+              {{ i18n.currentLang() === 'es' ? 'Elige el tipo de documento para continuar' : 'Choose a document type to continue' }}
+            </small>
+          </div>
+
           @if (targetSpaceForNewDoc(); as targetSpace) {
             <p class="target-space-info">
               <span>{{ i18n.currentLang() === 'es' ? 'Ubicación:' : 'Location:' }}</span>

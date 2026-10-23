@@ -2,6 +2,7 @@ import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { Space } from '../models/space.model';
+import { environment } from '../../../environments/environment';
 
 /**
  * Servicio de Espacios (Directorios).
@@ -12,7 +13,7 @@ import { Space } from '../models/space.model';
 })
 export class SpacesService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'http://localhost:3000/api/spaces';
+  private readonly apiUrl = `${environment.apiUrl}/spaces`;
 
   readonly spacesList = signal<Space[]>([]);
 

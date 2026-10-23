@@ -27,7 +27,6 @@ import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
-import { IconComponent } from '../../shared/components/icon/icon.component';
 import { DEFAULT_BLANK_PPTX_BASE64 } from './default-pptx.base64';
 
 /**
@@ -38,7 +37,7 @@ import { DEFAULT_BLANK_PPTX_BASE64 } from './default-pptx.base64';
 @Component({
   selector: 'app-pure-slide-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, PowerPointViewerComponent],
+  imports: [CommonModule, FormsModule, PowerPointViewerComponent],
   templateUrl: './pure-slide-editor.component.html',
   styleUrls: ['./pure-slide-editor.component.scss'],
 })
@@ -477,10 +476,13 @@ export class PureSlideEditorComponent implements OnInit, OnChanges, AfterViewIni
     }
     const base64 = btoa(binary);
     this.lastSavedBytes = bytes;
-    this.notesService.updateDocData({
-      format: 'pptx',
-      base64,
-      updatedAt: new Date().toISOString(),
-    });
+    this.notesService.updateDocData(
+      {
+        format: 'pptx',
+        base64,
+        updatedAt: new Date().toISOString(),
+      },
+      this.note._id
+    );
   }
 }

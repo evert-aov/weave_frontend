@@ -768,6 +768,45 @@
   flex-direction: column;
   gap: 12px;
 
+  .doc-name-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .doc-name-input {
+      width: 100%;
+      padding: 9px 12px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+      &:focus {
+        border-color: var(--accent);
+        background: var(--bg);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+      }
+
+      &::placeholder {
+        color: var(--faint);
+      }
+    }
+
+    .doc-name-hint {
+      font-size: 11px;
+      color: var(--faint);
+    }
+  }
+
   .target-space-info {
     margin: 0;
     font-size: 12px;
