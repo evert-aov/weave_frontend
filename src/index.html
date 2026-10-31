@@ -12,10 +12,26 @@
   <link rel="icon" type="image/svg+xml" href="favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500;600&family=Libre+Caslon+Display&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="pptx-angular-viewer.css" data-beasties-skip>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500;600&family=Libre+Caslon+Display&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+  <style>
+    body { margin: 0; }
+    .startup-screen { min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 12px; background: var(--canvas, #f0f2f5); color: var(--muted, #4b5563);
+      font: 13px system-ui, sans-serif; }
+    .startup-screen strong { font-size: 20px; color: var(--text, #1f2937); }
+    .startup-mark { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px;
+      color: white; background: #5b50e6; font: 700 28px Georgia, serif; }
+  </style>
 </head>
 <body>
-  <app-root></app-root>
+  <app-root>
+    <div class="startup-screen" role="status" aria-live="polite">
+      <span class="startup-mark" aria-hidden="true">W</span>
+      <strong>Weave</strong>
+      <span id="startup-message">Preparando tu espacio…</span>
+      <noscript>Activa JavaScript para abrir Weave.</noscript>
+    </div>
+  </app-root>
 </body>
 </html>

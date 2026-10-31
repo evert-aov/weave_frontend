@@ -1,0 +1,170 @@
+.latex-dialog.dark-mode {
+  background: #18181b !important;
+  border-color: #27272a !important;
+  color: #e4e4e7 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7) !important;
+
+  .dialog-header {
+    border-bottom-color: #27272a !important;
+
+    .dialog-title {
+      color: #f4f4f5 !important;
+    }
+
+    .selected-badge {
+      background: rgba(37, 99, 235, 0.2) !important;
+      color: #93c5fd !important;
+      border-color: #1e40af !important;
+    }
+
+    .btn-close {
+      color: #a1a1aa !important;
+      &:hover {
+        background: #27272a !important;
+        color: #f4f4f5 !important;
+      }
+    }
+  }
+
+  .dialog-body {
+    background: #121214 !important;
+  }
+
+  .dialog-card {
+    background: #1c1c20 !important;
+    border-color: #2e2e34 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+
+    .card-heading {
+      color: #e4e4e7 !important;
+    }
+
+    .btn-clear {
+      color: #a1a1aa !important;
+      &:hover {
+        background: #27272a !important;
+        color: #f4f4f5 !important;
+      }
+    }
+
+    .latex-textarea {
+      background: #141416 !important;
+      border-color: #3f3f46 !important;
+      color: #f4f4f5 !important;
+
+      &:focus {
+        border-color: #3b82f6 !important;
+      }
+    }
+
+    .latex-preview-box {
+      background: #141416 !important;
+      border-color: #2e2e34 !important;
+      color: #f4f4f5 !important;
+
+      *,
+      .word-latex-math-rendered,
+      div,
+      span,
+      table,
+      td,
+      p {
+        color: #f4f4f5 !important;
+        border-color: #f4f4f5 !important;
+      }
+
+      svg {
+        path,
+        line {
+          fill: #f4f4f5 !important;
+          stroke: #f4f4f5 !important;
+        }
+      }
+
+      ::ng-deep .katex,
+      .katex {
+        color: #f4f4f5 !important;
+
+        * {
+          color: #f4f4f5 !important;
+          border-color: #f4f4f5 !important;
+        }
+
+        svg {
+          path,
+          line {
+            fill: #f4f4f5 !important;
+            stroke: #f4f4f5 !important;
+          }
+        }
+
+        .frac-line {
+          border-bottom-color: #f4f4f5 !important;
+        }
+
+        .sqrt-sign {
+          stroke: #f4f4f5 !important;
+          fill: #f4f4f5 !important;
+        }
+      }
+    }
+
+    .primary-tabs-bar {
+      border-bottom-color: #2e2e34 !important;
+
+      .tab-btn {
+        color: #a1a1aa !important;
+        &:hover {
+          color: #f4f4f5 !important;
+        }
+        &.tab-active {
+          color: #60a5fa !important;
+        }
+      }
+    }
+
+    .sub-tabs-bar {
+      background: #141416 !important;
+
+      .sub-tab-btn {
+        color: #a1a1aa !important;
+        &:hover {
+          background: #27272a !important;
+          color: #f4f4f5 !important;
+        }
+        &.sub-tab-active {
+          background: #27272a !important;
+          color: #60a5fa !important;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+        }
+      }
+    }
+
+    .formula-card {
+      background: #202024 !important;
+      border-color: #2e2e34 !important;
+
+      &:hover {
+        background: #27272a !important;
+        border-color: #3b82f6 !important;
+      }
+
+      .card-preview {
+        color: #f4f4f5 !important;
+      }
+
+      .card-label {
+        color: #a1a1aa !important;
+      }
+
+      &:hover {
+        .card-preview {
+          color: #93c5fd !important;
+        }
+        .card-label {
+          color: #60a5fa !important;
+        }
+      }
+    }
+  }
+}

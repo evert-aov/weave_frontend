@@ -1,3 +1,5 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { htmlTextFields, domTextFields, applyHtmlText } from '../../core/utils/ai-edit-text';
 import {
   Component,
   Input,
@@ -16,6 +18,7 @@ import {
   signal,
   computed,
   effect,
+  ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -42,9 +45,12 @@ import {
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { WordCompatibilityService } from './services/word-compatibility.service';
 import { LatexRendererService } from './services/latex-renderer.service';
 import { ImageStoreService } from './services/image-store.service';
+import { DocumentFlowService } from './services/document-flow.service';
+import { caretAtBoundary, deleteAtContinuation, joinBoundaryBlocks, markDocumentSelection, restoreDocumentSelection, withoutSelectionMarkers } from './utils/document-selection';
 import {
   DocxDocumentProperties,
   DocumentLayoutConfig,
@@ -67,13 +73,24 @@ import {
   INITIAL_DOCUMENT_PAGES,
   PAPER_FORMAT_PRESETS,
 } from './constants/word-document.constants';
-import { analyzePageHtmlFast, getActualContentBottomPx } from './utils/word-editor.utils';
+import { renumberHeadings } from './utils/heading-numbering';
+import { analyzePageHtmlFast } from './utils/word-editor.utils';
+import { applyStyleRule, cssPoints, findDocumentText, selectedParagraphs, selectionStyle, selectionElement, scriptPosition, replaceParagraphTag } from './utils/document-formatting';
+import { applyHomeCommand, applyInlineProperties, currentParagraph, inlineProperties, applyScript, scriptBaseSize } from './utils/home-editing';
+import { clipboardTableHtml } from '../../shared/utils/clipboard-table';
+import { DocumentReferenceService } from '../../core/services/document-reference.service';
+import { DialogService } from '../../core/services/dialog.service';
+import { documentHref } from '../../core/utils/document-link';
 import { WordRibbonComponent } from './components/word-ribbon/word-ribbon.component';
+import { WordSearchPanelComponent, WordSearchAction, WordSearchConfig } from './components/word-search-panel/word-search-panel.component';
 import { WordTocSidebarComponent } from './components/word-toc-sidebar/word-toc-sidebar.component';
-import { WordAiWriterModalComponent } from './components/word-ai-writer-modal/word-ai-writer-modal.component';
 import { WordDocxBannerComponent } from './components/word-docx-banner/word-docx-banner.component';
 import { WordStyleTemplatesModalComponent } from './components/word-style-templates-modal/word-style-templates-modal.component';
 import { WordLatexModalComponent } from './components/word-latex-modal/word-latex-modal.component';
+import { WordSmartArtModalComponent } from './components/word-smartart-modal/word-smartart-modal.component';
+import { WordIconsModalComponent } from './components/word-icons-modal/word-icons-modal.component';
+import { SmartArtItem, WordArtPreset } from './models/word-insert.model';
+import { ICON_SVG_PATHS } from './constants/word-insert.constants';
 
 const DEFAULT_FORMATS: EditorActiveFormats = {
   bold: false,
@@ -89,7 +106,7 @@ const DEFAULT_FORMATS: EditorActiveFormats = {
   insertUnorderedList: false,
   insertOrderedList: false,
   heading: 'P',
-  fontName: 'Inter',
+  fontName: 'Times New Roman',
   fontSize: '11',
   indentLeftCm: 0,
   indentRightCm: 0,
@@ -98,11 +115,14 @@ const DEFAULT_FORMATS: EditorActiveFormats = {
   lineHeight: '1.15',
 };
 
-const DEFAULT_DOC_TITLE = 'Propuesta Estratégica 2025';
+const DEFAULT_DOC_TITLE = 'Documento sin título';
 
 interface HistorySnapshot {
   pages: DocumentPage[];
   activePageIndex: number;
+  templates: StyleTemplate[];
+  activeTemplateId: string;
+  headingNumbering: boolean;
 }
 
 interface DocDataV2 {
@@ -118,12 +138,14 @@ interface DocDataV2 {
   showGridlines?: boolean;
   zoom?: number;
   darkMode?: boolean;
+  darkCanvas?: boolean;
+  headingNumbering?: boolean;
 }
 
 /**
  * Editor de documento multipágina (Word) standalone para Weave.
  * Orquesta la barra de herramientas, el lienzo multipágina contentEditable,
- * el panel de índice, los modales (IA, LaTeX, plantillas) y la persistencia
+ * el panel de índice, los modales (LaTeX, plantillas) y la persistencia
  * en `note.docData` mediante `NotesService`.
  */
 @Component({
@@ -135,11 +157,13 @@ interface DocDataV2 {
     FormsModule,
     LucideDynamicIcon,
     WordRibbonComponent,
+    WordSearchPanelComponent,
     WordTocSidebarComponent,
-    WordAiWriterModalComponent,
     WordDocxBannerComponent,
     WordStyleTemplatesModalComponent,
     WordLatexModalComponent,
+    WordSmartArtModalComponent,
+    WordIconsModalComponent,
   ],
   providers: [
     provideLucideIcons(
@@ -174,10 +198,23 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   @ViewChildren('footerEl') footerRefs?: QueryList<ElementRef<HTMLDivElement>>;
 
   private readonly notesService = inject(NotesService);
-  readonly i18n = inject(I18nService);
+  private readonly rawI18n = inject(I18nService, { optional: true });
+  readonly i18n = {
+    t: (key: string, params?: Record<string, string | number>): string => {
+      return this.rawI18n?.t ? this.rawI18n.t(key, params) : key;
+    },
+    currentLang: () => {
+      return this.rawI18n?.currentLang ? this.rawI18n.currentLang() : 'es';
+    }
+  };
   private readonly wordCompat = inject(WordCompatibilityService);
   private readonly latexRenderer = inject(LatexRendererService);
   private readonly imageStore = inject(ImageStoreService);
+  private readonly documentFlow = inject(DocumentFlowService);
+  private readonly references = inject(DocumentReferenceService);
+  private readonly dialogs = inject(DialogService);
+  private readonly themeService = inject(ThemeService, { optional: true });
+  private readonly cdr = inject(ChangeDetectorRef, { optional: true });
 
   // ---------------------------------------------------------------------------
   // Estado reactivo
@@ -193,11 +230,23 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   readonly docxProperties = signal<DocxDocumentProperties | null>(null);
   readonly importedTocEntries = signal<HeadingItem[]>([]);
   readonly activeTab = signal<RibbonTab>('home');
+  readonly showFormattingMarks = signal(false);
+  readonly headingNumbering = signal(false);
+  readonly searchMode = signal<'find' | 'replace' | null>(null);
+  readonly searchQuery = signal('');
+  readonly replacementText = signal('');
+  readonly searchCase = signal(false);
+  readonly searchWholeWord = signal(false);
+  readonly searchStatus = signal('');
+  private searchMatchIndex = -1;
+  private pendingTypingStyle: Record<string, string> | null = null;
+  private pendingTypingRange: Range | null = null;
   readonly formats = signal<EditorActiveFormats>({ ...DEFAULT_FORMATS });
 
   readonly viewMode = signal<DocumentViewMode>('print');
   readonly focusMode = signal<boolean>(false);
-  readonly darkMode = signal<boolean>(false);
+  readonly darkMode = computed<boolean>(() => this.themeService?.isDark() ?? false);
+  readonly darkCanvas = signal<boolean>(true);
   readonly pageMovement = signal<PageMovementMode>('vertical');
   readonly showRuler = signal<boolean>(true);
   readonly showGridlines = signal<boolean>(false);
@@ -208,15 +257,11 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     'Word Studio Pro: Columnas por sección, Márgenes personalizados, Fórmulas LaTeX editables/eliminables y Modos de Vista'
   );
   readonly formatPainterActive = signal<boolean>(false);
-  readonly copiedInlineStyle = signal<{
-    bold: boolean;
-    italic: boolean;
-    underline: boolean;
-    foreColor: string;
-  } | null>(null);
+  readonly copiedInlineStyle = signal<ElementStyleRule | null>(null);
   readonly activeTableCell = signal<HTMLTableCellElement | null>(null);
-  readonly aiModalOpen = signal<boolean>(false);
   readonly latexModalOpen = signal<boolean>(false);
+  readonly smartArtModalOpen = signal<boolean>(false);
+  readonly iconsModalOpen = signal<boolean>(false);
   readonly editingLatexElement = signal<HTMLElement | null>(null);
   readonly editingLatexCode = signal<string | undefined>(undefined);
   readonly pendingScrollHeadingId = signal<string | null>(null);
@@ -301,11 +346,11 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   readonly maxBodyContentHeightPx = computed(() => {
     const layout = this.layoutConfig();
     return Math.max(
-      460,
+      40,
       this.sheetHeightPx() -
         layout.margins.topPx -
         layout.margins.bottomPx -
-        (layout.showHeaderFooter ? 76 : 16)
+        (layout.showHeaderFooter && this.viewMode() === 'print' ? 76 : 0)
     );
   });
 
@@ -319,25 +364,65 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   private undoStack: HistorySnapshot[] = [];
   private redoStack: HistorySnapshot[] = [];
 
-  private hydrated = false;
+  readonly documentReady = signal(false);
+  private hydrationVersion = 0;
   private destroyed = false;
   private loadedNoteId: string | null = null;
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
   private pendingPayload: DocDataV2 | null = null;
   private pendingNoteId: string | null = null;
+  private saveInFlight: Promise<void> | null = null;
   private lastSavedJson = '';
   private querySubscriptions: { unsubscribe(): void }[] = [];
   private mapsDirty = false;
+  private flowFrame: number | null = null;
+  private pendingRenderPages: DocumentPage[] | null = null;
+  private pendingRenderNeedsFlow = false;
+  private lastFlowPages: DocumentPage[] | null = null;
+  private lastFlowGeometry = '';
+  private composing = false;
+  private lastInputTime = 0;
+  private lastInputType = '';
+  private bodyResizeObserver?: ResizeObserver;
+  private observedBody: HTMLElement | null = null;
+  private readonly onFontsLoaded = () => this.invalidateDocumentFlow();
+  private readonly onAssetLoaded = () => this.invalidateDocumentFlow();
 
   private readonly handleSelectionChange = (): void => {
     this.updateSelectionFormats();
   };
 
+  private readonly aiDocuments = inject(AiDocumentService);
+  private readonly unregisterAi = this.aiDocuments.register({
+    owner: () => this.documentReady() ? this.loadedNoteId ?? undefined : undefined,
+    fields: () => this.aiTextFields(),
+    apply: values => {
+      this.pushUndoSnapshot();
+      const targets = [...values.keys()];
+      const pages = this.getLivePagesSnapshot().map(page => targets.some(id => id.startsWith(`page:${page.id}:`))
+        ? { ...page, html: applyHtmlText(page.html, `page:${page.id}`, values) } : page);
+      this.renderDocumentPages(pages);
+      this.captureLatestSave(); void this.flushSave();
+    },
+  });
+
+  private *aiTextFields(): Generator<{ id: string; text: string }> {
+    for (const page of this.pages()) {
+      const body = this.getPageBody(page.id);
+      yield* body ? domTextFields(body, `page:${page.id}`) : htmlTextFields(page.html, `page:${page.id}`);
+    }
+  }
+
   constructor() {
     effect(() => {
       const payload = this.collectDocData();
-      if (!this.hydrated) return;
+      if (!this.documentReady()) return;
       this.scheduleAutoSave(payload);
+    });
+    effect(() => {
+      this.layoutConfig();
+      this.viewMode();
+      this.scheduleDocumentFlow();
     });
   }
 
@@ -368,6 +453,12 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     subscribe(this.headerRefs);
     subscribe(this.footerRefs);
     this.syncInnerHtml();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.bodyResizeObserver = new ResizeObserver(() => this.scheduleDocumentFlow());
+      this.observeBodySize();
+    }
+    document.fonts?.addEventListener('loadingdone', this.onFontsLoaded);
+    this.mainScrollRef?.nativeElement.addEventListener('load', this.onAssetLoaded, true);
   }
 
   ngAfterViewChecked(): void {
@@ -382,7 +473,10 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     if (changes['note'] && !changes['note'].firstChange) {
       const newId = this.note?._id;
       if (newId && newId !== this.loadedNoteId) {
+        this.captureLatestSave();
+        this.documentReady.set(false);
         void this.flushSave().then(() => {
+          if (this.destroyed) return;
           this.loadedNoteId = newId;
           return this.hydrateFromNote();
         });
@@ -391,7 +485,14 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   ngOnDestroy(): void {
+    this.unregisterAi();
+    this.captureLatestSave();
     this.destroyed = true;
+    this.hydrationVersion++;
+    if (this.flowFrame !== null) cancelAnimationFrame(this.flowFrame);
+    this.bodyResizeObserver?.disconnect();
+    document.fonts?.removeEventListener('loadingdone', this.onFontsLoaded);
+    this.mainScrollRef?.nativeElement.removeEventListener('load', this.onAssetLoaded, true);
     if (typeof document !== 'undefined') {
       document.removeEventListener('selectionchange', this.handleSelectionChange);
     }
@@ -408,9 +509,13 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   // Hidratación y persistencia
   // ---------------------------------------------------------------------------
   private async hydrateFromNote(): Promise<void> {
-    this.hydrated = false;
+    const version = ++this.hydrationVersion;
+    const sourceNote = this.note;
+    this.documentReady.set(false);
+    this.pendingRenderPages = null;
+    this.lastFlowPages = null;
 
-    const doc = (this.note?.docData ?? null) as DocDataV2 | null;
+    const doc = (sourceNote?.docData ?? null) as DocDataV2 | null;
     const rawPages =
       doc && Array.isArray(doc.pages) && doc.pages.length > 0
         ? doc.pages.map((p) => ({ ...p }))
@@ -429,19 +534,26 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       footerHtml: await this.imageStore.resolveImages(baseLayout.footerHtml),
     };
 
+    if (this.destroyed || version !== this.hydrationVersion || sourceNote?._id !== this.note?._id) return;
+    this.loadedNoteId = sourceNote?._id ?? null;
+
     const customTemplates =
       doc && Array.isArray(doc.customTemplates) ? doc.customTemplates : [];
     const templates = [...BUILTIN_STYLE_TEMPLATES, ...customTemplates];
 
-    this.pages.set(pages);
+    this.headingNumbering.set(doc?.headingNumbering === true);
+    this.renderDocumentPages(pages);
     this.layoutConfig.set(layout);
     this.styleTemplates.set(templates);
     this.activeTemplateId.set(doc?.activeTemplateId || 'corporate-modern');
-    this.docTitle.set(doc?.docTitle ?? (this.note?.title || DEFAULT_DOC_TITLE));
+    this.docTitle.set(doc?.docTitle ?? (sourceNote?.title || DEFAULT_DOC_TITLE));
 
     this.viewMode.set(doc?.viewMode ?? 'print');
     this.focusMode.set(false);
-    this.darkMode.set(doc?.darkMode ?? false);
+    if (doc?.darkMode !== undefined && this.themeService && this.themeService.isDark() !== doc.darkMode) {
+      this.themeService.setDark(doc.darkMode);
+    }
+    this.darkCanvas.set(doc?.darkCanvas ?? true);
     this.pageMovement.set(doc?.pageMovement ?? 'vertical');
     this.showRuler.set(doc?.showRuler ?? true);
     this.showGridlines.set(doc?.showGridlines ?? false);
@@ -458,25 +570,32 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.editingLatexCode.set(undefined);
     this.pendingScrollHeadingId.set(null);
     this.latexModalOpen.set(false);
-    this.aiModalOpen.set(false);
     this.styleModalOpen.set(false);
     this.activeTab.set('home');
+    this.showFormattingMarks.set(false);
+    this.searchMode.set(null);
+    this.searchQuery.set('');
+    this.searchStatus.set('');
+    this.savedRange = null;
+    this.pendingTypingStyle = null;
 
     this.undoStack = [];
     this.redoStack = [];
 
     const savedSlim = await this.buildSlimDocData(this.collectDocData());
+    if (this.destroyed || version !== this.hydrationVersion || sourceNote?._id !== this.note?._id) return;
     try {
       this.lastSavedJson = JSON.stringify(savedSlim);
     } catch {
       this.lastSavedJson = '';
     }
-    this.hydrated = true;
+    this.documentReady.set(true);
+    this.syncInnerHtml();
+    this.scheduleDocumentFlow();
   }
 
   /**
-   * Convierte las imágenes embebidas (base64/blob) en referencias locales
-   * `weave-img://<id>` para que el JSON persistido no cargue con imágenes.
+   * Sube las imágenes embebidas y usa sus rutas permanentes en el JSON persistido.
    */
   private async buildSlimDocData(doc: DocDataV2): Promise<DocDataV2> {
     const pages = await Promise.all(
@@ -512,12 +631,14 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       showGridlines: this.showGridlines(),
       zoom: this.zoom(),
       darkMode: this.darkMode(),
+      darkCanvas: this.darkCanvas(),
+      headingNumbering: this.headingNumbering(),
     };
   }
 
   private scheduleAutoSave(payload: DocDataV2): void {
     if (this.destroyed) return;
-    const targetNoteId = this.note?._id;
+    const targetNoteId = this.loadedNoteId;
     if (!targetNoteId) return;
     this.pendingPayload = payload;
     this.pendingNoteId = targetNoteId;
@@ -525,18 +646,30 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.saveTimeout = setTimeout(() => void this.flushSave(), 600);
   }
 
+  /** Captura la última edición aunque Angular todavía no haya ejecutado el efecto. */
+  private captureLatestSave(): void {
+    if (!this.documentReady() || this.destroyed) return;
+    const payload = this.collectDocData();
+    if (!this.pendingRenderPages) {
+      payload.pages = this.getLivePagesSnapshot().map((page) => ({ ...page, html: withoutSelectionMarkers(page.html) }));
+    }
+    this.scheduleAutoSave(payload);
+  }
+
   private flushSave(): Promise<void> {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
     }
+    if (this.saveInFlight) return this.saveInFlight.then(() => this.flushSave());
     const payload = this.pendingPayload;
     const targetNoteId = this.pendingNoteId;
     this.pendingPayload = null;
     this.pendingNoteId = null;
     if (!payload || !targetNoteId) return Promise.resolve();
 
-    return this.persistDocData(payload, targetNoteId);
+    this.saveInFlight = this.persistDocData(payload, targetNoteId).finally(() => { this.saveInFlight = null; });
+    return this.saveInFlight;
   }
 
   private async persistDocData(payload: DocDataV2, targetNoteId: string): Promise<void> {
@@ -560,6 +693,15 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.pageBodyMap = this.buildMap(this.pageBodyRefs, 'data-page-body-id');
     this.headerMap = this.buildMap(this.headerRefs, 'data-page-header-id');
     this.footerMap = this.buildMap(this.footerRefs, 'data-page-footer-id');
+    this.observeBodySize();
+  }
+
+  private observeBodySize(): void {
+    const first = this.getPageBody(this.pages()[0]?.id);
+    if (first === this.observedBody || !this.bodyResizeObserver) return;
+    this.bodyResizeObserver.disconnect();
+    this.observedBody = first;
+    if (first) this.bodyResizeObserver?.observe(first);
   }
 
   private buildMap(
@@ -589,6 +731,25 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
   private syncInnerHtml(): void {
     if (this.destroyed) return;
+    if (this.pendingRenderPages && this.pendingRenderPages.every((page) => this.getPageBody(page.id))) {
+      const pending = this.pendingRenderPages;
+      for (const page of pending) {
+        const element = this.getPageBody(page.id)!;
+        if (element.innerHTML !== page.html) element.innerHTML = page.html;
+      }
+      const body = restoreDocumentSelection(this.liveBodies());
+      this.pendingRenderPages = null;
+      if (renumberHeadings(this.liveBodies(), this.headingNumbering())) {
+        this.pages.set(this.getLivePagesSnapshot().map(page => ({ ...page, html: withoutSelectionMarkers(page.html) })));
+      }
+      if (body) {
+        const index = this.pages().findIndex((page) => page.id === body.dataset['pageBodyId']);
+        if (index >= 0) this.activePageIndex.set(index);
+        this.scrollCaretIntoView();
+      }
+      if (this.pendingRenderNeedsFlow) this.scheduleDocumentFlow();
+      this.pendingRenderNeedsFlow = false;
+    }
     const currentPages = this.pages();
     const layout = this.layoutConfig();
     for (const page of currentPages) {
@@ -612,7 +773,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   // ---------------------------------------------------------------------------
   private getLivePagesSnapshot(): DocumentPage[] {
     return this.pages().map((p) => ({
-      id: p.id,
+      ...p,
       html: this.getPageBody(p.id)?.innerHTML ?? p.html,
     }));
   }
@@ -644,12 +805,13 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   commitPageDomToState(pageIndex: number): void {
+    if (this.pendingRenderPages) return;
     const currentPages = this.pages();
     const targetPage = currentPages[pageIndex];
     if (!targetPage) return;
     const el = this.getPageBody(targetPage.id);
     if (!el) return;
-    const liveHtml = el.innerHTML;
+    const liveHtml = withoutSelectionMarkers(el.innerHTML);
     if (liveHtml === targetPage.html) return;
 
     this.pages.update((prev) => {
@@ -659,41 +821,34 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       }
       return next;
     });
+    if (this.documentReady()) this.scheduleAutoSave(this.collectDocData());
   }
 
   pushUndoSnapshot(overridePages?: DocumentPage[]): void {
-    const snapshotPages = (overridePages || this.pages()).map((p) => ({
-      id: p.id,
-      html: this.getPageBody(p.id)?.innerHTML ?? p.html,
-    }));
-    this.undoStack.push({ pages: snapshotPages, activePageIndex: this.activePageIndex() });
+    const marked = !overridePages && markDocumentSelection(this.liveBodies());
+    const snapshotPages = overridePages?.map((page) => ({ ...page })) ?? this.getLivePagesSnapshot();
+    if (marked) restoreDocumentSelection(this.liveBodies());
+    const last = this.undoStack.at(-1);
+    if (this.samePages(snapshotPages, last?.pages) && last?.templates === this.styleTemplates()
+      && last.activeTemplateId === this.activeTemplateId() && last.headingNumbering === this.headingNumbering()) return;
+    this.undoStack.push({ pages: snapshotPages, activePageIndex: this.activePageIndex(),
+      templates: this.styleTemplates(), activeTemplateId: this.activeTemplateId(), headingNumbering: this.headingNumbering() });
     if (this.undoStack.length > 35) this.undoStack.shift();
     this.redoStack = [];
   }
 
   handleGlobalUndo(): void {
     if (this.undoStack.length > 0) {
-      const currentSnapshot: HistorySnapshot = {
-        pages: this.getLivePagesSnapshot(),
-        activePageIndex: this.activePageIndex(),
-      };
+      const currentSnapshot = this.captureHistory();
       this.redoStack.push(currentSnapshot);
 
       const previous = this.undoStack.pop()!;
-      this.pages.set(previous.pages);
+      this.headingNumbering.set(previous.headingNumbering);
+      this.styleTemplates.set(previous.templates);
+      this.activeTemplateId.set(previous.activeTemplateId);
+      this.renderDocumentPages(previous.pages);
       this.activePageIndex.set(Math.min(previous.activePageIndex, previous.pages.length - 1));
-
-      setTimeout(() => {
-        previous.pages.forEach((p) => {
-          const domEl = this.getPageBody(p.id);
-          if (domEl) domEl.innerHTML = p.html;
-        });
-        const targetPage = previous.pages[previous.activePageIndex] || previous.pages[0];
-        if (targetPage) {
-          const activeEl = this.getPageBody(targetPage.id);
-          activeEl?.focus();
-        }
-      }, 20);
+      this.lastInputTime = 0;
 
       this.showToast(`Deshacer aplicado (${previous.pages.length} pág.)`);
       return;
@@ -703,22 +858,16 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
   handleGlobalRedo(): void {
     if (this.redoStack.length > 0) {
-      const currentSnapshot: HistorySnapshot = {
-        pages: this.getLivePagesSnapshot(),
-        activePageIndex: this.activePageIndex(),
-      };
+      const currentSnapshot = this.captureHistory();
       this.undoStack.push(currentSnapshot);
 
       const nextState = this.redoStack.pop()!;
-      this.pages.set(nextState.pages);
+      this.headingNumbering.set(nextState.headingNumbering);
+      this.styleTemplates.set(nextState.templates);
+      this.activeTemplateId.set(nextState.activeTemplateId);
+      this.renderDocumentPages(nextState.pages);
       this.activePageIndex.set(Math.min(nextState.activePageIndex, nextState.pages.length - 1));
-
-      setTimeout(() => {
-        nextState.pages.forEach((p) => {
-          const domEl = this.getPageBody(p.id);
-          if (domEl) domEl.innerHTML = p.html;
-        });
-      }, 20);
+      this.lastInputTime = 0;
 
       this.showToast(`Rehacer aplicado (${nextState.pages.length} pág.)`);
       return;
@@ -726,195 +875,105 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     document.execCommand('redo', false);
   }
 
-  checkAndPaginateOverflow(pageIndex: number, preChangePagesSnapshot?: DocumentPage[]): void {
-    if (this.viewMode() === 'web' || this.viewMode() === 'draft' || this.viewMode() === 'outline') return;
-    const currentPages = this.pages();
-    const currentPage = currentPages[pageIndex];
-    if (!currentPage) return;
-    const el = this.getPageBody(currentPage.id);
-    if (!el) return;
+  private captureHistory(): HistorySnapshot {
+    const marked = markDocumentSelection(this.liveBodies());
+    const pages = this.getLivePagesSnapshot();
+    if (marked) restoreDocumentSelection(this.liveBodies());
+    return { pages, activePageIndex: this.activePageIndex(), templates: this.styleTemplates(), activeTemplateId: this.activeTemplateId(), headingNumbering: this.headingNumbering() };
+  }
 
-    const scaleFactor = this.zoom() / 100;
-    const effectiveMaxHeightPx = this.maxBodyContentHeightPx() * scaleFactor;
-    const actualBottomPx = getActualContentBottomPx(el);
+  /** Input, formatting and layout changes share the same bidirectional flow transaction. */
+  checkAndPaginateOverflow(_pageIndex: number, _preChangePagesSnapshot?: DocumentPage[]): void {
+    this.scheduleDocumentFlow();
+  }
 
-    if (actualBottomPx <= effectiveMaxHeightPx) return;
-
-    if (el.children.length <= 1 && el.firstElementChild?.tagName !== 'TABLE') {
-      const soleBlock = (el.firstElementChild as HTMLElement) || el;
-      const fullText = soleBlock.innerText || '';
-      if (fullText.length > 600) {
-        const splitPos = Math.floor(fullText.length * 0.78);
-        const spacePos = fullText.indexOf(' ', splitPos);
-        if (spacePos !== -1) {
-          const headText = fullText.slice(0, spacePos);
-          const tailText = fullText.slice(spacePos + 1);
-          soleBlock.innerText = headText;
-          const newP = document.createElement('p');
-          if (soleBlock !== el && soleBlock.getAttribute('style')) {
-            newP.setAttribute('style', soleBlock.getAttribute('style') || '');
-          }
-          newP.innerText = tailText;
-          el.appendChild(newP);
-        }
-      }
-    }
-
-    if (getActualContentBottomPx(el) <= effectiveMaxHeightPx) return;
-
-    if (preChangePagesSnapshot) {
-      this.undoStack.push({
-        pages: preChangePagesSnapshot,
-        activePageIndex: pageIndex,
-      });
-      this.redoStack = [];
-    }
-
-    const sel = window.getSelection();
-    const anchorNode: Node | null = sel?.anchorNode || null;
-    let cursorWasInMovedNodes = false;
-
-    const movedNodesHtml: string[] = [];
-    let safetyLoop = 0;
-
-    while (getActualContentBottomPx(el) > effectiveMaxHeightPx && safetyLoop < 100) {
-      safetyLoop++;
-      const lastChild = el.lastElementChild as HTMLElement | null;
-      if (!lastChild) break;
-
-      if (lastChild.tagName === 'TABLE') {
-        const tbody = lastChild.querySelector('tbody') || lastChild;
-        const allRows = Array.from(tbody.querySelectorAll(':scope > tr'));
-
-        if (allRows.length > 1) {
-          const poppedRowsHtml: string[] = [];
-          while (
-            getActualContentBottomPx(el) > effectiveMaxHeightPx &&
-            tbody.querySelectorAll(':scope > tr').length > 1
-          ) {
-            const currentRows = tbody.querySelectorAll(':scope > tr');
-            const lastRow = currentRows[currentRows.length - 1];
-            if (!lastRow) break;
-            if (anchorNode && (lastRow === anchorNode || lastRow.contains(anchorNode))) {
-              cursorWasInMovedNodes = true;
-            }
-            poppedRowsHtml.unshift(lastRow.outerHTML);
-            lastRow.remove();
-          }
-
-          if (getActualContentBottomPx(el) > effectiveMaxHeightPx && el.children.length > 1) {
-            const lastRow = tbody.querySelector(':scope > tr');
-            if (lastRow) {
-              if (anchorNode && (lastRow === anchorNode || lastRow.contains(anchorNode))) {
-                cursorWasInMovedNodes = true;
-              }
-              poppedRowsHtml.unshift(lastRow.outerHTML);
-            }
-            const colgroupHtml = lastChild.querySelector('colgroup')?.outerHTML || '';
-            const tableStyle = lastChild.getAttribute('style') || '';
-            movedNodesHtml.unshift(
-              `<table style="${tableStyle}">${colgroupHtml}<tbody>${poppedRowsHtml.join('')}</tbody></table>`
-            );
-            lastChild.remove();
-          } else if (poppedRowsHtml.length > 0) {
-            const colgroupHtml = lastChild.querySelector('colgroup')?.outerHTML || '';
-            const tableStyle = lastChild.getAttribute('style') || '';
-            movedNodesHtml.unshift(
-              `<table style="${tableStyle}">${colgroupHtml}<tbody>${poppedRowsHtml.join('')}</tbody></table>`
-            );
-            break;
-          } else {
-            break;
-          }
-          continue;
-        }
-      }
-
-      if (el.children.length <= 1) break;
-
-      if (anchorNode && (lastChild === anchorNode || lastChild.contains(anchorNode))) {
-        cursorWasInMovedNodes = true;
-      }
-      movedNodesHtml.unshift(lastChild.outerHTML);
-      lastChild.remove();
-    }
-
-    if (movedNodesHtml.length === 0) return;
-
-    const overflowHtml = movedNodesHtml.join('\n');
-    const updatedCurrentHtml = el.innerHTML;
-    const targetNextPageIndex = pageIndex + 1;
-    const newGeneratedPageId = `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-
-    this.pages.update((prev) => {
-      const next = [...prev];
-      next[pageIndex] = { ...next[pageIndex], html: updatedCurrentHtml };
-
-      if (targetNextPageIndex < next.length) {
-        const nextPageId = next[targetNextPageIndex].id;
-        const nextEl = this.getPageBody(nextPageId);
-        const existingNextHtml = nextEl ? nextEl.innerHTML : next[targetNextPageIndex].html;
-        const isNextEmpty =
-          existingNextHtml.replace(/<[^>]+>/g, '').trim().length === 0 &&
-          !existingNextHtml.includes('<img');
-
-        let combinedHtml = isNextEmpty ? overflowHtml : `${overflowHtml}\n${existingNextHtml}`;
-
-        const tempContainer = document.createElement('div');
-        tempContainer.innerHTML = combinedHtml;
-        const firstTwo = Array.from(tempContainer.children);
-        if (
-          firstTwo.length >= 2 &&
-          firstTwo[0].tagName === 'TABLE' &&
-          firstTwo[1].tagName === 'TABLE'
-        ) {
-          const tbody1 = firstTwo[0].querySelector('tbody') || firstTwo[0];
-          const tbody2 = firstTwo[1].querySelector('tbody') || firstTwo[1];
-          const cols1 = firstTwo[0].querySelector('tr')?.children.length || 0;
-          const cols2 = firstTwo[1].querySelector('tr')?.children.length || 0;
-          if (cols1 > 0 && cols1 === cols2) {
-            Array.from(tbody2.querySelectorAll(':scope > tr')).forEach((tr) => {
-              tbody1.appendChild(tr);
-            });
-            firstTwo[1].remove();
-            combinedHtml = tempContainer.innerHTML;
-          }
-        }
-
-        if (nextEl) {
-          nextEl.innerHTML = combinedHtml;
-        }
-        next[targetNextPageIndex] = { ...next[targetNextPageIndex], html: combinedHtml };
-      } else {
-        next.push({
-          id: newGeneratedPageId,
-          html: overflowHtml,
-        });
-      }
-
-      return next;
+  private scheduleDocumentFlow(): void {
+    if (this.destroyed || this.flowFrame !== null) return;
+    this.flowFrame = requestAnimationFrame(() => {
+      this.flowFrame = null;
+      this.reflowDocument();
     });
+  }
 
-    if (cursorWasInMovedNodes) {
-      this.activePageIndex.set(targetNextPageIndex);
-      setTimeout(() => {
-        const nextPageObj = this.pages()[targetNextPageIndex];
-        const nextDomEl = nextPageObj
-          ? this.getPageBody(nextPageObj.id)
-          : this.getPageBody(newGeneratedPageId);
-        if (nextDomEl) {
-          nextDomEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          const firstMovedChild = nextDomEl.firstElementChild as HTMLElement | null;
-          this.placeCaretAtEnd(firstMovedChild || nextDomEl);
-        }
-      }, 50);
+  private invalidateDocumentFlow(): void {
+    this.lastFlowPages = null;
+    this.scheduleDocumentFlow();
+  }
+
+  private samePages(left: DocumentPage[], right: DocumentPage[] | null | undefined): boolean {
+    return !!right && left.length === right.length && left.every((page, index) => {
+      const previous = right[index];
+      return previous.id === page.id && previous.html === page.html && previous.breakBefore === page.breakBefore;
+    });
+  }
+
+  private reflowDocument(): void {
+    if (!this.documentReady() || this.composing || this.pendingRenderPages
+      || !['print', 'read'].includes(this.viewMode())) return;
+    const first = this.getPageBody(this.pages()[0]?.id);
+    // A page body narrower than this is a transient flex/layout collapse, not
+    // usable document geometry. Measuring it would split every line into
+    // single-character fragments and persist that broken pagination.
+    if (!first || first.clientWidth < 200 || first.clientHeight === 0) return;
+    const styles = getComputedStyle(first);
+    const geometry = [first.clientWidth, first.clientHeight, styles.font, styles.lineHeight,
+      styles.hyphens, styles.overflowWrap, this.viewMode()].join('|');
+    const livePages = this.getLivePagesSnapshot();
+    // Observer notifications and Angular renders can follow the same edit. Reuse the settled
+    // result before cloning/measuring DOM again; font/image load events explicitly invalidate it.
+    if (geometry === this.lastFlowGeometry && this.samePages(livePages, this.lastFlowPages)) return;
+    const canvas = document.createElement('div');
+    canvas.className = 'word-editor-canvas word-flow-measure';
+    canvas.style.cssText = `position:fixed;left:-100000px;top:0;width:${first.clientWidth}px;`
+      + 'height:auto;min-height:0;display:flow-root;visibility:hidden;pointer-events:none;';
+    canvas.style.font = styles.font;
+    canvas.style.lineHeight = styles.lineHeight;
+    canvas.style.hyphens = styles.hyphens;
+    canvas.style.overflowWrap = styles.overflowWrap;
+    // Keep the measurement outside the transformed page stack (zoom scales DOM rects).
+    document.body.appendChild(canvas);
+    const bodies = this.liveBodies();
+    markDocumentSelection(bodies);
+    try {
+      // clientHeight is unscaled CSS pixels, so zoom never changes pagination.
+      const pages = this.documentFlow.paginate(this.getLivePagesSnapshot(), canvas, first.clientHeight);
+      const current = this.pages();
+      const clean = pages.map((page) => ({ ...page, html: withoutSelectionMarkers(page.html) }));
+      this.lastFlowPages = clean;
+      this.lastFlowGeometry = geometry;
+      if (!this.samePages(clean, current)) this.renderDocumentPages(pages, false);
+    } finally {
+      if (!this.pendingRenderPages) restoreDocumentSelection(bodies);
+      canvas.remove();
     }
+  }
 
-    this.showToast(
-      `Las filas o párrafos que excedían la Hoja ${pageIndex + 1} pasaron automáticamente a la Hoja ${
-        targetNextPageIndex + 1
-      }`
-    );
+  private liveBodies(): HTMLElement[] {
+    return this.pages().map((page) => this.getPageBody(page.id)).filter((el): el is HTMLDivElement => !!el);
+  }
+
+  private scrollCaretIntoView(): void {
+    const viewport = this.mainScrollRef?.nativeElement;
+    const selection = window.getSelection();
+    if (!viewport || !selection?.isCollapsed || !selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    if (typeof range.getBoundingClientRect !== 'function') return;
+    const caret = range.getBoundingClientRect();
+    if (!caret.height) return;
+    const bounds = viewport.getBoundingClientRect();
+    if (caret.bottom > bounds.bottom - 24) viewport.scrollTop += caret.bottom - bounds.bottom + 24;
+    else if (caret.top < bounds.top + 24) viewport.scrollTop += caret.top - bounds.top - 24;
+  }
+
+  private renderDocumentPages(pages: DocumentPage[], reflowAfterRender = true): void {
+    this.pendingRenderPages = pages;
+    this.pendingRenderNeedsFlow = reflowAfterRender;
+    this.pages.set(pages.map((page) => ({ ...page, html: withoutSelectionMarkers(page.html) })));
+    this.activePageIndex.update((index) => Math.min(index, pages.length - 1));
+    // Existing page hosts need no Angular DOM creation. Restore their HTML now,
+    // including focused hosts, so undo cannot leave the previous appearance visible.
+    // New hosts still wait for the view/query update handled by syncInnerHtml.
+    this.syncInnerHtml();
   }
 
   updateSelectionFormats(): void {
@@ -956,104 +1015,40 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
     let headingTag = 'P';
     let foundCell: HTMLTableCellElement | null = null;
-    let inlineFontFamily = '';
-    let inlineFontSizePt = '';
-    let detectedIndentLeftCm = 0;
-    let detectedIndentRightCm = 0;
-    let detectedSpaceBeforePt = 0;
-    let detectedSpaceAfterPt = 4;
-    let detectedLineHeight = '1.15';
-    let current: Node | null = anchorNode;
-
+    const liveRange = sel.getRangeAt(0);
+    if (this.pendingTypingStyle && this.pendingTypingRange
+      && (!liveRange.collapsed || liveRange.compareBoundaryPoints(Range.START_TO_START,this.pendingTypingRange) !== 0)) {
+      this.pendingTypingStyle = null; this.pendingTypingRange = null;
+    }
+    const sample = selectionElement(liveRange);
+    let current: Node | null = sample;
     while (current && current !== containerEl) {
-      if (current.nodeType === Node.ELEMENT_NODE) {
-        const el = current as HTMLElement;
-        if (/^H[1-6]$/.test(el.tagName)) {
-          headingTag = el.tagName;
-        }
-        if (el.tagName === 'TD' || el.tagName === 'TH') {
-          foundCell = el as HTMLTableCellElement;
-        }
-        if (!inlineFontFamily && el.style?.fontFamily) {
-          inlineFontFamily = el.style.fontFamily.replace(/['"]/g, '').split(',')[0].trim();
-        }
-        if (!inlineFontSizePt && el.style?.fontSize) {
-          const matchPt = el.style.fontSize.match(/([\d.]+)pt/i);
-          if (matchPt) {
-            inlineFontSizePt = String(Math.round(Number(matchPt[1]) * 10) / 10);
-          }
-        }
-        if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'DIV'].includes(el.tagName)) {
-          if (el.style.marginLeft) {
-            const mCm = el.style.marginLeft.match(/([\d.]+)cm/i);
-            const mPt = el.style.marginLeft.match(/([\d.]+)pt/i);
-            if (mCm) detectedIndentLeftCm = Number(mCm[1]);
-            else if (mPt) detectedIndentLeftCm = Number((Number(mPt[1]) / 28.35).toFixed(2));
-          }
-          if (el.style.marginRight) {
-            const mCm = el.style.marginRight.match(/([\d.]+)cm/i);
-            const mPt = el.style.marginRight.match(/([\d.]+)pt/i);
-            if (mCm) detectedIndentRightCm = Number(mCm[1]);
-            else if (mPt) detectedIndentRightCm = Number((Number(mPt[1]) / 28.35).toFixed(2));
-          }
-          if (el.style.marginTop) {
-            const mPt = el.style.marginTop.match(/([\d.]+)pt/i);
-            if (mPt) detectedSpaceBeforePt = Math.round(Number(mPt[1]));
-          }
-          if (el.style.marginBottom) {
-            const mPt = el.style.marginBottom.match(/([\d.]+)pt/i);
-            if (mPt) detectedSpaceAfterPt = Math.round(Number(mPt[1]));
-          }
-          if (el.style.lineHeight) {
-            detectedLineHeight = el.style.lineHeight;
-          }
-        }
+      if (current instanceof HTMLElement) {
+        if (/^H[1-6]$/.test(current.tagName)) headingTag = current.tagName;
+        if (current.tagName === 'TD' || current.tagName === 'TH') foundCell = current as HTMLTableCellElement;
       }
       current = current.parentNode;
     }
 
     this.activeTableCell.set(foundCell);
 
-    try {
-      const sizeCmd = document.queryCommandValue('fontSize');
-      const sizeMap: Record<string, string> = {
-        '1': '8',
-        '2': '10',
-        '3': '12',
-        '4': '14',
-        '5': '18',
-        '6': '24',
-        '7': '36',
-      };
-      const rawFont =
-        inlineFontFamily ||
-        (document.queryCommandValue('fontName') || 'Inter').replace(/['"]/g, '').split(',')[0].trim();
-
-      this.formats.set({
-        bold: document.queryCommandState('bold'),
-        italic: document.queryCommandState('italic'),
-        underline: document.queryCommandState('underline'),
-        strikeThrough: document.queryCommandState('strikeThrough'),
-        subscript: document.queryCommandState('subscript'),
-        superscript: document.queryCommandState('superscript'),
-        justifyLeft: document.queryCommandState('justifyLeft'),
-        justifyCenter: document.queryCommandState('justifyCenter'),
-        justifyRight: document.queryCommandState('justifyRight'),
-        justifyFull: document.queryCommandState('justifyFull'),
-        insertUnorderedList: document.queryCommandState('insertUnorderedList'),
-        insertOrderedList: document.queryCommandState('insertOrderedList'),
-        heading: headingTag,
-        fontName: rawFont || 'Inter',
-        fontSize: inlineFontSizePt || sizeMap[sizeCmd] || '11',
-        indentLeftCm: detectedIndentLeftCm,
-        indentRightCm: detectedIndentRightCm,
-        spaceBeforePt: detectedSpaceBeforePt,
-        spaceAfterPt: detectedSpaceAfterPt,
-        lineHeight: detectedLineHeight,
-      });
-    } catch {
-      // Ignore queryCommand exceptions
-    }
+    const range = sel.getRangeAt(0);
+    const template = this.styleTemplates().find(item => item.id === this.activeTemplateId()) || this.styleTemplates()[0];
+    const rule = selectionStyle(range, template.rules[headingTag as StyleTargetTag]);
+    const position = this.pendingTypingStyle?.['verticalAlign'] || scriptPosition(sample);
+    this.formats.set({
+      bold: rule.bold, italic: rule.italic, underline: rule.underline,
+      strikeThrough: rule.strikeThrough ?? false, subscript: position === 'sub', superscript: position === 'super',
+      justifyLeft: rule.align === 'left', justifyCenter: rule.align === 'center',
+      justifyRight: rule.align === 'right', justifyFull: rule.align === 'justify',
+      insertUnorderedList: !!(anchorNode instanceof Element ? anchorNode : anchorNode.parentElement)?.closest('ul'),
+      insertOrderedList: !!(anchorNode instanceof Element ? anchorNode : anchorNode.parentElement)?.closest('ol'),
+      heading: headingTag, fontName: this.pendingTypingStyle?.['fontFamily']?.replace(/["']/g, '').split(',')[0].trim() || rule.fontFamily,
+      fontSize: this.pendingTypingStyle?.['fontSize'] ? String(parseFloat(this.pendingTypingStyle['fontSize'])) : String(rule.fontSizePt),
+      indentLeftCm: Number(((rule.indentLeftPt ?? 0) / 72 * 2.54).toFixed(2)),
+      indentRightCm: Number(((rule.indentRightPt ?? 0) / 72 * 2.54).toFixed(2)),
+      spaceBeforePt: rule.spaceBeforePt, spaceAfterPt: rule.spaceAfterPt, lineHeight: String(rule.lineHeight),
+    });
   }
 
   handleInsertTabCharacter(): void {
@@ -1077,10 +1072,11 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
     const preSnapshot = this.pages().map((p) => ({
-      id: p.id,
+      ...p,
       html: this.getPageBody(p.id)?.innerHTML ?? p.html,
     }));
     const activeEl = this.getActivePageElement();
+    this.pushUndoSnapshot();
     activeEl?.focus();
     document.execCommand(command, false, value);
     this.commitPageDomToState(this.activePageIndex());
@@ -1094,7 +1090,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     activeEl.focus();
 
     const preSnapshot = this.pages().map((p) => ({
-      id: p.id,
+      ...p,
       html: this.getPageBody(p.id)?.innerHTML ?? p.html,
     }));
     this.pushUndoSnapshot(preSnapshot);
@@ -1205,32 +1201,18 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   handleApplyParagraphSpacingAndIndent(patch: {
-    indentLeftCm?: number;
-    indentRightCm?: number;
-    spaceBeforePt?: number;
-    spaceAfterPt?: number;
+    indentLeftCm?: number; indentRightCm?: number; spaceBeforePt?: number; spaceAfterPt?: number;
   }): void {
-    const activeEl = this.getActivePageElement();
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || !activeEl) return;
-
-    let node: Node | null = sel.anchorNode;
-    while (node && node !== activeEl) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement;
-        if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'DIV'].includes(el.tagName)) {
-          if (patch.indentLeftCm !== undefined) el.style.marginLeft = `${patch.indentLeftCm}cm`;
-          if (patch.indentRightCm !== undefined) el.style.marginRight = `${patch.indentRightCm}cm`;
-          if (patch.spaceBeforePt !== undefined) el.style.marginTop = `${patch.spaceBeforePt}pt`;
-          if (patch.spaceAfterPt !== undefined) el.style.marginBottom = `${patch.spaceAfterPt}pt`;
-          this.commitPageDomToState(this.activePageIndex());
-          this.checkAndPaginateOverflow(this.activePageIndex());
-          this.updateSelectionFormats();
-          return;
-        }
-      }
-      node = node.parentNode;
-    }
+    const range = this.prepareRibbonSelection();
+    if (!range) return;
+    this.pushUndoSnapshot();
+    selectedParagraphs(this.liveBodies(), range).forEach(element => {
+      if (patch.indentLeftCm !== undefined) element.style.marginLeft = `${patch.indentLeftCm}cm`;
+      if (patch.indentRightCm !== undefined) element.style.marginRight = `${patch.indentRightCm}cm`;
+      if (patch.spaceBeforePt !== undefined) element.style.marginTop = `${patch.spaceBeforePt}pt`;
+      if (patch.spaceAfterPt !== undefined) element.style.marginBottom = `${patch.spaceAfterPt}pt`;
+    });
+    this.finishDocumentMutation();
   }
 
   handleReadAloud(): void {
@@ -1257,98 +1239,112 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     );
   }
 
-  handleApplyRuleToSelection(rule: ElementStyleRule): void {
-    const activeEl = this.getActivePageElement();
-    if (!activeEl) return;
-    activeEl.focus();
+  /** Preserve the document range while ribbon inputs take keyboard focus. */
+  rememberRibbonSelection(): void {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    if (this.liveBodies().some(body => body.contains(range.startContainer))
+      && this.liveBodies().some(body => body.contains(range.endContainer))) this.savedRange = range.cloneRange();
+  }
 
-    this.pushUndoSnapshot();
-    document.execCommand('formatBlock', false, `<${rule.target}>`);
+  private prepareRibbonSelection(): Range | null {
+    if (!this.documentReady() || this.isReadMode() || this.pendingRenderPages) return null;
+    const bodies = this.liveBodies();
+    const selection = window.getSelection();
+    const current = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const owned = (range: Range | null): range is Range => !!range && bodies.some(body => body.contains(range.startContainer))
+      && bodies.some(body => body.contains(range.endContainer));
+    const range = owned(current) ? current.cloneRange() : owned(this.savedRange) ? this.savedRange.cloneRange() : null;
+    if (!range || !selection) return null;
+    const index = bodies.findIndex(body => body.contains(range.startContainer));
+    this.activePageIndex.set(index);
+    bodies[index].focus();
+    selection.removeAllRanges(); selection.addRange(range);
+    this.savedRange = null;
+    return range;
+  }
 
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      let node: Node | null = sel.anchorNode;
-      while (node && node !== activeEl) {
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as HTMLElement;
-          if (el.tagName === rule.target) {
-            el.style.fontFamily = `'${rule.fontFamily}', serif`;
-            el.style.fontSize = `${rule.fontSizePt}pt`;
-            el.style.textAlign = rule.align;
-            el.style.fontWeight = rule.bold ? 'bold' : 'normal';
-            el.style.fontStyle = rule.italic ? 'italic' : 'normal';
-            el.style.textDecoration = rule.underline ? 'underline' : 'none';
-            el.style.color = rule.color;
-            el.style.lineHeight = String(rule.lineHeight);
-            el.style.marginTop = `${rule.spaceBeforePt}pt`;
-            el.style.marginBottom = `${rule.spaceAfterPt}pt`;
-            el.style.textIndent = rule.firstLineIndentPt > 0 ? `${rule.firstLineIndentPt}pt` : '0pt';
-            break;
-          }
-        }
-        node = node.parentNode;
-      }
-    }
+  private setPendingTypingStyle(properties: Record<string,string>): void {
+    this.pendingTypingStyle = { ...this.pendingTypingStyle, ...properties };
+    const selection = window.getSelection();
+    this.pendingTypingRange = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+  }
 
-    this.commitPageDomToState(this.activePageIndex());
-    this.checkAndPaginateOverflow(this.activePageIndex());
+  private finishDocumentMutation(): void {
+    restoreDocumentSelection(this.liveBodies());
+    renumberHeadings(this.liveBodies(), this.headingNumbering());
+    this.pages.set(this.getLivePagesSnapshot().map(page => ({ ...page, html: withoutSelectionMarkers(page.html) })));
+    this.scheduleAutoSave(this.collectDocData());
+    this.scheduleDocumentFlow();
     this.updateSelectionFormats();
-    this.showToast(
-      `Estilo aplicado: ${rule.label} (${rule.fontFamily} ${rule.fontSizePt}pt, ${rule.align})`
-    );
+  }
+
+  handleApplyRuleToSelection(rule: ElementStyleRule): void {
+    const range = this.prepareRibbonSelection();
+    if (!range) return;
+    const blocks = selectedParagraphs(this.liveBodies(), range);
+    this.pendingTypingStyle = null;
+    this.pushUndoSnapshot();
+    if (!blocks.length) {
+      document.execCommand('formatBlock', false, `<${rule.target}>`);
+      const block = currentParagraph(window.getSelection()!.getRangeAt(0));
+      if (block) blocks.push(block);
+    }
+    markDocumentSelection(this.liveBodies());
+    blocks.forEach(block => {
+      // A list item remains inside its list; place the paragraph style inside it.
+      if (block.tagName === 'LI') {
+        const child = document.createElement(rule.target.toLowerCase());
+        while (block.firstChild) child.appendChild(block.firstChild);
+        block.appendChild(child); applyStyleRule(child, rule);
+      } else applyStyleRule(replaceParagraphTag(block, rule.target), rule);
+    });
+    this.finishDocumentMutation();
+    this.showToast(`Estilo aplicado: ${rule.label}`);
+  }
+
+  handleUpdateStyleFromSelection(tag: StyleTargetTag): void {
+    const range = this.prepareRibbonSelection();
+    if (!range) { this.showToast('Selecciona texto del documento para actualizar el estilo'); return; }
+    const active = this.styleTemplates().find(template => template.id === this.activeTemplateId()) || this.styleTemplates()[0];
+    const rule = selectionStyle(range, active.rules[tag]);
+    this.pushUndoSnapshot();
+    // Built-in presets are immutable. The modified definition belongs to this document.
+    const template: StyleTemplate = {
+      ...active, id: active.isCustom ? active.id : 'document-styles',
+      name: active.isCustom ? active.name : 'Estilos del documento', isCustom: true,
+      rules: { ...active.rules, [tag]: rule },
+    };
+    this.styleTemplates.update(templates => [...templates.filter(item => item.id !== template.id), template]);
+    this.activeTemplateId.set(template.id);
+    markDocumentSelection(this.liveBodies());
+    let count = 0;
+    this.liveBodies().forEach(body => body.querySelectorAll<HTMLElement>(tag.toLowerCase()).forEach(element => {
+      applyStyleRule(element, rule); count++;
+    }));
+    this.finishDocumentMutation();
+    this.showToast(`${tag === 'P' ? 'Normal' : tag} actualizado en ${count} párrafos; se usará también en los nuevos`);
   }
 
   handleApplyTemplateToDocument(template: StyleTemplate): void {
+    if (!this.documentReady() || this.isReadMode()) return;
+    this.prepareRibbonSelection();
     this.pushUndoSnapshot();
+    if (template.isCustom) this.styleTemplates.update(templates => [...templates.filter(item => item.id !== template.id), template]);
     this.activeTemplateId.set(template.id);
-
-    this.pages.update((prevPages) =>
-      prevPages.map((page) => {
-        const liveEl = this.getPageBody(page.id);
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = liveEl ? liveEl.innerHTML : page.html;
-
-        (['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P'] as StyleTargetTag[]).forEach((tag) => {
-          const rule = template.rules[tag];
-          if (!rule) return;
-          tempDiv.querySelectorAll(tag.toLowerCase()).forEach((node) => {
-            const el = node as HTMLElement;
-            el.style.fontFamily = `'${rule.fontFamily}', serif`;
-            el.style.fontSize = `${rule.fontSizePt}pt`;
-            el.style.textAlign = rule.align;
-            el.style.fontWeight = rule.bold ? 'bold' : 'normal';
-            el.style.fontStyle = rule.italic ? 'italic' : 'normal';
-            el.style.textDecoration = rule.underline ? 'underline' : 'none';
-            el.style.color = rule.color;
-            el.style.lineHeight = String(rule.lineHeight);
-            el.style.marginTop = `${rule.spaceBeforePt}pt`;
-            el.style.marginBottom = `${rule.spaceAfterPt}pt`;
-            el.style.textIndent = rule.firstLineIndentPt > 0 ? `${rule.firstLineIndentPt}pt` : '0pt';
-
-            if (tag !== 'P') {
-              el.querySelectorAll('span').forEach((sp) => {
-                sp.style.fontSize = '';
-                sp.style.fontFamily = '';
-              });
-            }
-          });
-        });
-
-        const updatedHtml = tempDiv.innerHTML;
-        if (liveEl) {
-          liveEl.innerHTML = updatedHtml;
-        }
-        return { ...page, html: updatedHtml };
-      })
-    );
-
-    this.updateSelectionFormats();
-    this.showToast(
-      `Plantilla "${template.name}" aplicada a las ${this.pages().length} páginas del documento`
-    );
+    markDocumentSelection(this.liveBodies());
+    this.liveBodies().forEach(body => {
+      (['P','H1','H2','H3','H4','H5','H6'] as StyleTargetTag[]).forEach(tag => {
+        body.querySelectorAll<HTMLElement>(tag.toLowerCase()).forEach(element => applyStyleRule(element, template.rules[tag]));
+      });
+    });
+    this.finishDocumentMutation();
+    this.showToast(`Plantilla "${template.name}" aplicada a todo el documento`);
   }
 
   handleSaveCustomTemplate(newTpl: StyleTemplate): void {
+    this.pushUndoSnapshot();
     this.styleTemplates.update((prev) => {
       const exists = prev.some((t) => t.id === newTpl.id);
       const updated = exists ? prev.map((t) => (t.id === newTpl.id ? newTpl : t)) : [...prev, newTpl];
@@ -1358,47 +1354,26 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   handleDeleteCustomTemplate(id: string): void {
+    this.pushUndoSnapshot();
     this.styleTemplates.update((prev) => prev.filter((t) => t.id !== id));
     if (this.activeTemplateId() === id) {
       this.activeTemplateId.set(BUILTIN_STYLE_TEMPLATES[0].id);
     }
   }
 
-  handleApplyFontSizePt(pt: string, fallbackCmd: string): void {
-    const activeEl = this.getActivePageElement();
-    activeEl?.focus();
-    const sel = window.getSelection();
-
-    if (sel && sel.rangeCount > 0 && activeEl) {
-      let node: Node | null = sel.anchorNode;
-      while (node && node !== activeEl) {
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as HTMLElement;
-          if (/^H[1-6]$/.test(el.tagName)) {
-            el.style.fontSize = pt;
-            break;
-          }
-        }
-        node = node.parentNode;
-      }
-    }
-
-    if (sel && !sel.isCollapsed) {
-      document.execCommand('fontSize', false, fallbackCmd);
-      if (activeEl) {
-        activeEl.querySelectorAll('font[size]').forEach((fontNode) => {
-          const span = document.createElement('span');
-          span.style.fontSize = pt;
-          span.innerHTML = fontNode.innerHTML;
-          fontNode.replaceWith(span);
-        });
-      }
+  handleApplyFontSizePt(pt: string, _fallbackCmd: string): void {
+    const size = parseFloat(pt);
+    if (!Number.isFinite(size) || size < 1 || size > 400) return;
+    const range = this.prepareRibbonSelection();
+    if (!range) return;
+    if (!range.collapsed) this.pushUndoSnapshot();
+    if (range.collapsed) {
+      this.setPendingTypingStyle({ fontSize: `${size}pt` });
     } else {
-      document.execCommand('fontSize', false, fallbackCmd);
+      markDocumentSelection(this.liveBodies());
+      applyInlineProperties(this.liveBodies(), window.getSelection()!.getRangeAt(0), { fontSize: `${size}pt` });
     }
-    this.commitPageDomToState(this.activePageIndex());
-    this.checkAndPaginateOverflow(this.activePageIndex());
-    this.updateSelectionFormats();
+    this.finishDocumentMutation();
   }
 
   handleApplyHeading(tag: string): void {
@@ -1423,14 +1398,16 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     const newPage: DocumentPage = {
       id: newPageId,
       html: `<p><br/></p>`,
+      breakBefore: 'manual',
     };
 
     this.pages.update((prev) => {
       const synced = prev.map((p) => ({
-        id: p.id,
+        ...p,
         html: this.getPageBody(p.id)?.innerHTML ?? p.html,
       }));
       const next = [...synced];
+      if (next[insertAfterIndex + 1]) next[insertAfterIndex + 1] = { ...next[insertAfterIndex + 1], breakBefore: 'manual' };
       next.splice(insertAfterIndex + 1, 0, newPage);
       return next;
     });
@@ -1462,55 +1439,35 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       return;
     }
 
-    let currentBlock: HTMLElement | null =
-      sel.anchorNode?.nodeType === Node.ELEMENT_NODE
-        ? (sel.anchorNode as HTMLElement)
-        : sel.anchorNode?.parentElement || null;
-
-    while (currentBlock && currentBlock.parentElement !== activeEl) {
-      currentBlock = currentBlock.parentElement;
-    }
-
-    if (!currentBlock) {
-      this.handleAddNewPageAt(this.activePageIndex());
-      return;
-    }
-
     this.pushUndoSnapshot();
-
-    const nodesToMove: string[] = [];
-    let sibling = currentBlock.nextElementSibling;
-    while (sibling) {
-      const nextSibling = sibling.nextElementSibling;
-      nodesToMove.push(sibling.outerHTML);
-      sibling.remove();
-      sibling = nextSibling;
+    const selectionRange = sel.getRangeAt(0);
+    selectionRange.deleteContents();
+    const trailing = selectionRange.cloneRange();
+    trailing.setEnd(activeEl, activeEl.childNodes.length);
+    const fragment = trailing.extractContents();
+    const holder = document.createElement('div');
+    holder.appendChild(fragment);
+    const head = activeEl.lastElementChild as HTMLElement | null;
+    const tail = holder.firstElementChild as HTMLElement | null;
+    if (head && tail && head.tagName === tail.tagName && head.contains(selectionRange.startContainer)) {
+      this.documentFlow.linkContinuation(head, tail);
     }
-
-    const newPageId = `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const newPageHtml = nodesToMove.length > 0 ? nodesToMove.join('\n') : '<p><br/></p>';
+    if (!activeEl.innerHTML) activeEl.innerHTML = '<p><br></p>';
+    if (!holder.innerHTML) holder.innerHTML = '<p><br></p>';
+    // Put the caret at the exact beginning of the new page, including an empty paragraph.
+    const caretHost = holder.firstElementChild ?? holder;
+    caretHost.insertBefore(document.createComment('weave-selection-start'), caretHost.firstChild);
+    const pages = this.getLivePagesSnapshot();
     const insertAt = this.activePageIndex();
-
-    this.pages.update((prev) => {
-      const synced = prev.map((p) => ({
-        id: p.id,
-        html: this.getPageBody(p.id)?.innerHTML ?? p.html,
-      }));
-      const next = [...synced];
-      next.splice(insertAt + 1, 0, { id: newPageId, html: newPageHtml });
-      return next;
+    pages.splice(insertAt + 1, 0, {
+      id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      html: holder.innerHTML,
+      breakBefore: 'manual',
     });
-
+    this.renderDocumentPages(pages);
     this.activePageIndex.set(insertAt + 1);
-    this.showToast(`Salto de página insertado: contenido movido a la Página ${insertAt + 2}`);
-
-    setTimeout(() => {
-      const newEl = this.getPageBody(newPageId);
-      if (newEl) {
-        newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        newEl.focus();
-      }
-    }, 80);
+    this.scheduleDocumentFlow();
+    this.showToast('Salto de página insertado');
   }
 
   handleDeletePage(indexToDelete: number): void {
@@ -1518,38 +1475,40 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       this.showToast('El documento debe tener al menos 1 página');
       return;
     }
-    this.pushUndoSnapshot();
-    this.pages.update((prev) => {
-      const synced = prev.map((p) => ({
-        id: p.id,
-        html: this.getPageBody(p.id)?.innerHTML ?? p.html,
-      }));
-      return synced.filter((_, idx) => idx !== indexToDelete);
-    });
-    this.activePageIndex.update((prev) => Math.max(0, prev - 1));
+    if (indexToDelete < 0 || indexToDelete >= this.pages().length) return;
+    const snapshot = this.captureHistory();
+    this.pushUndoSnapshot(snapshot.pages);
+    const next = snapshot.pages.filter((_, index) => index !== indexToDelete);
+    this.renderDocumentPages(next);
+    const active = snapshot.activePageIndex;
+    this.activePageIndex.set(Math.min(active > indexToDelete ? active - 1 : active, next.length - 1));
     this.showToast(`Página ${indexToDelete + 1} eliminada (Ctrl+Z para restaurar)`);
   }
 
   handleInsertTable(rows: number, cols: number): void {
     const preSnapshot = this.pages().map((p) => ({
-      id: p.id,
+      ...p,
       html: this.getPageBody(p.id)?.innerHTML ?? p.html,
     }));
     const activeEl = this.getActivePageElement();
     activeEl?.focus();
     let tableHtml = `<table><thead><tr>`;
     for (let c = 1; c <= cols; c++) {
-      tableHtml += `<th>Encabezado ${c}</th>`;
+      tableHtml += `<th><br/></th>`;
     }
-    tableHtml += `</tr></thead><tbody>`;
-    for (let r = 1; r <= Math.max(1, rows - 1); r++) {
-      tableHtml += `<tr>`;
-      for (let c = 1; c <= cols; c++) {
-        tableHtml += `<td>Dato ${r}.${c}</td>`;
+    tableHtml += `</tr></thead>`;
+    if (rows > 1) {
+      tableHtml += `<tbody>`;
+      for (let r = 1; r < rows; r++) {
+        tableHtml += `<tr>`;
+        for (let c = 1; c <= cols; c++) {
+          tableHtml += `<td><br/></td>`;
+        }
+        tableHtml += `</tr>`;
       }
-      tableHtml += `</tr>`;
+      tableHtml += `</tbody>`;
     }
-    tableHtml += `</tbody></table><p><br/></p>`;
+    tableHtml += `</table><p><br/></p>`;
     document.execCommand('insertHTML', false, tableHtml);
     this.commitPageDomToState(this.activePageIndex());
     this.checkAndPaginateOverflow(this.activePageIndex(), preSnapshot);
@@ -1590,7 +1549,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
     this.pages.update((prev) => {
       const synced = prev.map((p) => ({
-        id: p.id,
+        ...p,
         html: this.getPageBody(p.id)?.innerHTML ?? p.html,
       }));
       const next = [...synced];
@@ -1745,6 +1704,16 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   async onPagePaste(e: ClipboardEvent, pageIndex: number): Promise<void> {
+    if (this.isReadMode()) return;
+    const clipboard = e.clipboardData;
+    const html = clipboardTableHtml(clipboard?.getData('text/html') ?? '', clipboard?.getData('text/plain') ?? '');
+    if (html) {
+      e.preventDefault();
+      this.activePageIndex.set(pageIndex);
+      // Antes de mirar imágenes: Excel/Word pueden incluir una vista previa de la misma tabla.
+      this.executeCommand('insertHTML', html + (/<\/table>\s*$/i.test(html) ? '<p><br></p>' : ''));
+      return;
+    }
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -1809,17 +1778,45 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   handleInsertLink(): void {
-    const url = window.prompt('Introduce la URL del enlace (ej. https://google.com):', 'https://');
-    if (!url) return;
-    const selection = window.getSelection()?.toString();
-    if (selection) {
-      this.executeCommand('createLink', url);
-    } else {
-      this.executeCommand(
-        'insertHTML',
-        `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
-      );
-    }
+    if (this.isReadMode()) return;
+    const sourceId = this.loadedNoteId;
+    this.saveSelection();
+    this.dialogs.open({
+      kind: 'input', title: 'Insertar enlace', label: 'Dirección del enlace', initialValue: 'https://', maxLength: 2048,
+      submitLabel: 'Insertar enlace', icon: 'paperclip',
+      validate: (value) => {
+        try { return ['http:', 'https:', 'mailto:', 'tel:'].includes(new URL(value, window.location.origin).protocol) ? null : 'Introduce un enlace válido.'; }
+        catch { return 'Introduce un enlace válido.'; }
+      },
+      onCancel: () => { if (!this.destroyed && this.loadedNoteId === sourceId) this.restoreSelection(); },
+      onSubmit: (url) => {
+        if (this.destroyed || this.loadedNoteId !== sourceId) return;
+        this.restoreSelection();
+        if (window.getSelection()?.toString()) this.executeCommand('createLink', url);
+        else {
+          const anchor = document.createElement('a');
+          anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; anchor.textContent = url;
+          this.executeCommand('insertHTML', anchor.outerHTML);
+        }
+      },
+    });
+  }
+
+  handleInsertDocumentReference(): void {
+    if (!this.documentReady() || this.isReadMode() || !this.loadedNoteId) return;
+    const sourceId = this.loadedNoteId;
+    this.saveSelection();
+    this.references.open(sourceId, (note) => {
+      if (this.destroyed || this.loadedNoteId !== sourceId) return;
+      this.restoreSelection();
+      const href = documentHref(note._id);
+      if (window.getSelection()?.toString()) this.executeCommand('createLink', href);
+      else {
+        const anchor = document.createElement('a');
+        anchor.setAttribute('href', href); anchor.textContent = note.title || 'Sin título';
+        this.executeCommand('insertHTML', anchor.outerHTML);
+      }
+    }, () => { if (!this.destroyed && this.loadedNoteId === sourceId) this.restoreSelection(); });
   }
 
   handleInsertBlockquote(): void {
@@ -1895,25 +1892,248 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.executeCommand('insertHTML', html);
   }
 
-  handleApplyLineHeight(lineHeight: string): void {
+  insertHtmlAtCursorOrActivePage(html: string, keepInlineCaret = false): void {
+    this.pushUndoSnapshot();
+    const range = this.prepareRibbonSelection();
     const activeEl = this.getActivePageElement();
+    if (!activeEl) return;
+
+    let targetRange: Range | null = range;
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || !activeEl) return;
-    let node: Node | null = sel.anchorNode;
-    while (node && node !== activeEl) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement;
-        if (['P', 'DIV', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName)) {
-          el.style.lineHeight = lineHeight;
-          this.showToast(`Interlineado ajustado a ${lineHeight}`);
-          this.commitPageDomToState(this.activePageIndex());
-          this.checkAndPaginateOverflow(this.activePageIndex());
-          this.updateSelectionFormats();
-          return;
-        }
-      }
-      node = node.parentNode;
+    if (!targetRange && sel && sel.rangeCount > 0 && activeEl.contains(sel.anchorNode)) {
+      targetRange = sel.getRangeAt(0);
     }
+
+    let insertedNode: Node | null = null;
+    const template = document.createElement('template');
+    template.innerHTML = html.trim();
+    const fragment = template.content;
+    const lastChild = fragment.lastChild;
+
+    if (keepInlineCaret) {
+      const inlineBlocks = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,th,td';
+      const anchor = targetRange?.startContainer;
+      const anchorElement = anchor instanceof Element ? anchor : anchor?.parentElement;
+      let block = anchorElement?.closest<HTMLElement>(inlineBlocks) ?? null;
+      if (!block || !activeEl.contains(block)) {
+        block = Array.from(activeEl.querySelectorAll<HTMLElement>(inlineBlocks)).at(-1) ?? null;
+      }
+      if (!block) {
+        block = document.createElement('p');
+        activeEl.appendChild(block);
+      }
+      if (block.innerHTML.toLowerCase() === '<br>') block.replaceChildren();
+
+      const inlineRange = targetRange && block.contains(targetRange.startContainer)
+        && block.contains(targetRange.endContainer)
+        ? targetRange
+        : document.createRange();
+      if (inlineRange !== targetRange) {
+        inlineRange.selectNodeContents(block);
+        inlineRange.collapse(false);
+      }
+      inlineRange.deleteContents();
+      inlineRange.insertNode(fragment);
+      if (lastChild) {
+        const caret = document.createRange();
+        caret.setStartAfter(lastChild);
+        caret.collapse(true);
+        activeEl.focus({ preventScroll: true });
+        sel?.removeAllRanges();
+        sel?.addRange(caret);
+      }
+      this.pendingRenderPages = null;
+      this.commitPageDomToState(this.activePageIndex());
+      this.scheduleAutoSave(this.collectDocData());
+      this.scheduleDocumentFlow();
+      return;
+    }
+
+    if (targetRange && activeEl.contains(targetRange.commonAncestorContainer)) {
+      targetRange.deleteContents();
+      targetRange.insertNode(fragment);
+      if (lastChild) {
+        insertedNode = lastChild;
+        const newRange = document.createRange();
+        newRange.setStartAfter(lastChild);
+        newRange.collapse(true);
+        sel?.removeAllRanges();
+        sel?.addRange(newRange);
+      }
+    } else {
+      if (
+        activeEl.childNodes.length === 1 &&
+        activeEl.firstElementChild?.tagName === 'P' &&
+        !activeEl.firstElementChild.textContent?.trim()
+      ) {
+        activeEl.replaceChildren(fragment);
+      } else {
+        activeEl.appendChild(fragment);
+      }
+      if (lastChild && activeEl.contains(lastChild)) {
+        insertedNode = lastChild;
+        const newRange = document.createRange();
+        newRange.setStartAfter(lastChild);
+        newRange.collapse(true);
+        sel?.removeAllRanges();
+        sel?.addRange(newRange);
+      }
+    }
+
+    this.pendingRenderPages = null;
+    this.commitPageDomToState(this.activePageIndex());
+    this.checkAndPaginateOverflow(this.activePageIndex());
+    this.scheduleAutoSave(this.collectDocData());
+    this.scheduleDocumentFlow();
+
+    setTimeout(() => {
+      if (insertedNode instanceof HTMLElement) {
+        insertedNode.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else if (insertedNode?.parentElement) {
+        insertedNode.parentElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 40);
+  }
+
+  handleInsertShapeHtml(shapeHtml: string): void {
+    const wrappedHtml = `<div class="word-shape-wrapper" style="margin:14px 0;text-align:center;">${shapeHtml}</div><p><br/></p>`;
+    this.insertHtmlAtCursorOrActivePage(wrappedHtml);
+    this.showToast('Forma insertada con éxito');
+  }
+
+  handleInsertSmartArt(item: SmartArtItem): void {
+    this.smartArtModalOpen.set(false);
+    this.insertHtmlAtCursorOrActivePage(item.generateHtml());
+    this.showToast(`SmartArt "${item.name}" insertado con éxito`);
+  }
+
+  handleInsertIcon(iconName: string): void {
+    this.iconsModalOpen.set(false);
+    const svgPath = ICON_SVG_PATHS[iconName] || '<circle cx="12" cy="12" r="10"/><path d="m12 8v8m-4-4h8"/>';
+    const iconHtml = `<span class="word-icon-inline" contenteditable="false"><svg class="word-doc-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgPath}</svg></span>&nbsp;`;
+    this.insertHtmlAtCursorOrActivePage(iconHtml, true);
+    this.showToast(`Icono "${iconName}" insertado`);
+  }
+
+  handleInsert3dModel(): void {
+    const modelHtml = `
+      <div class="word-3d-model-container" contenteditable="false" style="display:inline-block;margin:12px;padding:12px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;text-align:center;">
+        <svg width="120" height="110" viewBox="0 0 120 110">
+          <polygon points="60,10 110,35 60,60 10,35" fill="#93c5fd" stroke="#2563eb" stroke-width="2.5"/>
+          <polygon points="10,35 60,60 60,105 10,80" fill="#60a5fa" stroke="#2563eb" stroke-width="2.5"/>
+          <polygon points="110,35 60,60 60,105 110,80" fill="#2563eb" stroke="#1d4ed8" stroke-width="2.5"/>
+        </svg>
+        <div contenteditable="true" style="font-size:12px;font-weight:bold;color:#1e293b;margin-top:6px;outline:none;">[Modelo 3D Isométrico]</div>
+      </div><p><br/></p>
+    `;
+    this.insertHtmlAtCursorOrActivePage(modelHtml);
+    this.showToast('Modelo 3D insertado');
+  }
+
+  handleInsertScreenshot(): void {
+    const figureHtml = `
+      <figure class="word-screenshot-placeholder" contenteditable="false" style="margin:16px auto;text-align:center;max-width:100%;border:1.5px dashed #94a3b8;border-radius:8px;padding:16px;background:#f8fafc;">
+        <div style="font-size:24px;margin-bottom:6px;">📸</div>
+        <div contenteditable="true" style="font-weight:600;font-size:13px;color:#334155;outline:none;">Captura de Pantalla</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">(Pega una imagen con Ctrl+V o arrastra una imagen aquí)</div>
+      </figure><p><br/></p>
+    `;
+    this.insertHtmlAtCursorOrActivePage(figureHtml);
+    this.showToast('Área de captura de pantalla insertada');
+  }
+
+  handleInsertComment(): void {
+    const commentHtml = `
+      <span class="word-comment-badge" contenteditable="false" style="background:#fef9c3;border:1px solid #eab308;color:#713f12;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin:0 4px;display:inline-flex;align-items:center;gap:4px;">
+        💬 Comentario: <span contenteditable="true" style="font-weight:normal;outline:none;min-width:40px;">Escribe tu nota aquí</span>
+      </span>&nbsp;
+    `;
+    this.insertHtmlAtCursorOrActivePage(commentHtml);
+    this.showToast('Comentario insertado');
+  }
+
+  handleFocusFooterArea(): void {
+    const activePage = this.getActivePageElement();
+    if (activePage) {
+      activePage.scrollTop = activePage.scrollHeight;
+      activePage.focus();
+      this.showToast('Pie de página enfocado');
+    }
+  }
+
+  handleInsertPageNumber(): void {
+    const pageNumHtml = `
+      <span class="word-page-number" contenteditable="false" style="font-weight:600;color:#2563eb;background:#eff6ff;padding:1px 6px;border-radius:3px;">
+        Pág. {{page}}
+      </span>&nbsp;
+    `;
+    this.insertHtmlAtCursorOrActivePage(pageNumHtml);
+    this.showToast('Número de página insertado');
+  }
+
+  handleInsertTextBox(): void {
+    this.handleInsertCalloutBox();
+  }
+
+  handleInsertWordArt(preset: WordArtPreset): void {
+    const wordArtHtml = `
+      <div class="wordart-heading" contenteditable="true" style="${preset.cssStyle} margin:16px 0; text-align:center; outline:none;">
+        ${preset.sampleText}
+      </div><p><br/></p>
+    `;
+    this.insertHtmlAtCursorOrActivePage(wordArtHtml);
+    this.showToast(`WordArt "${preset.name}" insertado`);
+  }
+
+  handleInsertDropCap(): void {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const selectedText = sel.toString();
+    const firstChar = selectedText ? selectedText.charAt(0) : 'A';
+    const dropCapHtml = `<span style="float:left;font-size:3.2em;line-height:0.8;margin-right:8px;font-weight:bold;color:#1e3a8a;font-family:serif;">${firstChar}</span>`;
+    this.insertHtmlAtCursorOrActivePage(dropCapHtml);
+    this.showToast('Letra capital insertada');
+  }
+
+  handleInsertSignatureLine(): void {
+    const sigHtml = `
+      <div style="margin:28px 0 16px;max-width:280px;text-align:center;">
+        <div style="border-top:1.5px solid #334155;margin-bottom:6px;"></div>
+        <div contenteditable="true" style="font-weight:600;font-size:13px;color:#1e293b;outline:none;">Firma del Responsable</div>
+        <div contenteditable="true" style="font-size:11px;color:#64748b;outline:none;">Nombre / Cargo / Institución</div>
+      </div><p><br/></p>
+    `;
+    this.insertHtmlAtCursorOrActivePage(sigHtml);
+    this.showToast('Línea de firma insertada');
+  }
+
+  handleInsertDateTime(): void {
+    const nowStr = new Date().toLocaleDateString(undefined, {
+      dateStyle: 'full',
+      timeStyle: 'short',
+    });
+    this.insertHtmlAtCursorOrActivePage(`<span>${nowStr}</span>&nbsp;`);
+    this.showToast('Fecha y hora insertadas');
+  }
+
+  handleInsertSymbol(symbol: string): void {
+    this.insertHtmlAtCursorOrActivePage(`<span>${symbol}</span>&nbsp;`);
+    this.showToast(`Símbolo ${symbol} insertado`);
+  }
+
+  handleInsertDrawingCanvas(): void {
+    const canvasHtml = `
+      <div class="word-drawing-canvas" contenteditable="false" style="border:2px dashed #93c5fd;border-radius:8px;padding:20px;margin:16px 0;background:#f0f9ff;min-height:120px;text-align:center;">
+        <div style="font-size:11px;color:#0284c7;font-weight:bold;margin-bottom:8px;">[ Lienzo de Dibujo ]</div>
+        <div contenteditable="true" style="font-size:12px;color:#475569;outline:none;">Coloca formas o diagramas aquí dentro.</div>
+      </div><p><br/></p>
+    `;
+    this.insertHtmlAtCursorOrActivePage(canvasHtml);
+    this.showToast('Nuevo lienzo de dibujo insertado');
+  }
+
+  handleApplyLineHeight(lineHeight: string): void {
+    this.onRibbonCommand({ command: 'lineHeight', value: lineHeight });
   }
 
   handleCopyFormat(): void {
@@ -1922,17 +2142,17 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       this.copiedInlineStyle.set(null);
       return;
     }
-    this.copiedInlineStyle.set({
-      bold: document.queryCommandState('bold'),
-      italic: document.queryCommandState('italic'),
-      underline: document.queryCommandState('underline'),
-      foreColor: document.queryCommandValue('foreColor'),
-    });
+    const range = this.prepareRibbonSelection();
+    if (!range) return;
+    const template = this.styleTemplates().find(item => item.id === this.activeTemplateId()) || this.styleTemplates()[0];
+    this.copiedInlineStyle.set(selectionStyle(range, template.rules.P));
     this.formatPainterActive.set(true);
     this.showToast('Formato copiado: selecciona texto para aplicarlo');
   }
 
   handleEditorMouseUp(e: MouseEvent): void {
+    this.lastInputTime = 0;
+    this.pendingTypingStyle = null;
     const targetEl = e.target as HTMLElement | null;
 
     const latexBlockEl = targetEl?.closest('.word-latex-formula') as HTMLElement | null;
@@ -1973,14 +2193,12 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       const copied = this.copiedInlineStyle()!;
       const sel = window.getSelection();
       if (sel && !sel.isCollapsed) {
-        if (copied.bold !== document.queryCommandState('bold')) document.execCommand('bold');
-        if (copied.italic !== document.queryCommandState('italic')) document.execCommand('italic');
-        if (copied.underline !== document.queryCommandState('underline'))
-          document.execCommand('underline');
-        if (copied.foreColor) document.execCommand('foreColor', false, copied.foreColor);
+        this.pushUndoSnapshot();
+        markDocumentSelection(this.liveBodies());
+        applyInlineProperties(this.liveBodies(), window.getSelection()!.getRangeAt(0), inlineProperties(copied));
         this.formatPainterActive.set(false);
         this.copiedInlineStyle.set(null);
-        this.commitPageDomToState(this.activePageIndex());
+        this.finishDocumentMutation();
         this.showToast('Formato aplicado');
       }
     }
@@ -1988,7 +2206,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
   handleInsertOrUpdateLatexFormula(latexCode: string): void {
     const preSnapshot = this.pages().map((p) => ({
-      id: p.id,
+      ...p,
       html: this.getPageBody(p.id)?.innerHTML ?? p.html,
     }));
 
@@ -2028,21 +2246,6 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.editingLatexCode.set(undefined);
     this.commitPageDomToState(this.activePageIndex());
     this.showToast('Fórmula LaTeX eliminada del documento (Ctrl+Z para restaurar)');
-  }
-
-  handleInsertGeneratedHtml(generatedHtml: string): void {
-    const preSnapshot = this.pages().map((p) => ({
-      id: p.id,
-      html: this.getPageBody(p.id)?.innerHTML ?? p.html,
-    }));
-    const activeEl = this.getActivePageElement();
-    if (activeEl) {
-      activeEl.focus();
-      document.execCommand('insertHTML', false, `${generatedHtml}<p><br/></p>`);
-      this.commitPageDomToState(this.activePageIndex());
-      this.checkAndPaginateOverflow(this.activePageIndex(), preSnapshot);
-      this.showToast(`Contenido generado con IA insertado en la Página ${this.activePageIndex() + 1}`);
-    }
   }
 
   modifyActiveTable(action: 'addRow' | 'addCol' | 'delRow' | 'delCol' | 'delTable'): void {
@@ -2115,7 +2318,8 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
       const result = await this.wordCompat.parseImportedFile(file);
       this.docTitle.set(result.title);
-      this.pages.set(result.pages);
+      this.renderDocumentPages(result.pages);
+      this.scheduleDocumentFlow();
       this.importedTocEntries.set(result.extractedTocHeadings || []);
       this.activePageIndex.set(0);
 
@@ -2176,6 +2380,16 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
   handleUpdateLayout(updater: (prev: DocumentLayoutConfig) => DocumentLayoutConfig): void {
     this.layoutConfig.update((prev) => updater(prev));
+    this.cdr?.markForCheck();
+    if (this.documentReady()) {
+      this.scheduleAutoSave(this.collectDocData());
+    }
+  }
+
+  handleSetDarkMode(dark: boolean): void {
+    if (this.themeService && this.themeService.isDark() !== dark) {
+      this.themeService.setDark(dark);
+    }
   }
 
   openLatexModal(): void {
@@ -2191,7 +2405,153 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onRibbonCommand(event: { command: string; value?: string }): void {
-    this.executeCommand(event.command, event.value);
+    const { command, value } = event;
+    if (command === 'undo' || command === 'redo') { this.executeCommand(command); return; }
+    if (command === 'toggleMarks') { this.showFormattingMarks.update(current => !current); return; }
+    if (command === 'find' || command === 'replace') { this.openDocumentSearch(command); return; }
+    if (command === 'headingNumbering') {
+      if (!this.documentReady() || this.isReadMode()) return;
+      this.pushUndoSnapshot(); this.headingNumbering.set(value === 'on');
+      this.finishDocumentMutation();
+      this.showToast(value === 'on' ? 'Títulos H1–H6 vinculados a la numeración 1, 1.1, 1.1.1' : 'Numeración automática de títulos desactivada');
+      return;
+    }
+    const range = this.prepareRibbonSelection();
+    if (!range) { this.showToast('Coloca el cursor o selecciona texto dentro del documento'); return; }
+    if (['selectAllDocument','selectCurrentParagraph','selectPage'].includes(command)) {
+      const selection = window.getSelection()!;
+      if (command === 'selectAllDocument') {
+        const bodies = this.liveBodies();
+        range.setStart(bodies[0], 0); range.setEnd(bodies.at(-1)!, bodies.at(-1)!.childNodes.length);
+      } else range.selectNodeContents(command === 'selectPage' ? this.getActivePageElement()! : currentParagraph(range) || this.getActivePageElement()!);
+      selection.removeAllRanges(); selection.addRange(range); this.rememberRibbonSelection(); return;
+    }
+    if (command === 'subscript' || command === 'superscript') {
+      const sample = selectionElement(range);
+      const target = command === 'subscript' ? 'sub' : 'super';
+      const current = this.pendingTypingStyle?.['verticalAlign'] || scriptPosition(sample);
+      const mode = current === target ? 'baseline' : target;
+      const template = this.styleTemplates().find(item => item.id === this.activeTemplateId()) || this.styleTemplates()[0];
+      const font = selectionStyle(range,template.rules.P);
+      const base = scriptBaseSize(sample,font.fontSizePt);
+      if (range.collapsed) {
+        this.setPendingTypingStyle({ verticalAlign:mode, fontSize:`${mode === 'baseline' ? base : base*.75}pt` });
+        this.updateSelectionFormats();
+      } else {
+        this.pushUndoSnapshot(); markDocumentSelection(this.liveBodies());
+        applyScript(this.liveBodies(),window.getSelection()!.getRangeAt(0),mode,base);
+        this.finishDocumentMutation();
+      }
+      return;
+    }
+    if (command === 'fontSizePt' || command === 'growFont' || command === 'shrinkFont') {
+      const presets = [8,9,10,11,12,14,16,18,20,22,24,26,28,36,48,72];
+      const current = this.pendingTypingStyle?.['fontSize'] ? parseFloat(this.pendingTypingStyle['fontSize'])
+        : selectionStyle(range,(this.styleTemplates().find(item => item.id === this.activeTemplateId()) || this.styleTemplates()[0]).rules.P).fontSizePt;
+      const size = command === 'fontSizePt' ? Number(value) : command === 'growFont'
+        ? presets.find(size => size > current) ?? Math.min(400,current + 2)
+        : [...presets].reverse().find(size => size < current) ?? Math.max(1,current - 1);
+      this.handleApplyFontSizePt(String(size), '7'); return;
+    }
+    const custom = ['changeCase','textEffect','lineHeight','spaceBefore','spaceAfter','paragraphShading','paragraphBorder',
+      'sortParagraphs','listStyle','multilevelList','indent','outdent','justifyLeft','justifyCenter','justifyRight','justifyFull'];
+    if (custom.includes(command)) {
+      this.pushUndoSnapshot();
+      markDocumentSelection(this.liveBodies());
+      const updated = applyHomeCommand(command, value, this.liveBodies(), window.getSelection()!.getRangeAt(0));
+      this.finishDocumentMutation();
+      if (!updated) this.showToast(command === 'sortParagraphs' ? 'Selecciona al menos dos párrafos consecutivos de la misma sección' : 'Selecciona texto o párrafos para aplicar esta función');
+      return;
+    }
+    if (command === 'removeFormat') {
+      this.pushUndoSnapshot();
+      const blocks = selectedParagraphs(this.liveBodies(), range);
+      const base = this.styleTemplates().find(t => t.id === this.activeTemplateId())!.rules.P;
+      markDocumentSelection(this.liveBodies());
+      if (!range.collapsed && range.toString() !== blocks.map(block => block.textContent).join('')) {
+        applyInlineProperties(this.liveBodies(), window.getSelection()!.getRangeAt(0), { ...inlineProperties(base), textShadow: 'none', webkitTextStroke: '0px' });
+      } else blocks.forEach(block => {
+        const normal = block.tagName === 'LI' ? block : replaceParagraphTag(block, 'P');
+        normal.removeAttribute('style'); applyStyleRule(normal, base);
+        normal.querySelectorAll<HTMLElement>('[style]').forEach(run => { run.style.textShadow = 'none'; run.style.webkitTextStroke = '0px'; });
+      });
+      this.finishDocumentMutation(); return;
+    }
+    if (command === 'fontName' && range.collapsed) {
+      this.setPendingTypingStyle({ fontFamily: value || 'Arial' });
+      this.formats.update(formats => ({ ...formats, fontName: (value || 'Arial').replace(/["']/g, '').split(',')[0] }));
+      return;
+    }
+    if (command === 'fontName' && !range.collapsed) {
+      this.pushUndoSnapshot(); markDocumentSelection(this.liveBodies());
+      applyInlineProperties(this.liveBodies(), window.getSelection()!.getRangeAt(0), { fontFamily: value || 'Arial' });
+      this.finishDocumentMutation(); return;
+    }
+    this.executeCommand(command, value);
+  }
+
+  openDocumentSearch(mode: 'find' | 'replace'): void {
+    this.rememberRibbonSelection();
+    const text = window.getSelection()?.toString().trim();
+    if (text && text.length <= 200) this.searchQuery.set(text);
+    this.searchMode.set(mode); this.searchMatchIndex = -1; this.searchStatus.set('');
+  }
+
+  updateSearchConfig(patch: Partial<WordSearchConfig>): void {
+    if (patch.query !== undefined) this.searchQuery.set(patch.query);
+    if (patch.replacement !== undefined) this.replacementText.set(patch.replacement);
+    if (patch.matchCase !== undefined) this.searchCase.set(patch.matchCase);
+    if (patch.wholeWord !== undefined) this.searchWholeWord.set(patch.wholeWord);
+    this.resetDocumentSearch();
+  }
+
+  handleSearchAction(action: WordSearchAction): void {
+    if (action === 'close') { this.searchMode.set(null); this.restoreSelection(); }
+    else if (action === 'next' || action === 'previous') this.findNextMatch(action === 'previous');
+    else this.replaceDocumentMatches(action === 'all');
+  }
+
+  resetDocumentSearch(): void { this.searchMatchIndex = -1; this.searchStatus.set(''); }
+
+  findNextMatch(backwards = false): void {
+    const matches = findDocumentText(this.liveBodies(), this.searchQuery(), this.searchCase(), this.searchWholeWord());
+    if (!matches.length) { this.searchStatus.set(this.searchQuery() ? 'No se encontraron coincidencias' : 'Escribe el texto que quieres buscar'); return; }
+    this.searchMatchIndex = this.searchMatchIndex < 0 ? (backwards ? matches.length - 1 : 0)
+      : (this.searchMatchIndex + (backwards ? -1 : 1) + matches.length) % matches.length;
+    const match = matches[this.searchMatchIndex];
+    this.activePageIndex.set(match.pageIndex);
+    this.getActivePageElement()?.focus();
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(match.range);
+    this.rememberRibbonSelection();
+    match.range.startContainer.parentElement?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    this.searchStatus.set(`${this.searchMatchIndex + 1} de ${matches.length} coincidencias`);
+  }
+
+  replaceDocumentMatches(all = false): void {
+    if (!this.documentReady() || this.isReadMode() || !this.searchQuery()) return;
+    const matches = findDocumentText(this.liveBodies(), this.searchQuery(), this.searchCase(), this.searchWholeWord());
+    if (!matches.length) { this.searchStatus.set('No se encontraron coincidencias'); return; }
+    const selection = window.getSelection();
+    const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : this.savedRange;
+    const index = matches.findIndex(match => selectedRange && match.range.compareBoundaryPoints(Range.START_TO_START, selectedRange) === 0 && match.range.compareBoundaryPoints(Range.END_TO_END, selectedRange) === 0);
+    // Reemplazar primero localiza una coincidencia; nunca modifica texto que el usuario no vio.
+    if (!all && index < 0) { this.findNextMatch(); return; }
+    this.pushUndoSnapshot();
+    const replacements = all ? [...matches].reverse() : [matches[index]];
+    for (const match of replacements) {
+      match.range.deleteContents();
+      const text = document.createTextNode(this.replacementText());
+      match.range.insertNode(text);
+      match.range.selectNodeContents(text);
+    }
+    if (!all) {
+      const range = replacements[0].range;
+      this.activePageIndex.set(replacements[0].pageIndex);
+      selection?.removeAllRanges(); selection?.addRange(range);
+    }
+    this.finishDocumentMutation();
+    this.searchMatchIndex = -1;
+    this.searchStatus.set(`${replacements.length} reemplazos realizados`);
   }
 
   printDoc(): void {
@@ -2281,16 +2641,149 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   onPageInput(e: Event, pageIndex: number): void {
-    const currentPages = this.pages();
-    const preSnapshot = currentPages.map((p, idx) => ({
-      id: p.id,
-      html: idx === pageIndex ? p.html : this.getPageBody(p.id)?.innerHTML ?? p.html,
-    }));
+    const body = e.currentTarget as HTMLDivElement | null;
+    if (body && this.isEmptyEditableBody(body)) this.restoreEmptyEditableParagraph(body);
+    if ((e as InputEvent).inputType === 'insertParagraph') {
+      const anchor = window.getSelection()?.anchorNode;
+      const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+      const block = element?.closest('li') ?? element?.closest('p,h1,h2,h3,h4,h5,h6,blockquote,div');
+      if (block && !block.hasAttribute('data-page-body-id')) block.removeAttribute('data-word-continuation');
+    }
+    if (renumberHeadings(this.liveBodies(),this.headingNumbering())) {
+      this.pages.set(this.getLivePagesSnapshot().map(page => ({ ...page, html: withoutSelectionMarkers(page.html) })));
+      this.scheduleAutoSave(this.collectDocData());
+    }
     this.commitPageDomToState(pageIndex);
-    this.checkAndPaginateOverflow(pageIndex, preSnapshot);
+    this.updateSelectionFormats();
+    if (!(e as InputEvent).isComposing) this.scheduleDocumentFlow();
+  }
+
+  onPageBeforeInput(event: Event, pageIndex: number): void {
+    const e = event as InputEvent;
+    if (e.isComposing) return;
+    if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') {
+      e.preventDefault();
+      if (e.inputType === 'historyUndo') this.handleGlobalUndo();
+      else this.handleGlobalRedo();
+      return;
+    }
+    if ((e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward'
+      || e.inputType === 'deleteByCut') && this.clearEntirelySelectedPage(pageIndex)) {
+      e.preventDefault();
+      return;
+    }
+    if ((e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward')
+      && this.deleteAcrossPageBoundary(pageIndex, e.inputType === 'deleteContentBackward')) {
+      e.preventDefault();
+      return;
+    }
+    if (this.pendingTypingStyle && e.inputType === 'insertText' && e.data !== null && !this.pendingRenderPages) {
+      const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null;
+      const body = this.getPageBody(this.pages()[pageIndex]?.id);
+      if (range && body?.contains(range.startContainer)) {
+        e.preventDefault(); this.pushUndoSnapshot();
+        range.deleteContents();
+        const span = document.createElement('span');
+        Object.assign(span.style, this.pendingTypingStyle);
+        const text = document.createTextNode(e.data); span.appendChild(text); range.insertNode(span);
+        const position = this.pendingTypingStyle['verticalAlign'];
+        if (position === 'sub' || position === 'super' || position === 'baseline') {
+          range.selectNodeContents(text);
+          applyScript(this.liveBodies(),range,position,Number(this.formats().fontSize));
+        }
+        range.setStart(text, text.length); range.collapse(true);
+        window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+        this.pendingTypingStyle = null;
+        this.finishDocumentMutation(); return;
+      }
+    }
+    const now = Date.now();
+    if (e.inputType !== 'insertText' || this.lastInputType !== e.inputType || now - this.lastInputTime > 800) {
+      this.pushUndoSnapshot();
+    }
+    this.lastInputTime = now;
+    this.lastInputType = e.inputType;
+  }
+
+  onPageCompositionStart(): void {
+    this.pushUndoSnapshot();
+    this.composing = true;
+  }
+
+  onPageCompositionEnd(pageIndex: number): void {
+    this.composing = false;
+    this.commitPageDomToState(pageIndex);
+    this.scheduleDocumentFlow();
+  }
+
+  private deleteAcrossPageBoundary(pageIndex: number, backwards: boolean): boolean {
+    const page = this.pages()[pageIndex];
+    const body = page && this.getPageBody(page.id);
+    if (!body || !caretAtBoundary(body, backwards)) return false;
+    const leftIndex = backwards ? pageIndex - 1 : pageIndex;
+    const pages = this.getLivePagesSnapshot();
+    if (leftIndex < 0 || leftIndex + 1 >= pages.length) return false;
+    const left = this.getPageBody(pages[leftIndex].id);
+    const right = this.getPageBody(pages[leftIndex + 1].id);
+    if (!left || !right) return false;
+    this.pushUndoSnapshot();
+    this.lastInputTime = 0;
+    const manual = pages[leftIndex + 1].breakBefore === 'manual';
+    const continued = !!left.lastElementChild && !!right.firstElementChild
+      && this.documentFlow.areContinuations(left.lastElementChild as HTMLElement, right.firstElementChild as HTMLElement);
+    if (manual) {
+      markDocumentSelection(this.liveBodies());
+      delete pages[leftIndex + 1].breakBefore;
+      pages[leftIndex].html = left.innerHTML;
+      pages[leftIndex + 1].html = right.innerHTML;
+    } else {
+      joinBoundaryBlocks(left, right);
+      if (continued) deleteAtContinuation(left, backwards);
+      pages[leftIndex].html = left.innerHTML;
+      pages.splice(leftIndex + 1, 1);
+    }
+    this.renderDocumentPages(pages);
+    this.scheduleDocumentFlow();
+    return true;
   }
 
   onPageKeyDown(e: KeyboardEvent, pageIndex: number): void {
+    if (e.isComposing) return;
+    if ((e.ctrlKey || e.metaKey) && ['f','h'].includes(e.key.toLowerCase())) {
+      e.preventDefault(); this.openDocumentSearch(e.key.toLowerCase() === 'h' ? 'replace' : 'find'); return;
+    }
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Backspace','Delete'].includes(e.key)) this.pendingTypingStyle = null;
+    if ((e.key === 'Backspace' || e.key === 'Delete') && !e.ctrlKey && !e.metaKey && !e.altKey
+      && this.clearEntirelySelectedPage(pageIndex)) {
+      e.preventDefault();
+      return;
+    }
+    if ((e.key === 'Backspace' || e.key === 'Delete') && !e.ctrlKey && !e.metaKey && !e.altKey
+      && this.deleteAcrossPageBoundary(pageIndex, e.key === 'Backspace')) {
+      e.preventDefault();
+      return;
+    }
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) this.lastInputTime = 0;
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      const backwards = e.key === 'ArrowLeft';
+      const body = this.getPageBody(this.pages()[pageIndex]?.id);
+      const adjacent = this.pages()[pageIndex + (backwards ? -1 : 1)];
+      const target = adjacent && this.getPageBody(adjacent.id);
+      if (body && target && caretAtBoundary(body, backwards)) {
+        e.preventDefault();
+        target.focus();
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        range.collapse(!backwards);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      this.handleInsertPageBreak();
+      return;
+    }
     const key = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && key === 'z') {
       if (e.shiftKey) {
@@ -2316,7 +2809,45 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       e.preventDefault();
       this.handleInsertTabCharacter();
     }
-    void pageIndex;
+  }
+
+  /** Keep contentEditable's empty state as a real paragraph after Ctrl+A + Delete. */
+  private clearEntirelySelectedPage(pageIndex: number): boolean {
+    const selection = window.getSelection();
+    const page = this.pages()[pageIndex];
+    const body = page && this.getPageBody(page.id);
+    if (!selection?.rangeCount || selection.isCollapsed || !body) return false;
+    const selectedRange = selection.getRangeAt(0);
+    if (!body.contains(selectedRange.startContainer) || !body.contains(selectedRange.endContainer)) return false;
+
+    const bodyRange = document.createRange();
+    bodyRange.selectNodeContents(body);
+    // Compare the body boundary points against the selection's boundaries.
+    const coversBody = selectedRange.compareBoundaryPoints(Range.START_TO_START, bodyRange) <= 0
+      && selectedRange.compareBoundaryPoints(Range.END_TO_END, bodyRange) >= 0;
+    if (!coversBody) return false;
+
+    this.pushUndoSnapshot();
+    this.restoreEmptyEditableParagraph(body);
+    const paragraph = body.firstElementChild!;
+    const caret = document.createRange();
+    caret.setStart(paragraph, 0);
+    caret.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caret);
+    this.finishDocumentMutation();
+    return true;
+  }
+
+  private isEmptyEditableBody(body: HTMLElement): boolean {
+    if (body.querySelector('img,table,svg,video,iframe,hr,[contenteditable="false"]')) return false;
+    return !body.textContent;
+  }
+
+  private restoreEmptyEditableParagraph(body: HTMLElement): void {
+    if (body.childElementCount === 1 && body.firstElementChild?.matches('p')
+      && body.firstElementChild.innerHTML.toLowerCase() === '<br>') return;
+    body.replaceChildren(Object.assign(document.createElement('p'), { innerHTML: '<br>' }));
   }
 
   activeTableToolsVisible(): boolean {

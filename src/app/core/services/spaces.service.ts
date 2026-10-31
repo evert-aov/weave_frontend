@@ -89,7 +89,18 @@ export class SpacesService {
   deleteSpace(id: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/${id}`).pipe(
       tap(() => {
-        this.spacesList.update((prev) => prev.filter((s) => s._id !== id));
+        const removed = new Set([id]);
+        const spaces = this.spacesList();
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (const space of spaces) {
+            if (space.parentId && removed.has(space.parentId.toString()) && !removed.has(space._id)) {
+              removed.add(space._id); changed = true;
+            }
+          }
+        }
+        this.spacesList.update((prev) => prev.filter((space) => !removed.has(space._id)));
       }),
     );
   }

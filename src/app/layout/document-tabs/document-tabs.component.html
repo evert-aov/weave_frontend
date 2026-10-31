@@ -1,4 +1,4 @@
-<div class="tabs-bar-root" (click)="showTypeMenu.set(false)">
+<div class="tabs-bar-root">
   <!-- Flechas de navegación previa / siguiente pestaña -->
   <div class="tabs-nav-actions">
     <button
@@ -51,88 +51,145 @@
       </div>
     }
 
-    <!-- Botón para abrir una nueva pestaña (+) con menú selector de tipo -->
+    <!-- Botón para abrir una nueva pestaña (+) con el modal compartido -->
     <div class="add-tab-wrapper">
       <button
         type="button"
         class="tab-add-btn"
-        (click)="toggleTypeMenu($event)"
+        (click)="createNewDocument($event)"
         [title]="i18n.t('doc_type.create_title')"
       >
         <app-icon name="plus" [size]="12"></app-icon>
       </button>
+    </div>
+  </div>
 
-      @if (showTypeMenu()) {
-        <div class="new-tab-menu" (click)="$event.stopPropagation()">
-          <div class="menu-header">
-            <span>{{ i18n.t('doc_type.create_title') }}</span>
-          </div>
+  <!-- Grupo de Acciones / Recuadros: Save, IA, Export, Settings, Delete -->
+  <div class="header-action-boxes">
+    <!-- 1. Save (al inicio antes de la IA) -->
+    <button
+      type="button"
+      class="action-box save-box"
+      (click)="saveCurrentNote()"
+      [title]="i18n.currentLang() === 'es' ? 'Guardar documento (Ctrl+S)' : 'Save document (Ctrl+S)'"
+      [attr.aria-label]="i18n.currentLang() === 'es' ? 'Guardar documento' : 'Save document'"
+    >
+      <app-icon name="save" [size]="13"></app-icon>
+      <span class="box-label">Save</span>
+      <span
+        class="save-dot"
+        [ngClass]="notesService.saveStatus()"
+        [title]="notesService.saveStatus() === 'saved' ? (i18n.currentLang() === 'es' ? 'Guardado' : 'Saved') : (notesService.saveStatus() === 'saving' ? (i18n.currentLang() === 'es' ? 'Guardando…' : 'Saving…') : (i18n.currentLang() === 'es' ? 'Sin guardar' : 'Unsaved'))"
+      ></span>
+    </button>
 
-          <!-- Paso 1: Nombre del documento -->
-          <div class="menu-name-field">
-            <input
-              id="new-tab-title-input"
-              type="text"
-              class="menu-name-input"
-              [ngModel]="newTabTitle()"
-              (ngModelChange)="newTabTitle.set($event)"
-              (keydown.enter)="$event.preventDefault()"
-              [placeholder]="i18n.currentLang() === 'es' ? 'Nombre del documento...' : 'Document name...'"
-              autofocus
-            />
-          </div>
+    <!-- 2. IA -->
+    <button
+      type="button"
+      class="action-box ai-box"
+      [class.active]="aiService.isSidebarOpen()"
+      (click)="toggleAi()"
+      [title]="aiService.isSidebarOpen() ? i18n.t('ai.close') : i18n.t('ai.open')"
+      [attr.aria-label]="aiService.isSidebarOpen() ? i18n.t('ai.close') : i18n.t('ai.open')"
+    >
+      <app-icon name="sparkles" [size]="13"></app-icon>
+      <span class="box-label">IA</span>
+    </button>
 
-          <button type="button" class="type-menu-item" (click)="createNewTabOfType('block')">
-            <span class="item-icon block">
-              <app-icon name="file-text" [size]="13"></app-icon>
-            </span>
-            <div class="item-text">
-              <strong>{{ i18n.t('doc_type.block_title') }}</strong>
-              <small>{{ i18n.t('doc_type.block_desc') }}</small>
-            </div>
+    <!-- 3. Export -->
+    <button
+      type="button"
+      class="action-box export-box"
+      (click)="openExport()"
+      [disabled]="!notesService.currentNote()"
+      [title]="i18n.currentLang() === 'es' ? 'Exportar documento (PDF, Markdown, HTML)' : 'Export document (PDF, Markdown, HTML)'"
+      [attr.aria-label]="i18n.currentLang() === 'es' ? 'Exportar documento' : 'Export document'"
+    >
+      <app-icon name="download" [size]="13"></app-icon>
+      <span class="box-label">Export</span>
+    </button>
+
+    <!-- 4. Settings -->
+    <div class="header-settings-container">
+      <button
+        type="button"
+        class="action-box settings-box"
+        [class.active]="showSettingsMenu()"
+        (click)="toggleSettings()"
+        [title]="i18n.currentLang() === 'es' ? 'Ajustes y configuración' : 'Settings and options'"
+        [attr.aria-label]="i18n.currentLang() === 'es' ? 'Ajustes y configuración' : 'Settings and options'"
+        [attr.aria-expanded]="showSettingsMenu()"
+      >
+        <app-icon name="sliders" [size]="13"></app-icon>
+        <span class="box-label">Settings</span>
+      </button>
+
+      <!-- Menú flotante de Settings -->
+      @if (showSettingsMenu()) {
+        <div class="settings-dropdown-menu">
+          <!-- Conmutador de Tema Claro / Oscuro -->
+          <button type="button" class="settings-item" (click)="themeService.toggleTheme()">
+            <app-icon [name]="themeService.isDark() ? 'sun' : 'moon'" [size]="14"></app-icon>
+            <span>{{ themeService.isDark() ? (i18n.currentLang() === 'es' ? 'Modo Claro' : 'Light Mode') : (i18n.currentLang() === 'es' ? 'Modo Oscuro' : 'Dark Mode') }}</span>
           </button>
 
-          <button type="button" class="type-menu-item" (click)="createNewTabOfType('sheet')">
-            <span class="item-icon sheet">
-              <app-icon name="sheet" [size]="13"></app-icon>
-            </span>
-            <div class="item-text">
-              <strong>{{ i18n.t('doc_type.sheet_title') }}</strong>
-              <small>{{ i18n.t('doc_type.sheet_desc') }}</small>
-            </div>
+          <!-- Conmutador de Idioma ES / EN -->
+          <button type="button" class="settings-item" (click)="i18n.toggleLanguage()">
+            <span class="settings-lang-badge">{{ i18n.currentLang().toUpperCase() }}</span>
+            <span>{{ i18n.currentLang() === 'es' ? 'Cambiar a English' : 'Switch to Español' }}</span>
           </button>
 
-          <button type="button" class="type-menu-item" (click)="createNewTabOfType('doc')">
-            <span class="item-icon doc">
-              <app-icon name="file-text" [size]="13"></app-icon>
-            </span>
-            <div class="item-text">
-              <strong>{{ i18n.t('doc_type.doc_title') }}</strong>
-              <small>{{ i18n.t('doc_type.doc_desc') }}</small>
-            </div>
+          <div class="settings-divider"></div>
+
+          <!-- Copiar enlace al documento -->
+          <button type="button" class="settings-item" (click)="copyDocumentLink()">
+            <app-icon name="share" [size]="14"></app-icon>
+            <span>{{ isCopiedLink() ? (i18n.currentLang() === 'es' ? '¡Enlace copiado!' : 'Link copied!') : (i18n.currentLang() === 'es' ? 'Copiar enlace' : 'Copy link') }}</span>
           </button>
 
-          <button type="button" class="type-menu-item" (click)="createNewTabOfType('canvas')">
-            <span class="item-icon canvas">
-              <app-icon name="canvas" [size]="13"></app-icon>
-            </span>
-            <div class="item-text">
-              <strong>{{ i18n.t('doc_type.canvas_title') }}</strong>
-              <small>{{ i18n.t('doc_type.canvas_desc') }}</small>
-            </div>
+          <!-- Pantalla completa -->
+          <button type="button" class="settings-item" (click)="toggleFullscreen()">
+            <app-icon [name]="isFullscreen() ? 'minimize' : 'maximize'" [size]="14"></app-icon>
+            <span>{{ isFullscreen() ? (i18n.currentLang() === 'es' ? 'Salir de pantalla completa' : 'Exit fullscreen') : (i18n.currentLang() === 'es' ? 'Pantalla completa' : 'Fullscreen') }}</span>
           </button>
 
-          <button type="button" class="type-menu-item" (click)="createNewTabOfType('slide')">
-            <span class="item-icon slide">
-              <app-icon name="presentation" [size]="13"></app-icon>
-            </span>
-            <div class="item-text">
-              <strong>{{ i18n.t('doc_type.slide_title') }}</strong>
-              <small>{{ i18n.t('doc_type.slide_desc') }}</small>
-            </div>
-          </button>
+          <!-- Modo lectura/edición para bloques y lienzo -->
+          @if (showReadingToggle()) {
+            <div class="settings-divider"></div>
+            <button type="button" class="settings-item" (click)="notesService.toggleReadingMode()">
+              <app-icon [name]="notesService.isReadingMode() ? 'pen' : 'book'" [size]="14"></app-icon>
+              <span>{{ notesService.isReadingMode() ? (i18n.currentLang() === 'es' ? 'Modo Edición' : 'Edit mode') : (i18n.currentLang() === 'es' ? 'Modo Lectura' : 'Reading mode') }}</span>
+            </button>
+          }
         </div>
       }
     </div>
+
+    <!-- 5. Delete -->
+    <button
+      type="button"
+      class="action-box delete-box"
+      (click)="deleteCurrentNote()"
+      [disabled]="!notesService.currentNote()"
+      [title]="i18n.currentLang() === 'es' ? 'Eliminar documento actual' : 'Delete current document'"
+      [attr.aria-label]="i18n.currentLang() === 'es' ? 'Eliminar documento' : 'Delete document'"
+    >
+      <app-icon name="trash" [size]="13"></app-icon>
+      <span class="box-label">Delete</span>
+    </button>
   </div>
 </div>
+
+<!-- Modal de exportación de documentos -->
+@if (showExportModal() && notesService.currentNote(); as current) {
+  @defer (on immediate) {
+    <app-export-modal
+      [note]="current"
+      (close)="showExportModal.set(false)"
+    ></app-export-modal>
+  } @loading (after 100ms) {
+    <app-lazy-load-state></app-lazy-load-state>
+  } @error {
+    <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+  }
+}

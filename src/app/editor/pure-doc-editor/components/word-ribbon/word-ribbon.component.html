@@ -1,1351 +1,456 @@
 <div
   #toolbarRef
-  class="bg-slate-100/95 border-b border-slate-200 px-4 pt-2 pb-2.5 select-none sticky top-0 z-30 backdrop-blur-sm shrink-0 no-print"
+  (mousedown)="captureSelection.emit()"
+  (focusin)="captureSelection.emit()"
+  class="border-b px-4 pt-2 pb-2.5 select-none sticky top-0 z-40 shrink-0 no-print overflow-visible transition-colors"
+  [ngClass]="darkMode ? 'bg-[#18181b]/95 border-[#27272a] text-[#f4f4f5]' : 'bg-slate-100/95 border-slate-200 text-slate-800'"
 >
   <!-- Clean Top Navigation Row (Uncluttered!) -->
-  <div class="flex items-center justify-between mb-2 px-2 flex-wrap gap-2">
+  <div class="flex items-center justify-between mb-2 px-2 flex-wrap gap-2" (dblclick)="onTabsHeaderDblClick($event)">
     <div class="flex items-center gap-6 flex-wrap">
       @for (tab of tabs; track tab.id) {
         <button
           type="button"
           (click)="selectTab(tab.id)"
+          (dblclick)="toggleCollapse($event)"
           class="relative pb-1.5 text-sm font-medium transition-colors"
-          [ngClass]="activeTab === tab.id ? 'text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-800'"
+          [ngClass]="activeTab === tab.id ? (darkMode ? 'text-white font-semibold' : 'text-slate-900 font-semibold') : (darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800')"
         >
-          {{ tab.label }}
+          {{ t(tab.labelKey) }}
           @if (activeTab === tab.id) {
-            <span class="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-full"></span>
+            <span class="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-500 rounded-full"></span>
           }
         </button>
       }
     </div>
 
-    <!-- Minimal Right Actions: only Navigation Pane toggle and AI Assistant -->
+    <!-- Minimal Right Actions: Quick Dark Mode toggle, Navigation Pane toggle & Ribbon Collapse Toggle -->
     <div class="flex items-center gap-2">
       <button
         type="button"
-        (click)="toggleNavPanel()"
-        [ngClass]="showTocSidebar ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
-        class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors"
-        title="Mostrar u ocultar Panel de Navegación (Índice y Tablas)"
+        (click)="toggleDarkMode()"
+        [ngClass]="darkMode ? 'bg-[#27272a] text-amber-400 border-[#3f3f46] hover:bg-[#323238]' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'"
+        class="quick-dark-btn flex items-center justify-center w-7 h-7 rounded-lg text-xs font-medium border transition-colors"
+        [title]="darkMode ? t('word.view.light_mode') : t('word.view.dark_mode')"
+        [attr.aria-label]="darkMode ? t('word.view.light_mode') : t('word.view.dark_mode')"
       >
-        <svg lucideIcon="list-tree" [size]="14" class="w-3.5 h-3.5"></svg>
-        <span>Índice</span>
+        <svg [lucideIcon]="darkMode ? 'sun' : 'moon'" [size]="14" class="w-3.5 h-3.5"></svg>
       </button>
 
       <button
         type="button"
-        (click)="openAiModal.emit()"
-        class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:opacity-95 shadow-sm transition-opacity"
+        (click)="toggleNavPanel()"
+        [ngClass]="darkMode ? (showTocSidebar ? 'bg-blue-950/60 text-blue-400 border-blue-800' : 'bg-[#27272a] text-slate-300 border-[#3f3f46] hover:bg-[#323238]') : (showTocSidebar ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50')"
+        class="nav-panel-btn flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors"
+        [title]="t('word.ribbon.index_title')"
       >
-        <svg lucideIcon="sparkles" [size]="14" class="w-3.5 h-3.5"></svg>
-        <span class="hidden sm:inline">Asistente IA</span>
+        <svg lucideIcon="list-tree" [size]="14" class="w-3.5 h-3.5"></svg>
+        <span>{{ t('word.ribbon.index') }}</span>
+      </button>
+
+      <button
+        type="button"
+        (click)="toggleCollapse()"
+        [ngClass]="darkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-[#27272a] border-[#3f3f46]' : 'text-slate-500 hover:text-slate-800 hover:bg-white border-slate-200'"
+        class="collapse-toggle-btn flex items-center justify-center w-7 h-7 rounded-lg border transition-colors"
+        [title]="isCollapsed() ? t('word.ribbon.expand') : t('word.ribbon.collapse')"
+        [attr.aria-label]="isCollapsed() ? t('word.ribbon.expand') : t('word.ribbon.collapse')"
+      >
+        <svg [lucideIcon]="isCollapsed() ? 'chevron-down' : 'chevron-up'" [size]="14" class="w-3.5 h-3.5"></svg>
       </button>
     </div>
   </div>
 
-  <!-- Rounded White Ribbon Pill Container -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200/90 px-3 py-2 flex items-center flex-wrap gap-1 min-h-[52px]">
+  @if (!isCollapsed()) {
+  <!-- Rounded Ribbon Pill Container -->
+  <div
+    class="ribbon-pill-container rounded-xl shadow-sm border px-3 py-1.5 flex items-center flex-nowrap gap-1 min-h-[82px] h-[82px] overflow-visible relative z-40 transition-colors"
+    [ngClass]="darkMode ? 'bg-[#202024]/95 border-[#323238] text-[#f4f4f5] shadow-md dark-mode' : 'bg-white border-slate-200/90 text-slate-800'"
+    (dblclick)="onPillDblClick($event)"
+  >
     <!-- ==================== HOME TAB ==================== -->
     @if (activeTab === 'home') {
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('undo')"
-        class="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-        title="Deshacer (Ctrl+Z)"
-      >
-        <svg lucideIcon="undo-2" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('redo')"
-        class="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-        title="Rehacer (Ctrl+Y)"
-      >
-        <svg lucideIcon="redo-2" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('removeFormat')"
-        class="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-        title="Borrar formato"
-      >
-        <svg lucideIcon="eraser" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="copyFormat.emit()"
-        [ngClass]="formatPainterActive ? 'bg-blue-100 text-blue-600' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Copiar formato"
-      >
-        <svg lucideIcon="paintbrush" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <!-- Heading H1..H6 Dropdown -->
-      <div class="relative">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('heading')"
-          [ngClass]="formats.heading !== 'P' ? 'bg-slate-100 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-          class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-          title="Nivel de Encabezado (H1 - H6) con estilo de plantilla activo"
-        >
-          <span>{{ formats.heading === 'P' ? 'H' : formats.heading }}</span>
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-        </button>
-
-        @if (openDropdown() === 'heading') {
-          <div
-            (mousedown)="keepSelection($event)"
-            class="absolute top-full left-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50"
-          >
-            <button
-              type="button"
-              (click)="selectParagraph()"
-              [ngClass]="formats.heading === 'P' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-700'"
-              class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 flex items-center justify-between"
-            >
-              <span>Texto normal (Párrafo)</span>
-              <span class="text-[10px] font-mono text-slate-400">
-                {{ activeStyleTemplate.rules.P.fontFamily }} {{ activeStyleTemplate.rules.P.fontSizePt }}pt
-              </span>
-            </button>
-            <div class="my-1 border-t border-slate-100"></div>
-            @for (tag of headingTags; track tag) {
-              @let rule = activeStyleTemplate.rules[tag];
-              <button
-                type="button"
-                (click)="selectHeadingRule(rule)"
-                [ngClass]="formats.heading === tag ? 'bg-blue-50 text-blue-600' : ''"
-                class="w-full text-left px-3 py-1.5 hover:bg-slate-100 flex items-center justify-between"
-              >
-                <div>
-                  <div class="text-xs font-semibold text-slate-800">{{ rule.label }}</div>
-                  <div class="text-[10px] text-slate-400">
-                    {{ rule.fontFamily }} · {{ rule.fontSizePt }}pt · {{ rule.align }}
-                  </div>
-                </div>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                  {{ tag }}
-                </span>
-              </button>
-            }
-            <div class="mt-1 pt-1 border-t border-slate-100 px-2">
-              <button
-                type="button"
-                (click)="openStyleDesigner()"
-                class="w-full text-center py-1 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 rounded"
-              >
-                Personalizar estilos H1–H6...
-              </button>
-            </div>
-          </div>
-        }
-      </div>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <!-- Font Family Selector -->
-      <div class="relative">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('fontFamily')"
-          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-slate-100 transition-colors"
-          title="Familia tipográfica"
-        >
-          <span class="max-w-[105px] truncate">{{ formats.fontName || 'Font Family' }}</span>
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-        </button>
-
-        @if (openDropdown() === 'fontFamily') {
-          <div
-            (mousedown)="keepSelection($event)"
-            class="absolute top-full left-0 mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50"
-          >
-            @for (font of fontFamilies; track font.label) {
-              <button
-                type="button"
-                (click)="selectFontFamily(font.value)"
-                [style.fontFamily]="font.value"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
-              >
-                {{ font.label }}
-              </button>
-            }
-          </div>
-        }
-      </div>
-
-      <!-- Font Size Selector -->
-      <div class="relative">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('fontSize')"
-          class="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg border border-slate-200 text-xs text-slate-700 hover:border-slate-300 min-w-[54px]"
-          title="Tamaño de fuente en puntos (pt)"
-        >
-          <span>{{ formats.fontSize || '11' }}</span>
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-        </button>
-
-        @if (openDropdown() === 'fontSize') {
-          <div
-            (mousedown)="keepSelection($event)"
-            class="absolute top-full left-0 mt-1.5 w-24 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50"
-          >
-            @for (s of fontSizes; track s.label) {
-              <button
-                type="button"
-                (click)="selectFontSize(s.pt, s.cmd)"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 flex items-center justify-between"
-              >
-                <span>{{ s.label }}</span>
-                <span class="text-[10px] text-slate-400">pt</span>
-              </button>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <!-- Bold, Italic, Underline, Strikethrough -->
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('bold')"
-        [ngClass]="formats.bold ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Negrita (Ctrl+B)"
-      >
-        <svg lucideIcon="bold" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('italic')"
-        [ngClass]="formats.italic ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Cursiva (Ctrl+I)"
-      >
-        <svg lucideIcon="italic" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('underline')"
-        [ngClass]="formats.underline ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Subrayado (Ctrl+U)"
-      >
-        <svg lucideIcon="underline" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('strikeThrough')"
-        [ngClass]="formats.strikeThrough ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Tachado"
-      >
-        <svg lucideIcon="strikethrough" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <!-- Text Color & Highlight Color -->
-      <div class="relative">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('foreColor')"
-          class="flex items-center gap-0.5 p-1.5 rounded-lg text-slate-700 hover:bg-slate-100"
-          title="Color de texto"
-        >
-          <span class="font-serif font-bold text-sm leading-none border-b-2 border-blue-600 px-0.5">
-            A
-          </span>
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-        </button>
-        @if (openDropdown() === 'foreColor') {
-          <div
-            (mousedown)="keepSelection($event)"
-            class="absolute top-full left-0 mt-1.5 p-2.5 bg-white rounded-xl shadow-xl border border-slate-200 z-50 w-40"
-          >
-            <div class="text-[11px] font-medium text-slate-500 mb-1.5">Color de fuente</div>
-            <div class="grid grid-cols-4 gap-1.5">
-              @for (color of textColors; track color) {
-                <button
-                  type="button"
-                  (click)="applyForeColor(color)"
-                  [style.backgroundColor]="color"
-                  class="w-6 h-6 rounded-md border border-slate-200 hover:scale-110 transition-transform"
-                  [title]="color"
-                ></button>
-              }
-            </div>
-          </div>
-        }
-      </div>
-
-      <div class="relative">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('hiliteColor')"
-          class="flex items-center gap-0.5 p-1.5 rounded-lg text-slate-700 hover:bg-slate-100"
-          title="Color de resaltado"
-        >
-          <svg lucideIcon="paint-bucket" [size]="16" class="w-4 h-4"></svg>
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-        </button>
-        @if (openDropdown() === 'hiliteColor') {
-          <div
-            (mousedown)="keepSelection($event)"
-            class="absolute top-full left-0 mt-1.5 p-2.5 bg-white rounded-xl shadow-xl border border-slate-200 z-50 w-40"
-          >
-            <div class="text-[11px] font-medium text-slate-500 mb-1.5">Resaltado</div>
-            <div class="grid grid-cols-4 gap-1.5">
-              @for (color of highlightColors; track color) {
-                <button
-                  type="button"
-                  (click)="applyHiliteColor(color)"
-                  [style.backgroundColor]="color === 'transparent' ? '#ffffff' : color"
-                  class="w-6 h-6 rounded-md border border-slate-300 hover:scale-110 transition-transform flex items-center justify-center text-[10px] text-slate-400"
-                  [title]="color === 'transparent' ? 'Sin color' : color"
-                >
-                  {{ color === 'transparent' ? '×' : '' }}
-                </button>
-              }
-            </div>
-          </div>
-        }
-      </div>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <!-- Alignment -->
-      <div class="relative flex items-center gap-0.5">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="execCommand('justifyLeft')"
-          [ngClass]="formats.justifyLeft ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-          class="p-1.5 rounded-lg transition-colors"
-          title="Alinear a la izquierda"
-        >
-          <svg lucideIcon="align-left" [size]="16" class="w-4 h-4"></svg>
-        </button>
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="execCommand('justifyCenter')"
-          [ngClass]="formats.justifyCenter ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-          class="p-1.5 rounded-lg transition-colors"
-          title="Centrar"
-        >
-          <svg lucideIcon="align-center" [size]="16" class="w-4 h-4"></svg>
-        </button>
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="execCommand('justifyRight')"
-          [ngClass]="formats.justifyRight ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-          class="p-1.5 rounded-lg transition-colors"
-          title="Alinear a la derecha"
-        >
-          <svg lucideIcon="align-right" [size]="16" class="w-4 h-4"></svg>
-        </button>
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="execCommand('justifyFull')"
-          [ngClass]="formats.justifyFull ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-          class="p-1.5 rounded-lg transition-colors"
-          title="Justificar texto"
-        >
-          <svg lucideIcon="align-justify" [size]="16" class="w-4 h-4"></svg>
-        </button>
-      </div>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <!-- Lists -->
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('insertUnorderedList')"
-        [ngClass]="formats.insertUnorderedList ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Lista con viñetas"
-      >
-        <svg lucideIcon="list" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('insertOrderedList')"
-        [ngClass]="formats.insertOrderedList ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Lista numerada"
-      >
-        <svg lucideIcon="list-ordered" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertChecklist.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar lista de tareas"
-      >
-        <svg lucideIcon="list-checks" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertTabCharacter.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar Tabulación (Tab)"
-      >
-        <svg lucideIcon="arrow-right-to-line" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('indent')"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Aumentar sangría"
-      >
-        <svg lucideIcon="indent-increase" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('outdent')"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Disminuir sangría"
-      >
-        <svg lucideIcon="indent-decrease" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <div class="relative">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('lineHeight')"
-          class="flex items-center gap-0.5 p-1.5 rounded-lg text-slate-700 hover:bg-slate-100"
-          title="Interlineado"
-        >
-          <svg lucideIcon="arrow-up-down" [size]="16" class="w-4 h-4"></svg>
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-        </button>
-        @if (openDropdown() === 'lineHeight') {
-          <div
-            (mousedown)="keepSelection($event)"
-            class="absolute top-full left-0 mt-1.5 w-36 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50"
-          >
-            @for (lh of lineHeights; track lh) {
-              <button
-                type="button"
-                (click)="selectLineHeight(lh)"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100 flex items-center justify-between"
-              >
-                <span>Interlineado {{ lh }}</span>
-                @if (formats.lineHeight === lh) {
-                  <span class="text-blue-600 font-bold">✓</span>
-                }
-              </button>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertLineBreak()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Salto de línea"
-      >
-        <svg lucideIcon="corner-down-left" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertInlineCode()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Código en línea (<>)"
-      >
-        <svg lucideIcon="code" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('subscript')"
-        [ngClass]="formats.subscript ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Subíndice (X₂)"
-      >
-        <svg lucideIcon="subscript" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="execCommand('superscript')"
-        [ngClass]="formats.superscript ? 'bg-slate-200/80 text-blue-600' : 'text-slate-700 hover:bg-slate-100'"
-        class="p-1.5 rounded-lg transition-colors"
-        title="Superíndice (X²)"
-      >
-        <svg lucideIcon="superscript" [size]="16" class="w-4 h-4"></svg>
-      </button>
+      <app-word-home-toolbar
+        [darkMode]="darkMode"
+        [formats]="formats" [template]="activeStyleTemplate"
+        [formatPainterActive]="formatPainterActive" [showFormattingMarks]="showFormattingMarks" [headingNumbering]="headingNumbering"
+        (command)="command.emit($event)" (applyRule)="applyRuleToSelection.emit($event)"
+        (updateStyle)="updateStyleFromSelection.emit($event)"
+        (openDesigner)="openStyleDesigner()" (copyFormat)="copyFormat.emit()"
+      />
     }
 
-    <!-- ==================== DESIGN / PLANTILLAS DE ESTILOS TAB ==================== -->
+    <!-- ==================== DESIGN TAB ==================== -->
     @if (activeTab === 'styles') {
-      <div class="flex items-center gap-2 flex-wrap w-full justify-between">
-        <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-semibold text-slate-500 mr-1">
-            Plantillas Rápidas:
-          </span>
-          @for (tpl of styleTemplates; track tpl.id) {
-            <button
-              type="button"
-              (mousedown)="keepSelection($event)"
-              (click)="selectStyleTemplate(tpl)"
-              [ngClass]="tpl.id === activeTemplateId ? 'bg-blue-600 text-white border-blue-600 font-semibold shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'"
-              class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs transition-all"
-              [title]="tpl.description"
-            >
-              <svg lucideIcon="palette" [size]="14" class="w-3.5 h-3.5"></svg>
-              <span>{{ tpl.name }}</span>
-            </button>
-          }
-
-          <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-          @for (tag of quickRuleTags; track tag) {
-            @let r = activeStyleTemplate.rules[tag];
-            <button
-              type="button"
-              (mousedown)="keepSelection($event)"
-              (click)="applyRuleToSelection.emit(r)"
-              class="px-2.5 py-1 rounded-md bg-white border border-slate-200 hover:border-blue-400 text-[11px] text-slate-700 flex items-center gap-1"
-              [title]="'Aplicar ' + r.label + ': ' + r.fontFamily + ' ' + r.fontSizePt + 'pt (' + r.align + ')'"
-            >
-              <strong class="text-blue-600">{{ tag }}</strong>
-              <span class="text-slate-400 font-mono">
-                {{ r.fontFamily.split(' ')[0] }} {{ r.fontSizePt }}pt
-              </span>
-            </button>
-          }
-        </div>
-
-        <button
-          type="button"
-          (click)="openStyleModal.emit()"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors"
-        >
-          <svg lucideIcon="sliders" [size]="14" class="w-3.5 h-3.5"></svg>
-          <span>Crear / Editar Plantilla de Estilos</span>
-        </button>
-      </div>
+      <app-word-design-toolbar
+        [darkMode]="darkMode"
+        [styleTemplates]="styleTemplates"
+        [activeTemplateId]="activeTemplateId"
+        [layoutConfig]="layoutConfig"
+        (applyTemplate)="selectStyleTemplate($event)"
+        (openDesigner)="openStyleModal.emit()"
+        (updateLayout)="updateLayout.emit($event)"
+        (applyParagraphSpacing)="applyParagraphSpacing($event)"
+        (applyFontPairing)="applyFontPairing($event)"
+      />
     }
 
     <!-- ==================== INSERT TAB ==================== -->
     @if (activeTab === 'insert') {
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertToc.emit()"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar Índice de Contenido con numeración de páginas"
-      >
-        <svg lucideIcon="list-tree" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-        <span>Índice</span>
-      </button>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertPageBreak.emit()"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Dividir en el cursor y enviar el resto a una página nueva"
-      >
-        <svg lucideIcon="scissors" [size]="16" class="w-4 h-4 text-indigo-600"></svg>
-        <span>Salto de Página</span>
-      </button>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="addNewPage.emit()"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Añadir una hoja nueva en blanco"
-      >
-        <svg lucideIcon="file-plus-2" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-        <span>Nueva Hoja</span>
-      </button>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="focusHeaderArea.emit()"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Editar el encabezado y pie de página del documento"
-      >
-        <svg lucideIcon="panel-top" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-        <span>Encabezado / Pie</span>
-      </button>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertImage.emit()"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar imagen"
-      >
-        <svg lucideIcon="image" [size]="16" class="w-4 h-4"></svg>
-        <span class="hidden sm:inline">Imagen</span>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertAudioPlaceholder.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar nota de audio"
-      >
-        <svg lucideIcon="music" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertVideoPlaceholder.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar bloque de video"
-      >
-        <svg lucideIcon="video" [size]="16" class="w-4 h-4"></svg>
-      </button>
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertCalloutBox.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar cuadro de texto destacado"
-      >
-        <svg lucideIcon="file-text" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <div class="relative">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('tablePicker')"
-          class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-          title="Insertar Tabla"
-        >
-          <svg lucideIcon="table" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-          <span>Tabla</span>
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-        </button>
-        @if (openDropdown() === 'tablePicker') {
-          <app-word-table-picker
-            (selectTable)="selectTableSize($event.rows, $event.cols)"
-            (close)="closeTablePicker()"
-          ></app-word-table-picker>
-        }
-      </div>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertChartTable.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar tabla comparativa de métricas"
-      >
-        <svg lucideIcon="bar-chart-3" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <!-- LaTeX Formula Button -->
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="openLatexModal.emit()"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors"
-        title="Insertar Fórmula Matemática / Científica en LaTeX"
-      >
-        <span class="font-mono text-[11px] font-bold">[Σ]</span>
-        <span>Fórmula LaTeX</span>
-      </button>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertLink.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar hipervínculo"
-      >
-        <svg lucideIcon="link" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertBlockquote.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar cita (Blockquote)"
-      >
-        <svg lucideIcon="quote" [size]="16" class="w-4 h-4"></svg>
-      </button>
-
-      <div class="relative flex items-center">
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="insertCodeBlock.emit(selectedCodeLang())"
-          class="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-l-lg text-xs text-slate-700 hover:bg-slate-100 transition-colors"
-          title="Insertar bloque de código"
-        >
-          <svg lucideIcon="code" [size]="14" class="w-3.5 h-3.5 text-slate-500"></svg>
-          <span>{{ selectedCodeLang() }}</span>
-        </button>
-        <button
-          type="button"
-          (mousedown)="keepSelection($event)"
-          (click)="toggleDropdown('codeLang')"
-          class="px-1 py-1.5 rounded-r-lg text-slate-500 hover:bg-slate-100"
-          title="Cambiar lenguaje"
-        >
-          <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3"></svg>
-        </button>
-
-        @if (openDropdown() === 'codeLang') {
-          <div
-            (mousedown)="keepSelection($event)"
-            class="absolute top-full left-0 mt-1.5 w-36 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50"
-          >
-            @for (lang of codeLanguages; track lang) {
-              <button
-                type="button"
-                (click)="selectCodeLanguage(lang)"
-                class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
-              >
-                {{ lang }}
-              </button>
-            }
-          </div>
-        }
-      </div>
-
-      <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-      <button
-        type="button"
-        (mousedown)="keepSelection($event)"
-        (click)="insertHorizontalRule.emit()"
-        class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
-        title="Insertar línea divisoria horizontal"
-      >
-        <svg lucideIcon="minus" [size]="16" class="w-4 h-4"></svg>
-      </button>
+      <app-word-insert-toolbar
+        [darkMode]="darkMode"
+        (captureSelection)="captureSelection.emit()"
+        (addNewPage)="addNewPage.emit()"
+        (insertPageBreak)="insertPageBreak.emit()"
+        (insertTable)="insertTable.emit($event)"
+        (insertImage)="insertImage.emit()"
+        (insertShapeHtml)="insertShapeHtml.emit($event)"
+        (openIconsModal)="openIconsModal.emit()"
+        (insert3dModel)="insert3dModel.emit()"
+        (openSmartArtModal)="openSmartArtModal.emit()"
+        (insertChartTable)="insertChartTable.emit()"
+        (insertScreenshot)="insertScreenshot.emit()"
+        (insertLink)="insertLink.emit()"
+        (insertComment)="insertComment.emit()"
+        (focusHeaderArea)="focusHeaderArea.emit()"
+        (focusFooterArea)="focusFooterArea.emit()"
+        (insertPageNumber)="insertPageNumber.emit()"
+        (insertTextBox)="insertTextBox.emit()"
+        (insertWordArt)="insertWordArt.emit($event)"
+        (insertDropCap)="insertDropCap.emit()"
+        (insertSignatureLine)="insertSignatureLine.emit()"
+        (insertDateTime)="insertDateTime.emit()"
+        (openLatexModal)="openLatexModal.emit()"
+        (insertSymbol)="insertSymbol.emit($event)"
+        (insertDrawingCanvas)="insertDrawingCanvas.emit()"
+      />
     }
 
     <!-- ==================== LAYOUT TAB ==================== -->
     @if (activeTab === 'layout') {
-      <div class="flex items-center gap-2 flex-wrap w-full">
-        <!-- Group 1: Page Setup -->
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <!-- Margins Dropdown + Custom Margins Form -->
-          <div class="relative">
-            <button
-              type="button"
-              (mousedown)="keepSelection($event)"
-              (click)="toggleDropdown('margins')"
-              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors"
-            >
-              <svg lucideIcon="ruler" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-              <span>Márgenes</span>
-              <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-            </button>
-
-            @if (openDropdown() === 'margins') {
-              <div
-                (mousedown)="$event.stopPropagation()"
-                class="absolute top-full left-0 mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 space-y-3"
-              >
-                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Márgenes Predefinidos
-                </div>
-                <div class="space-y-1">
-                  @for (item of marginPresets; track item.key) {
-                    <button
-                      type="button"
-                      (click)="selectMarginPreset(item.preset)"
-                      [ngClass]="layoutConfig.margins.label === item.preset.label ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'"
-                      class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-slate-100 flex items-center justify-between"
-                    >
-                      <span>{{ item.preset.label }}</span>
-                    </button>
-                  }
-                </div>
-
-                <form (submit)="applyCustomMargins($event)" class="pt-2.5 border-t border-slate-100 space-y-2">
-                  <div class="text-[11px] font-semibold text-slate-700">
-                    Márgenes Personalizados (cm)
-                  </div>
-                  <div class="grid grid-cols-2 gap-2 text-[11px]">
-                    <label class="text-slate-600">
-                      Superior (cm)
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.5"
-                        max="6"
-                        [value]="customMarginTopCm()"
-                        (input)="customMarginTopCm.set(Number($any($event.target).value))"
-                        class="w-full mt-0.5 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-                      />
-                    </label>
-                    <label class="text-slate-600">
-                      Inferior (cm)
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.5"
-                        max="6"
-                        [value]="customMarginBottomCm()"
-                        (input)="customMarginBottomCm.set(Number($any($event.target).value))"
-                        class="w-full mt-0.5 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-                      />
-                    </label>
-                    <label class="text-slate-600">
-                      Izquierdo (cm)
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.5"
-                        max="6"
-                        [value]="customMarginLeftCm()"
-                        (input)="customMarginLeftCm.set(Number($any($event.target).value))"
-                        class="w-full mt-0.5 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-                      />
-                    </label>
-                    <label class="text-slate-600">
-                      Derecho (cm)
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.5"
-                        max="6"
-                        [value]="customMarginRightCm()"
-                        (input)="customMarginRightCm.set(Number($any($event.target).value))"
-                        class="w-full mt-0.5 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-                      />
-                    </label>
-                  </div>
-                  <button
-                    type="submit"
-                    class="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
-                  >
-                    Aplicar márgenes personalizados
-                  </button>
-                </form>
-              </div>
-            }
-          </div>
-
-          <!-- Orientation -->
-          <button
-            type="button"
-            (click)="toggleOrientation()"
-            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors"
-            title="Cambiar orientación (Vertical / Horizontal)"
-          >
-            <svg lucideIcon="rotate-cw" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-            <span>{{ layoutConfig.orientation === 'portrait' ? 'Vertical' : 'Horizontal' }}</span>
-          </button>
-
-          <!-- Size (Tamaño de Papel) -->
-          <div class="relative">
-            <button
-              type="button"
-              (click)="toggleDropdown('paperFormat')"
-              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors"
-            >
-              <svg lucideIcon="book-open" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-              <span>Tamaño: {{ activePaperPreset.name.split(' ')[0] }}</span>
-              <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-            </button>
-
-            @if (openDropdown() === 'paperFormat') {
-              <div class="absolute top-full left-0 mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50">
-                <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Tamaño de Página
-                </div>
-                @for (formatId of paperFormatList; track formatId) {
-                  @let preset = activePaperPresetFor(formatId);
-                  <button
-                    type="button"
-                    (click)="selectPaperFormat(formatId)"
-                    [ngClass]="layoutConfig.paperFormatId === formatId ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'"
-                    class="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 flex items-center justify-between"
-                  >
-                    <span>{{ preset.name }}</span>
-                    <span class="text-[11px] font-mono text-slate-400">{{ preset.badge }}</span>
-                  </button>
-                }
-              </div>
-            }
-          </div>
-
-          <!-- Columns -->
-          <div class="relative">
-            <button
-              type="button"
-              (mousedown)="keepSelection($event)"
-              (click)="toggleDropdown('columns')"
-              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-xs font-semibold text-blue-700 transition-colors"
-              title="Dividir la sección o texto seleccionado en columnas"
-            >
-              <svg lucideIcon="columns" [size]="16" class="w-4 h-4 text-blue-600"></svg>
-              <span>Columnas</span>
-              <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-blue-500"></svg>
-            </button>
-
-            @if (openDropdown() === 'columns') {
-              <div
-                (mousedown)="keepSelection($event)"
-                class="absolute top-full left-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 space-y-1"
-              >
-                <div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Columnas (Aplica a la sección seleccionada)
-                </div>
-                @for (colOpt of columnOptions; track colOpt.id) {
-                  <button
-                    type="button"
-                    (click)="applyColumns(colOpt.id)"
-                    class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-blue-50 group transition-colors"
-                  >
-                    <div class="text-xs font-semibold text-slate-800 group-hover:text-blue-700">
-                      {{ colOpt.label }}
-                    </div>
-                    <div class="text-[10px] text-slate-400">{{ colOpt.desc }}</div>
-                  </button>
-                }
-              </div>
-            }
-          </div>
-
-          <!-- Breaks & Line Numbers -->
-          <button
-            type="button"
-            (mousedown)="keepSelection($event)"
-            (click)="insertPageBreak.emit()"
-            class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors"
-            title="Insertar Salto de Página"
-          >
-            <svg lucideIcon="scissors" [size]="14" class="w-3.5 h-3.5 text-slate-500"></svg>
-            <span>Saltos</span>
-          </button>
-
-          <button
-            type="button"
-            (click)="toggleLineNumbers()"
-            [ngClass]="layoutConfig.showLineNumbers ? 'bg-blue-50 border-blue-200 text-blue-700' : 'border-slate-200 text-slate-700 hover:bg-slate-100'"
-            class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors"
-            title="Mostrar u ocultar números de línea"
-          >
-            <svg lucideIcon="hash" [size]="14" class="w-3.5 h-3.5"></svg>
-            <span class="hidden xl:inline">Núm. Línea</span>
-          </button>
-
-          <!-- Page Borders Dropdown -->
-          <div class="relative">
-            <button
-              type="button"
-              (click)="toggleDropdown('pageBorders')"
-              [ngClass]="layoutConfig.pageBorder.style !== 'none' ? 'bg-purple-50 border-purple-200 text-purple-800' : 'border-slate-200 hover:bg-slate-100 text-slate-700'"
-              class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors"
-            >
-              <svg lucideIcon="frame" [size]="14" class="w-3.5 h-3.5 text-purple-600"></svg>
-              <span>Bordes</span>
-              <svg lucideIcon="chevron-down" [size]="12" class="w-3 h-3 text-slate-400"></svg>
-            </button>
-
-            @if (openDropdown() === 'pageBorders') {
-              <div class="absolute top-full left-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-2.5 z-50 space-y-2.5">
-                <div class="text-[11px] font-semibold text-slate-700">Estilo de Borde de Hoja</div>
-                <div class="space-y-1">
-                  @for (b of borderStylesList; track b.id) {
-                    <button
-                      type="button"
-                      (click)="selectPageBorder(b.id)"
-                      [ngClass]="layoutConfig.pageBorder.style === b.id ? 'bg-purple-50 text-purple-700 font-semibold' : 'hover:bg-slate-100 text-slate-700'"
-                      class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between"
-                    >
-                      <span>{{ b.label }}</span>
-                      <span class="font-mono text-[11px] text-slate-400">{{ b.preview }}</span>
-                    </button>
-                  }
-                </div>
-              </div>
-            }
-          </div>
-        </div>
-
-        <div class="h-6 w-px bg-slate-200 mx-1 hidden lg:block"></div>
-
-        <!-- Group 2: Paragraph Indent & Spacing -->
-        <div class="flex items-center gap-3 flex-wrap">
-          <!-- Indent Left & Right -->
-          <div class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-            <span class="text-[11px] font-semibold text-slate-500 mr-1">Sangría:</span>
-            <label class="flex items-center gap-1 text-[11px] text-slate-600">
-              <span>Izq:</span>
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                max="10"
-                [value]="formats.indentLeftCm"
-                (input)="applyIndentLeft($any($event.target).value)"
-                class="w-14 px-1.5 py-0.5 text-xs font-mono bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-              />
-              <span class="text-[10px] text-slate-400">cm</span>
-            </label>
-
-            <label class="flex items-center gap-1 text-[11px] text-slate-600 ml-1">
-              <span>Der:</span>
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                max="10"
-                [value]="formats.indentRightCm"
-                (input)="applyIndentRight($any($event.target).value)"
-                class="w-14 px-1.5 py-0.5 text-xs font-mono bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-              />
-              <span class="text-[10px] text-slate-400">cm</span>
-            </label>
-          </div>
-
-          <!-- Spacing Before, After & Line Height -->
-          <div class="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-            <span class="text-[11px] font-semibold text-slate-500 mr-1">Espaciado:</span>
-            <label class="flex items-center gap-1 text-[11px] text-slate-600">
-              <span>Antes:</span>
-              <input
-                type="number"
-                step="2"
-                min="0"
-                max="72"
-                [value]="formats.spaceBeforePt"
-                (input)="applySpaceBefore($any($event.target).value)"
-                class="w-13 px-1.5 py-0.5 text-xs font-mono bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-              />
-              <span class="text-[10px] text-slate-400">pt</span>
-            </label>
-
-            <label class="flex items-center gap-1 text-[11px] text-slate-600 ml-1">
-              <span>Después:</span>
-              <input
-                type="number"
-                step="2"
-                min="0"
-                max="72"
-                [value]="formats.spaceAfterPt"
-                (input)="applySpaceAfter($any($event.target).value)"
-                class="w-13 px-1.5 py-0.5 text-xs font-mono bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-              />
-              <span class="text-[10px] text-slate-400">pt</span>
-            </label>
-
-            <label class="flex items-center gap-1 text-[11px] text-slate-600 ml-1">
-              <span>Interlineado:</span>
-              <select
-                [value]="formats.lineHeight || '1.15'"
-                (change)="applyLineHeight.emit($any($event.target).value)"
-                class="px-1.5 py-0.5 text-xs font-mono bg-white border border-slate-200 rounded focus:outline-none focus:border-blue-500"
-              >
-                @for (lh of lineHeights; track lh) {
-                  <option [value]="lh">{{ lh }}</option>
-                }
-              </select>
-            </label>
-          </div>
-        </div>
-      </div>
+      <app-word-layout-toolbar
+        [darkMode]="darkMode"
+        [layoutConfig]="layoutConfig"
+        [formats]="formats"
+        [activePaperPreset]="activePaperPreset"
+        (updateLayout)="updateLayout.emit($event)"
+        (insertPageBreak)="insertPageBreak.emit()"
+        (applyColumns)="applyColumns($event)"
+        (applyIndentLeft)="applyIndentLeft($event)"
+        (applyIndentRight)="applyIndentRight($event)"
+        (applySpaceBefore)="applySpaceBefore($event)"
+        (applySpaceAfter)="applySpaceAfter($event)"
+        (applyLineHeight)="applyLineHeight.emit($event)"
+        (toggleNavSidebar)="setShowTocSidebar.emit(!showTocSidebar)"
+        (captureSelection)="captureSelection.emit()"
+      />
     }
 
     <!-- ==================== VIEW TAB ==================== -->
     @if (activeTab === 'view') {
-      <div class="flex items-center gap-2 flex-wrap w-full">
-        <!-- Views Group -->
-        <div class="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-          @for (v of viewModes; track v.id) {
+      <div class="ribbon-tab-container">
+        <!-- Group 1: Views -->
+        <div class="ribbon-group">
+          <div class="control-row">
+            @for (v of viewModes; track v.id) {
+              <button
+                type="button"
+                (click)="selectViewMode(v.id)"
+                class="btn-vertical"
+                [class.active]="viewMode === v.id"
+                [title]="t(v.labelKey)"
+              >
+                <svg [lucideIcon]="v.icon" [size]="18" class="w-4.5 h-4.5 text-blue-600"></svg>
+                <span class="btn-label">{{ t(v.labelKey) }}</span>
+              </button>
+            }
+          </div>
+          <div class="group-label">{{ t('word.ribbon.views', 'Vistas') }}</div>
+        </div>
+
+        <!-- Group 2: Immersive -->
+        <div class="ribbon-group">
+          <div class="control-row">
             <button
               type="button"
-              (click)="selectViewMode(v.id)"
-              [ngClass]="viewMode === v.id ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-white hover:text-slate-900'"
-              class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+              (click)="toggleFocusMode()"
+              class="btn-vertical"
+              [class.active]="focusMode"
+              [title]="t('word.view.focus_tooltip')"
             >
-              <svg [lucideIcon]="v.icon" [size]="14" class="w-3.5 h-3.5"></svg>
-              <span>{{ v.label }}</span>
+              <svg lucideIcon="maximize" [size]="18" class="w-4.5 h-4.5 text-indigo-600"></svg>
+              <span class="btn-label">{{ t('word.view.focus') }}</span>
             </button>
-          }
+
+            <button
+              type="button"
+              (click)="readAloud.emit()"
+              class="btn-vertical"
+              [title]="t('word.view.read_aloud_tooltip')"
+            >
+              <svg lucideIcon="volume-2" [size]="18" class="w-4.5 h-4.5 text-teal-600"></svg>
+              <span class="btn-label">{{ t('word.view.read_aloud') }}</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="toggleDarkMode()"
+              class="btn-vertical"
+              [class.active]="darkMode"
+              [title]="t('word.view.dark_mode_tooltip')"
+            >
+              <svg [lucideIcon]="darkMode ? 'sun' : 'moon'" [size]="18" class="w-4.5 h-4.5" [ngClass]="darkMode ? 'text-amber-400' : 'text-slate-600'"></svg>
+              <span class="btn-label">{{ darkMode ? t('word.view.light_mode') : t('word.view.dark_mode') }}</span>
+            </button>
+
+            @if (darkMode) {
+              <button
+                type="button"
+                (click)="toggleDarkCanvas()"
+                class="btn-vertical"
+                [class.active]="!darkCanvas"
+                [title]="t('word.view.switch_modes_tooltip')"
+              >
+                <svg [lucideIcon]="darkCanvas ? 'file-text' : 'file'" [size]="18" class="w-4.5 h-4.5" [ngClass]="darkCanvas ? 'text-blue-400' : 'text-amber-400'"></svg>
+                <span class="btn-label">{{ darkCanvas ? t('word.view.switch_modes_light') : t('word.view.switch_modes_dark') }}</span>
+              </button>
+            }
+          </div>
+          <div class="group-label">{{ t('word.ribbon.immersive', 'Inmersivo') }}</div>
         </div>
 
-        <div class="h-5 w-px bg-slate-200"></div>
+        <!-- Group 3: Page Movement -->
+        <div class="ribbon-group">
+          <div class="control-row">
+            <button
+              type="button"
+              (click)="selectPageMovement('vertical')"
+              class="btn-vertical"
+              [class.active]="pageMovement === 'vertical'"
+              [title]="t('word.view.vertical_tooltip')"
+            >
+              <svg lucideIcon="arrow-down-up" [size]="18" class="w-4.5 h-4.5 text-blue-600"></svg>
+              <span class="btn-label">{{ t('word.view.vertical') }}</span>
+            </button>
 
-        <!-- Immersive Group -->
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            (click)="toggleFocusMode()"
-            [ngClass]="focusMode ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 text-slate-700 hover:bg-slate-100'"
-            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors"
-            title="Modo Enfoque sin distracciones"
-          >
-            <svg lucideIcon="maximize" [size]="14" class="w-3.5 h-3.5"></svg>
-            <span>Enfoque</span>
-          </button>
-
-          <button
-            type="button"
-            (click)="readAloud.emit()"
-            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-medium transition-colors"
-            title="Lector Inmersivo (Leer documento en voz alta)"
-          >
-            <svg lucideIcon="volume-2" [size]="14" class="w-3.5 h-3.5 text-blue-600"></svg>
-            <span>Lector Inmersivo</span>
-          </button>
+            <button
+              type="button"
+              (click)="selectPageMovement('sideBySide')"
+              class="btn-vertical"
+              [class.active]="pageMovement === 'sideBySide'"
+              [title]="t('word.view.parallel_tooltip')"
+            >
+              <svg lucideIcon="arrow-left-right" [size]="18" class="w-4.5 h-4.5 text-blue-600"></svg>
+              <span class="btn-label">{{ t('word.view.parallel') }}</span>
+            </button>
+          </div>
+          <div class="group-label">{{ t('word.ribbon.movement', 'Movimiento de página') }}</div>
         </div>
 
-        <div class="h-5 w-px bg-slate-200"></div>
+        <!-- Group 4: Show -->
+        <div class="ribbon-group">
+          <div class="control-row">
+            <div class="stacked-rows">
+              <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-700 hover:text-blue-600 select-none">
+                <input
+                  type="checkbox"
+                  [checked]="showRuler"
+                  (change)="toggleRuler($any($event.target).checked)"
+                  class="accent-blue-600 rounded"
+                />
+                <span>{{ t('word.view.ruler') }}</span>
+              </label>
 
-        <!-- Dark Mode Switch -->
-        <button
-          type="button"
-          (click)="toggleDarkMode()"
-          [ngClass]="darkMode ? 'bg-slate-900 text-amber-300 border-slate-700' : 'border-slate-200 text-slate-700 hover:bg-slate-100'"
-          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors"
-          title="Alternar Modo Oscuro en la página y entorno"
-        >
-          @if (darkMode) {
-            <svg lucideIcon="sun" [size]="14" class="w-3.5 h-3.5"></svg>
-          } @else {
-            <svg lucideIcon="moon" [size]="14" class="w-3.5 h-3.5"></svg>
-          }
-          <span>{{ darkMode ? 'Modo Claro' : 'Modo Oscuro' }}</span>
-        </button>
+              <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-700 hover:text-blue-600 select-none">
+                <input
+                  type="checkbox"
+                  [checked]="showGridlines"
+                  (change)="toggleGridlines($any($event.target).checked)"
+                  class="accent-blue-600 rounded"
+                />
+                <span>{{ t('word.view.grid') }}</span>
+              </label>
 
-        <div class="h-5 w-px bg-slate-200"></div>
-
-        <!-- Page Movement -->
-        <div class="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-          <button
-            type="button"
-            (click)="selectPageMovement('vertical')"
-            [ngClass]="pageMovement === 'vertical' ? 'bg-white text-blue-700 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'"
-            class="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-            title="Desplazamiento Vertical continuo"
-          >
-            <svg lucideIcon="arrow-down-up" [size]="14" class="w-3.5 h-3.5"></svg>
-            <span>Vertical</span>
-          </button>
-          <button
-            type="button"
-            (click)="selectPageMovement('sideBySide')"
-            [ngClass]="pageMovement === 'sideBySide' ? 'bg-white text-blue-700 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'"
-            class="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-            title="Vista en paralelo (Lado a Lado)"
-          >
-            <svg lucideIcon="arrow-left-right" [size]="14" class="w-3.5 h-3.5"></svg>
-            <span>Paralelo</span>
-          </button>
+              <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-700 hover:text-blue-600 select-none">
+                <input
+                  type="checkbox"
+                  [checked]="showTocSidebar"
+                  (change)="toggleTocSidebar($any($event.target).checked)"
+                  class="accent-blue-600 rounded"
+                />
+                <span>{{ t('word.view.nav_pane') }}</span>
+              </label>
+            </div>
+          </div>
+          <div class="group-label">{{ t('word.ribbon.show', 'Mostrar') }}</div>
         </div>
 
-        <div class="h-5 w-px bg-slate-200"></div>
+        <!-- Group 5: Zoom -->
+        <div class="ribbon-group">
+          <div class="control-row">
+            <div class="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg p-1">
+              <button
+                type="button"
+                (click)="zoomOut()"
+                class="p-1 rounded text-slate-600 hover:bg-white hover:text-slate-900 transition-colors"
+                [title]="t('word.view.zoom_out')"
+              >
+                <svg lucideIcon="zoom-out" [size]="16" class="w-4 h-4"></svg>
+              </button>
+              <span class="text-xs font-mono font-semibold text-slate-700 w-10 text-center select-none">
+                {{ zoom }}%
+              </span>
+              <button
+                type="button"
+                (click)="zoomIn()"
+                class="p-1 rounded text-slate-600 hover:bg-white hover:text-slate-900 transition-colors"
+                [title]="t('word.view.zoom_in')"
+              >
+                <svg lucideIcon="zoom-in" [size]="16" class="w-4 h-4"></svg>
+              </button>
+            </div>
 
-        <!-- Show Group: Ruler, Gridlines, Navigation Pane -->
-        <div class="flex items-center gap-2.5 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-          <label class="flex items-center gap-1.5 cursor-pointer text-slate-700">
-            <input
-              type="checkbox"
-              [checked]="showRuler"
-              (change)="toggleRuler($any($event.target).checked)"
-              class="accent-blue-600 rounded"
-            />
-            <span>Regla</span>
-          </label>
-          <label class="flex items-center gap-1.5 cursor-pointer text-slate-700">
-            <input
-              type="checkbox"
-              [checked]="showGridlines"
-              (change)="toggleGridlines($any($event.target).checked)"
-              class="accent-blue-600 rounded"
-            />
-            <span>Cuadrícula</span>
-          </label>
-          <label class="flex items-center gap-1.5 cursor-pointer text-slate-700">
-            <input
-              type="checkbox"
-              [checked]="showTocSidebar"
-              (change)="toggleTocSidebar($any($event.target).checked)"
-              class="accent-blue-600 rounded"
-            />
-            <span>Panel Navegación</span>
-          </label>
-        </div>
-
-        <div class="h-5 w-px bg-slate-200"></div>
-
-        <!-- Zoom Group -->
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            (click)="zoomOut()"
-            class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100"
-            title="Reducir zoom"
-          >
-            <svg lucideIcon="zoom-out" [size]="16" class="w-4 h-4"></svg>
-          </button>
-          <span class="text-xs font-mono font-semibold text-slate-700 w-11 text-center">
-            {{ zoom }}%
-          </span>
-          <button
-            type="button"
-            (click)="zoomIn()"
-            class="p-1.5 rounded-lg text-slate-700 hover:bg-slate-100"
-            title="Aumentar zoom"
-          >
-            <svg lucideIcon="zoom-in" [size]="16" class="w-4 h-4"></svg>
-          </button>
-          <button
-            type="button"
-            (click)="applyZoomPreset(100, 'vertical')"
-            class="px-2 py-1 rounded text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
-            title="Zoom al 100%"
-          >
-            100%
-          </button>
-          <button
-            type="button"
-            (click)="applyZoomPreset(85, 'vertical')"
-            class="px-2 py-1 rounded text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
-            title="Ajustar a Una Página completa"
-          >
-            1 Pág.
-          </button>
-          <button
-            type="button"
-            (click)="applyZoomPreset(75, 'sideBySide')"
-            class="px-2 py-1 rounded text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
-            title="Ver Varias Páginas lado a lado"
-          >
-            Varias Págs.
-          </button>
-          <button
-            type="button"
-            (click)="applyZoomPreset(125, 'vertical')"
-            class="px-2 py-1 rounded text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
-            title="Ajustar al Ancho de Página"
-          >
-            Ancho Pág.
-          </button>
+            <div class="stacked-rows">
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="applyZoomPreset(100, 'vertical')"
+                  class="btn-compact"
+                  [title]="t('word.view.zoom_100')"
+                >
+                  100%
+                </button>
+                <button
+                  type="button"
+                  (click)="applyZoomPreset(85, 'vertical')"
+                  class="btn-compact"
+                  [title]="t('word.view.zoom_one_page_tooltip')"
+                >
+                  {{ t('word.view.zoom_one_page') }}
+                </button>
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="applyZoomPreset(75, 'sideBySide')"
+                  class="btn-compact"
+                  [title]="t('word.view.zoom_multi_tooltip')"
+                >
+                  {{ t('word.view.zoom_multi') }}
+                </button>
+                <button
+                  type="button"
+                  (click)="applyZoomPreset(125, 'vertical')"
+                  class="btn-compact"
+                  [title]="t('word.view.zoom_width_tooltip')"
+                >
+                  {{ t('word.view.zoom_width') }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="group-label">{{ t('word.ribbon.zoom', 'Zoom') }}</div>
         </div>
       </div>
     }
 
     <!-- ==================== IMPORT TAB ==================== -->
     @if (activeTab === 'import') {
-      <div class="flex items-center gap-3 flex-wrap">
-        <button
-          type="button"
-          (click)="importClick.emit()"
-          class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
-        >
-          <svg lucideIcon="upload" [size]="16" class="w-4 h-4"></svg>
-          <span>Importar Word (.docx, .doc), HTML, Markdown o TXT</span>
-        </button>
-        <span class="text-xs text-slate-500">
-          Detecta automáticamente: <strong>Tamaño de encabezados H1–H6</strong>, <strong>Imágenes incrustadas</strong>, <strong>Tabulado y Espaciado</strong>, <strong>Hoja (Carta, Oficio, A4...)</strong> y <strong>Bordes</strong>.
-        </span>
+      <div class="ribbon-tab-container">
+        <div class="ribbon-group">
+          <div class="control-row">
+            <button
+              type="button"
+              (click)="importClick.emit()"
+              class="btn-vertical"
+              [title]="t('word.import.button')"
+            >
+              <svg lucideIcon="upload" [size]="20" class="w-5 h-5 text-blue-600"></svg>
+              <span class="btn-label font-semibold text-blue-700">{{ t('word.import.button') }}</span>
+            </button>
+
+            <div class="stacked-rows max-w-lg pl-2">
+              <span class="text-xs text-slate-700 leading-tight">
+                {{ t('word.import.hint_pre') }}<strong>{{ t('word.import.hint_headings') }}</strong>, <strong>{{ t('word.import.hint_images') }}</strong>, <strong>{{ t('word.import.hint_tabs') }}</strong>, <strong>{{ t('word.import.hint_sheets') }}</strong> y <strong>{{ t('word.import.hint_borders') }}</strong>.
+              </span>
+              <span class="text-[11px] text-slate-400">
+                Word (.docx), Markdown (.md), HTML (.html, .htm), Texto (.txt)
+              </span>
+            </div>
+          </div>
+          <div class="group-label">{{ t('word.tab.import') }}</div>
+        </div>
       </div>
     }
 
     <!-- ==================== EXPORT TAB ==================== -->
     @if (activeTab === 'export') {
-      <div class="flex items-center gap-2.5 flex-wrap">
-        <button
-          type="button"
-          (click)="exportWord.emit()"
-          class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-colors"
-        >
-          <svg lucideIcon="file-check-2" [size]="16" class="w-4 h-4"></svg>
-          <span>Exportar a Microsoft Word (.doc con Formato y Estilos)</span>
-        </button>
+      <div class="ribbon-tab-container">
+        <div class="ribbon-group">
+          <div class="control-row">
+            <button
+              type="button"
+              (click)="exportWord.emit()"
+              class="btn-vertical"
+              [title]="t('word.export.word')"
+            >
+              <svg lucideIcon="file-check-2" [size]="20" class="w-5 h-5 text-blue-600"></svg>
+              <span class="btn-label font-semibold text-blue-700">Word (.docx)</span>
+            </button>
 
-        <button
-          type="button"
-          (click)="exportHtml.emit()"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
-        >
-          <svg lucideIcon="download" [size]="14" class="w-3.5 h-3.5"></svg>
-          <span>HTML Multipágina (.html)</span>
-        </button>
+            <button
+              type="button"
+              (click)="exportHtml.emit()"
+              class="btn-vertical"
+              [title]="t('word.export.html')"
+            >
+              <svg lucideIcon="download" [size]="18" class="w-4.5 h-4.5 text-slate-600"></svg>
+              <span class="btn-label">HTML</span>
+            </button>
 
-        <button
-          type="button"
-          (click)="exportMarkdown.emit()"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
-        >
-          <svg lucideIcon="download" [size]="14" class="w-3.5 h-3.5"></svg>
-          <span>Markdown (.md)</span>
-        </button>
+            <button
+              type="button"
+              (click)="exportMarkdown.emit()"
+              class="btn-vertical"
+              [title]="t('word.export.markdown')"
+            >
+              <svg lucideIcon="download" [size]="18" class="w-4.5 h-4.5 text-slate-600"></svg>
+              <span class="btn-label">Markdown</span>
+            </button>
 
-        <button
-          type="button"
-          (click)="exportTxt.emit()"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors"
-        >
-          <svg lucideIcon="download" [size]="14" class="w-3.5 h-3.5"></svg>
-          <span>Texto Plano (.txt)</span>
-        </button>
+            <button
+              type="button"
+              (click)="exportTxt.emit()"
+              class="btn-vertical"
+              [title]="t('word.export.txt')"
+            >
+              <svg lucideIcon="download" [size]="18" class="w-4.5 h-4.5 text-slate-600"></svg>
+              <span class="btn-label">Texto Plano</span>
+            </button>
+          </div>
+          <div class="group-label">{{ t('word.tab.export') }}</div>
+        </div>
 
-        <div class="h-5 w-px bg-slate-200 mx-1"></div>
-
-        <button
-          type="button"
-          (click)="print.emit()"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors"
-        >
-          <svg lucideIcon="printer" [size]="14" class="w-3.5 h-3.5"></svg>
-          <span>Imprimir / Guardar PDF ({{ activePaperPreset.name }})</span>
-        </button>
+        <div class="ribbon-group">
+          <div class="control-row">
+            <button
+              type="button"
+              (click)="print.emit()"
+              class="btn-vertical"
+              [title]="t('word.export.print')"
+            >
+              <svg lucideIcon="printer" [size]="20" class="w-5 h-5 text-emerald-600"></svg>
+              <span class="btn-label font-semibold text-emerald-700">{{ t('word.export.print') }}</span>
+            </button>
+            <div class="stacked-rows pl-1">
+              <span class="text-xs font-semibold text-slate-700">{{ activePaperPreset.name }}</span>
+              <span class="text-[11px] text-slate-400 font-mono">{{ activePaperPreset.badge }}</span>
+            </div>
+          </div>
+          <div class="group-label">{{ t('word.ribbon.print', 'Imprimir') }}</div>
+        </div>
       </div>
     }
   </div>
+  }
 </div>

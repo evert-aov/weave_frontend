@@ -2,6 +2,10 @@
 
 > Cliente web SPA de alto rendimiento para **Weave**, desarrollado con **Angular 22**, arquitectura modular reactiva basada en **Signals**, e integración de suites vectoriales y de cálculo líderes en la industria.
 
+La documentación técnica completa está en la [guía del desarrollador](guia-desarrollador/README.md).
+El diagnóstico y las mediciones del arranque están en
+[rendimiento y pruebas](guia-desarrollador/07-RENDIMIENTO-Y-PRUEBAS.md).
+
 ---
 
 ## 🌟 Características Principales
@@ -37,6 +41,28 @@
 
 ## 🏛️ Estructura del Código
 
+### Distribución del espacio de trabajo
+
+La navegación se sitúa a la izquierda, el documento al centro y el asistente de IA a la
+derecha. Los nombres de carpetas y documentos pueden ocupar varias líneas. Las acciones
+de cada elemento se reúnen en el menú `⋯`, que también admite teclado y no se recorta
+al desplazar el árbol.
+
+Los bordes entre paneles permiten ajustar su ancho mediante arrastre o flechas del teclado;
+un doble clic restablece el tamaño inicial. Las preferencias se guardan en este navegador.
+Con poco espacio, el asistente se superpone al editor; en móviles la navegación es un panel
+desplegable que se puede cerrar pulsando fuera.
+
+| Área | Responsabilidad |
+| --- | --- |
+| `pages/workspace/` | Distribución y comportamiento adaptable de los paneles. |
+| `layout/sidebar/space-tree.ts` | Reconstrucción del árbol y cálculo de profundidad. |
+| `layout/sidebar/components/item-actions/` | Menú contextual, posición y navegación por teclado. |
+| `shared/directives/resize-panel.directive.ts` | Interacción de arrastre y teclado para separadores. |
+| `core/services/workspace-layout.service.ts` | Dimensiones y preferencias locales de los paneles. |
+
+Las comprobaciones del frontend son `npm test -- --watch=false` y `npm run build`.
+
 ```
 src/app/
 ├── blocks/                    # Componentes de cada tipo de bloque
@@ -52,19 +78,23 @@ src/app/
 │   ├── document-editor/       # Lienzo principal del documento
 │   ├── block-rail/            # Canalón lateral de acciones por bloque
 │   ├── slash-menu/            # Menú emergente de inserción rápida de bloques (/)
-│   └── reading-view/          # Vista optimizada de lectura
+│   ├── pure-doc-editor/       # Editor Word y servicios de compatibilidad
+│   ├── pure-sheet-editor/     # Hojas completas con Univer
+│   ├── pure-canvas-editor/    # Pizarra completa con Excalidraw
+│   └── pure-slide-editor/     # Presentaciones PPTX
 │
 ├── export/                    # Lógica de exportación de notas
 │   ├── services/
 │   │   ├── pdf-export.strategy.ts    # Impresión y PDF directo
 │   │   ├── html-export.strategy.ts   # Exportación a HTML limpio
 │   │   └── markdown-export.strategy.ts
-│   └── export-modal/          # Diálogo interactivo de configuración de exportación
+│   └── components/export-modal/ # Diálogo diferido de configuración de exportación
 │
 ├── layout/                    # Componentes de estructura
 │   ├── sidebar/               # Árbol de navegación y espacios de trabajo
 │   ├── topbar/                # Barra superior con controles de zoom, modo y acciones
-│   └── modals/                # Modales auxiliares
+│   ├── document-tabs/         # Pestañas de documentos
+│   └── ai-assistant-sidebar/  # Asistente a la derecha del editor
 │
 └── core/                      # Servicios centrales y modelos de datos
     ├── models/                # Interfaces de Nota, Bloque, Espacio y Usuario
@@ -111,10 +141,20 @@ Abre tu navegador en `http://localhost:4200/`. La aplicación se recarga automá
 npm run build
 ```
 Los artefactos compilados y optimizados se generarán en la carpeta `dist/frontend`.
+Los archivos servibles están en `dist/frontend/browser`. El build genera
+`dist/frontend/browser-stats.json` y comprueba que los motores grandes no estén en el grafo inicial.
 
 ### 4. Pruebas unitarias
 ```bash
 npm test
+```
+
+Para verificar sin observación y revisar el control de arranque:
+
+```sh
+npm test -- --watch=false
+npm run test:startup
+npm run check:startup
 ```
 
 ---

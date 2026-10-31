@@ -9,6 +9,7 @@ import {
   Output,
   SimpleChanges,
   ViewChild,
+  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -25,6 +26,7 @@ import {
   LucideBold,
   LucideBookOpen,
   LucideChevronDown,
+  LucideChevronUp,
   LucideCode,
   LucideColumns,
   LucideCornerDownLeft,
@@ -100,7 +102,12 @@ import {
   PAPER_FORMAT_PRESETS,
   TEXT_COLORS,
 } from '../../constants/word-document.constants';
-import { WordTablePickerComponent } from '../word-table-picker/word-table-picker.component';
+import { WordHomeToolbarComponent } from '../word-home-toolbar/word-home-toolbar.component';
+import { WordInsertToolbarComponent } from '../word-insert-toolbar/word-insert-toolbar.component';
+import { WordDesignToolbarComponent } from '../word-design-toolbar/word-design-toolbar.component';
+import { WordLayoutToolbarComponent } from '../word-layout-toolbar/word-layout-toolbar.component';
+import { WordArtPreset } from '../../models/word-insert.model';
+import { I18nService } from '../../../../core/services/i18n.service';
 
 const PAPER_FORMAT_LIST: PaperFormatId[] = [
   'letter',
@@ -126,7 +133,14 @@ const BORDER_STYLES_LIST: { id: PageBorderStyle; label: string; preview: string 
 @Component({
   selector: 'app-word-ribbon',
   standalone: true,
-  imports: [CommonModule, LucideDynamicIcon, WordTablePickerComponent],
+  imports: [
+    CommonModule,
+    LucideDynamicIcon,
+    WordHomeToolbarComponent,
+    WordInsertToolbarComponent,
+    WordDesignToolbarComponent,
+    WordLayoutToolbarComponent,
+  ],
   providers: [
     provideLucideIcons(
       LucideUndo2,
@@ -159,6 +173,7 @@ const BORDER_STYLES_LIST: { id: PageBorderStyle; label: string; preview: string 
       LucideQuote,
       LucideMinus,
       LucideChevronDown,
+      LucideChevronUp,
       LucideUpload,
       LucideDownload,
       LucidePrinter,
@@ -201,9 +216,14 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Input() styleTemplates: StyleTemplate[] = [];
   @Input() activeTemplateId = '';
   @Input() formatPainterActive = false;
+  @Input() showFormattingMarks = false;
+  @Input() headingNumbering = false;
+  @Output() captureSelection = new EventEmitter<void>();
+  @Output() updateStyleFromSelection = new EventEmitter<StyleTargetTag>();
   @Input() viewMode: DocumentViewMode = 'print';
   @Input() focusMode = false;
   @Input() darkMode = false;
+  @Input() darkCanvas = true;
   @Input() pageMovement: PageMovementMode = 'vertical';
   @Input() showRuler = false;
   @Input() showGridlines = false;
@@ -228,6 +248,22 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() insertChecklist = new EventEmitter<void>();
   @Output() insertImage = new EventEmitter<void>();
   @Output() insertLink = new EventEmitter<void>();
+  @Output() openIconsModal = new EventEmitter<void>();
+  @Output() openSmartArtModal = new EventEmitter<void>();
+  @Output() insertShapeHtml = new EventEmitter<string>();
+  @Output() insert3dModel = new EventEmitter<void>();
+  @Output() insertScreenshot = new EventEmitter<void>();
+  @Output() insertComment = new EventEmitter<void>();
+  @Output() focusFooterArea = new EventEmitter<void>();
+  @Output() insertPageNumber = new EventEmitter<void>();
+  @Output() insertTextBox = new EventEmitter<void>();
+  @Output() insertWordArt = new EventEmitter<WordArtPreset>();
+  @Output() insertDropCap = new EventEmitter<void>();
+  @Output() insertSignatureLine = new EventEmitter<void>();
+  @Output() insertDateTime = new EventEmitter<void>();
+  @Output() insertSymbol = new EventEmitter<string>();
+  @Output() insertDrawingCanvas = new EventEmitter<void>();
+  @Output() insertDocumentReference = new EventEmitter<void>();
   @Output() insertBlockquote = new EventEmitter<void>();
   @Output() insertCodeBlock = new EventEmitter<string>();
   @Output() insertHorizontalRule = new EventEmitter<void>();
@@ -251,10 +287,10 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() exportTxt = new EventEmitter<void>();
   @Output() print = new EventEmitter<void>();
   @Output() readAloud = new EventEmitter<void>();
-  @Output() openAiModal = new EventEmitter<void>();
   @Output() setViewMode = new EventEmitter<DocumentViewMode>();
   @Output() setFocusMode = new EventEmitter<boolean>();
   @Output() setDarkMode = new EventEmitter<boolean>();
+  @Output() setDarkCanvas = new EventEmitter<boolean>();
   @Output() setPageMovement = new EventEmitter<PageMovementMode>();
   @Output() setShowRuler = new EventEmitter<boolean>();
   @Output() setShowGridlines = new EventEmitter<boolean>();
@@ -263,16 +299,27 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
 
   @ViewChild('toolbarRef') toolbarRef?: ElementRef<HTMLDivElement>;
 
+  readonly i18n = inject(I18nService, { optional: true });
+  readonly isCollapsed = signal<boolean>(false);
+
+  t(key: string, paramsOrFallback?: Record<string, string | number> | string): string {
+    if (typeof paramsOrFallback === 'string') {
+      const val = this.i18n?.t ? this.i18n.t(key) : null;
+      return val && val !== key ? val : paramsOrFallback;
+    }
+    return this.i18n?.t ? this.i18n.t(key, paramsOrFallback) : key;
+  }
+
   readonly Math = Math;
   readonly Number = Number;
-  readonly tabs: { id: RibbonTab; label: string }[] = [
-    { id: 'home', label: 'Home' },
-    { id: 'insert', label: 'Insert' },
-    { id: 'styles', label: 'Design / Estilos' },
-    { id: 'layout', label: 'Layout' },
-    { id: 'view', label: 'View' },
-    { id: 'import', label: 'Import' },
-    { id: 'export', label: 'Export' },
+  readonly tabs: { id: RibbonTab; labelKey: string }[] = [
+    { id: 'home', labelKey: 'word.tab.home' },
+    { id: 'insert', labelKey: 'word.tab.insert' },
+    { id: 'styles', labelKey: 'word.tab.styles' },
+    { id: 'layout', labelKey: 'word.tab.layout' },
+    { id: 'view', labelKey: 'word.tab.view' },
+    { id: 'import', labelKey: 'word.tab.import' },
+    { id: 'export', labelKey: 'word.tab.export' },
   ];
   readonly paperFormatList = PAPER_FORMAT_LIST;
   readonly borderStylesList = BORDER_STYLES_LIST;
@@ -285,12 +332,12 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   readonly headingTags: StyleTargetTag[] = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'];
   readonly quickRuleTags: StyleTargetTag[] = ['H1', 'H2', 'H3', 'P'];
   readonly lineHeights = ['1.0', '1.15', '1.5', '1.75', '2.0', '2.5', '3.0'];
-  readonly viewModes: { id: DocumentViewMode; label: string; icon: string }[] = [
-    { id: 'read', label: 'Modo Lectura', icon: 'book-open' },
-    { id: 'print', label: 'Diseño Impresión', icon: 'file-text' },
-    { id: 'web', label: 'Diseño Web', icon: 'globe' },
-    { id: 'outline', label: 'Esquema', icon: 'list-tree' },
-    { id: 'draft', label: 'Borrador', icon: 'align-left' },
+  readonly viewModes: { id: DocumentViewMode; labelKey: string; icon: string }[] = [
+    { id: 'read', labelKey: 'word.view.read', icon: 'book-open' },
+    { id: 'print', labelKey: 'word.view.print', icon: 'file-text' },
+    { id: 'web', labelKey: 'word.view.web', icon: 'globe' },
+    { id: 'outline', labelKey: 'word.view.outline', icon: 'list-tree' },
+    { id: 'draft', labelKey: 'word.view.draft', icon: 'align-left' },
   ];
   readonly columnOptions: { id: SectionColumnsPreset; label: string; desc: string }[] = [
     { id: '1', label: 'Una columna (1)', desc: 'Restaurar sección a 1 columna' },
@@ -359,7 +406,31 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
     e.preventDefault();
   }
 
+  toggleCollapse(event?: MouseEvent): void {
+    if (event) {
+      const target = event.target as HTMLElement;
+      if (target?.closest?.('input, textarea, select')) return;
+    }
+    this.isCollapsed.update((c) => !c);
+  }
+
+  onTabsHeaderDblClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (target?.closest?.('button.nav-panel-btn, button.collapse-toggle-btn')) return;
+    this.toggleCollapse();
+  }
+
+  onPillDblClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target?.closest?.('button, input, select, textarea, .style-tile, .swatch')) {
+      this.toggleCollapse();
+    }
+  }
+
   selectTab(tabId: RibbonTab): void {
+    if (this.isCollapsed()) {
+      this.isCollapsed.set(false);
+    }
     this.setActiveTab.emit(tabId);
     this.openDropdown.set(null);
   }
@@ -418,7 +489,8 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
 
   insertInlineCode(): void {
     const sel = window.getSelection()?.toString() || 'código';
-    this.command.emit({ command: 'insertHTML', value: `<code>${sel}</code>` });
+    const code = document.createElement('code'); code.textContent = sel;
+    this.command.emit({ command: 'insertHTML', value: code.outerHTML });
   }
 
   selectStyleTemplate(tpl: StyleTemplate): void {
@@ -442,6 +514,14 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   applyColumns(preset: SectionColumnsPreset): void {
     this.applySectionColumns.emit(preset);
     this.openDropdown.set(null);
+  }
+
+  applyParagraphSpacing(spacingPt: number): void {
+    this.applyParagraphSpacingAndIndent.emit({ spaceAfterPt: spacingPt });
+  }
+
+  applyFontPairing(font: string): void {
+    this.command.emit({ command: 'fontName', value: font });
   }
 
   toggleOrientation(): void {
@@ -488,19 +568,19 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
     this.openDropdown.set(null);
   }
 
-  applyIndentLeft(value: string): void {
+  applyIndentLeft(value: number | string): void {
     this.applyParagraphSpacingAndIndent.emit({ indentLeftCm: Math.max(0, Number(value)) });
   }
 
-  applyIndentRight(value: string): void {
+  applyIndentRight(value: number | string): void {
     this.applyParagraphSpacingAndIndent.emit({ indentRightCm: Math.max(0, Number(value)) });
   }
 
-  applySpaceBefore(value: string): void {
+  applySpaceBefore(value: number | string): void {
     this.applyParagraphSpacingAndIndent.emit({ spaceBeforePt: Math.max(0, Number(value)) });
   }
 
-  applySpaceAfter(value: string): void {
+  applySpaceAfter(value: number | string): void {
     this.applyParagraphSpacingAndIndent.emit({ spaceAfterPt: Math.max(0, Number(value)) });
   }
 
@@ -514,6 +594,10 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
 
   toggleDarkMode(): void {
     this.setDarkMode.emit(!this.darkMode);
+  }
+
+  toggleDarkCanvas(): void {
+    this.setDarkCanvas.emit(!this.darkCanvas);
   }
 
   selectPageMovement(mode: PageMovementMode): void {

@@ -1,6 +1,6 @@
 import { Note } from '../../core/models/note.model';
 
-export type ExportFormat = 'pdf' | 'markdown' | 'html' | 'json';
+export type ExportFormat = 'pdf' | 'markdown' | 'html' | 'json' | 'tex';
 
 export interface ExportOptions {
   includeTitle?: boolean;

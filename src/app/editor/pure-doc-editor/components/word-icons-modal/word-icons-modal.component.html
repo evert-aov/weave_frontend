@@ -1,0 +1,80 @@
+@if (isOpen) {
+  <div class="modal-backdrop" (click)="close.emit()" (keydown.escape)="close.emit()">
+    <div class="icons-dialog" [class.dark-mode]="darkMode" (click)="$event.stopPropagation()">
+      <!-- Header -->
+      <div class="dialog-header">
+        <span class="dialog-title">{{ t('word.icons.title', 'Insertar iconos') }}</span>
+        <button type="button" class="btn-close" (click)="close.emit()">
+          <svg lucideIcon="x" [size]="16"></svg>
+        </button>
+      </div>
+
+      <!-- Search & Category Filters -->
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <svg lucideIcon="search" [size]="16" class="search-icon"></svg>
+          <input
+            type="text"
+            [placeholder]="t('word.icons.search_placeholder', 'Buscar iconos por nombre o etiqueta...')"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+            autofocus
+          />
+        </div>
+        <div class="categories-row">
+          @for (cat of categories; track cat.id) {
+            <button
+              type="button"
+              class="cat-chip"
+              [class.active]="selectedCategory() === cat.id"
+              (click)="selectedCategory.set(cat.id)"
+            >
+              {{ t(cat.labelKey, cat.fallback) }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Icons Grid -->
+      <div class="icons-grid-container">
+        <div class="icons-grid">
+          @for (icon of filteredIcons; track icon.name) {
+            <button
+              type="button"
+              class="icon-tile"
+              [class.selected]="selectedIcon() === icon.name"
+              (click)="pickIcon(icon.name)"
+              (dblclick)="confirm()"
+              [title]="icon.name"
+            >
+              <svg [lucideIcon]="icon.name" [size]="24" class="icon-svg"></svg>
+              <span class="icon-name">{{ icon.name }}</span>
+            </button>
+          }
+        </div>
+        @if (filteredIcons.length === 0) {
+          <div class="empty-state">
+            {{ t('word.icons.empty', 'No se encontraron iconos que coincidan con la búsqueda.') }}
+          </div>
+        }
+      </div>
+
+      <!-- Footer -->
+      <div class="dialog-footer">
+        <div class="selected-status">
+          @if (selectedIcon(); as sel) {
+            <span>{{ t('word.icons.selected', 'Icono seleccionado:') }} <strong>{{ sel }}</strong></span>
+          }
+        </div>
+        <div class="buttons-group">
+          <button type="button" class="btn-primary" [disabled]="!selectedIcon()" (click)="confirm()">
+            {{ t('word.smartart.ok', 'Insertar') }}
+          </button>
+          <button type="button" class="btn-secondary" (click)="close.emit()">
+            {{ t('word.smartart.cancel', 'Cancelar') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

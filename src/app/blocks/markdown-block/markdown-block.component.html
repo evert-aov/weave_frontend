@@ -1,0 +1,40 @@
+<div class="markdown-block" [class.source-mode]="!live()">
+  @if (!notes.isReadingMode()) {
+    <div class="markdown-toolbar" role="toolbar" aria-label="Herramientas Markdown" (mousedown)="($any($event.target).closest('button') && $event.preventDefault())">
+      <button type="button" (click)="history()" [disabled]="!ready()" aria-label="Deshacer" title="Deshacer (Ctrl+Z)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 4-5 5 5 5M3 9h11a7 7 0 0 1 0 14"/></svg></button>
+      <button type="button" (click)="history(true)" [disabled]="!ready()" aria-label="Rehacer" title="Rehacer (Ctrl+Y)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m16 4 5 5-5 5M21 9H10a7 7 0 0 0 0 14"/></svg></button>
+      <select aria-label="Estilo del párrafo" [value]="headingLevel()" (change)="setHeading($any($event.target).value)">
+        <option value="0">Texto normal</option>
+        @for (level of [1,2,3,4,5,6]; track level) { <option [value]="level">Título {{ level }}</option> }
+      </select>
+      @for (action of formatActions; track action.value) {
+        <button type="button" (click)="format(action.value)" [attr.aria-label]="action.label" [title]="action.label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path [attr.d]="action.icon"/></svg>
+        </button>
+      }
+      <span class="toolbar-divider"></span>
+      <button type="button" (click)="toggleLive()" [attr.aria-pressed]="live()" [disabled]="!ready()" title="Alternar vista en vivo y código fuente">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+        {{ live() ? 'Vista en vivo' : 'Código fuente' }}
+      </button>
+      <button type="button" (click)="toggleVim()" [attr.aria-pressed]="vimEnabled()" [disabled]="!ready()">{{ vimLoading() ? 'Cargando Vim…' : 'Vim' }}</button>
+      <span class="toolbar-divider"></span>
+      <button type="button" (click)="insertReference()" title="Insertar enlace a otro documento">Enlace</button>
+      <button type="button" (click)="insertTable()">Tabla</button>
+      <button type="button" (click)="useRichText()" class="rich-text-switch">Texto enriquecido</button>
+    </div>
+  }
+  @if (error()) { <p role="status" class="editor-message">{{ error() }} <button type="button" (click)="loadEditor()">Reintentar</button></p> }
+  @if (vimError()) { <p role="status" class="editor-message">{{ vimError() }}</p> }
+  @if (!ready()) {
+    @if (notes.isReadingMode()) { <div class="weave-md-preview" [innerHTML]="readingHtml()"></div> }
+    @else {
+      @if (loading()) { <p class="editor-message" role="status">Cargando vista en vivo… Puedes escribir mientras tanto.</p> }
+      <textarea #fallback (select)="refreshSelection()" (keyup)="refreshSelection()" (click)="refreshSelection()" aria-label="Código Markdown del bloque" [value]="source()" (input)="changeSource($any($event.target).value)" (blur)="flush()" spellcheck="true"></textarea>
+    }
+  }
+  <div #host class="codemirror-host" [hidden]="!ready()"></div>
+  @if (!notes.isReadingMode() && ready()) {
+    <div class="markdown-hint">{{ vimEnabled() ? 'Vim: i para escribir · Esc para navegar · / para buscar · u para deshacer' : 'Markdown: # título · **negrita** · - lista · [texto](enlace)' }}</div>
+  }
+</div>

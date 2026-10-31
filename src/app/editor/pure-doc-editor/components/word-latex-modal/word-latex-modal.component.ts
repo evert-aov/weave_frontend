@@ -20,6 +20,7 @@ import {
   provideLucideIcons,
 } from '@lucide/angular';
 import { LatexRendererService } from '../../services/latex-renderer.service';
+import { I18nService } from '../../../../core/services/i18n.service';
 
 type PrimaryCategory = 'basic' | 'math' | 'physics' | 'chemistry' | 'biology';
 
@@ -42,29 +43,26 @@ interface FormulaPresetCard {
   latex: string;
 }
 
-const DEFAULT_SAMPLE_LATEX = `\\frac{d}{dt}\\frac{\\partial L}{\\partial \\dot{q}_i} - \\frac{\\partial L}{\\partial q_i} = 0 \\\\
-\\iint_{D} f(x,y) \\, dx\\,dy \\iiint\\limits_V f(x,y,z) \\, dx\\,dy\\,dz`;
-
-const PRIMARY_TABS: { id: PrimaryCategory; label: string }[] = [
-  { id: 'basic', label: 'Símbolos básicos' },
-  { id: 'math', label: 'Matemáticas' },
-  { id: 'physics', label: 'Física' },
-  { id: 'chemistry', label: 'Química' },
-  { id: 'biology', label: 'Biología' },
+const PRIMARY_TABS: { id: PrimaryCategory; labelKey: string; fallback: string }[] = [
+  { id: 'basic', labelKey: 'word.latex.tab_basic', fallback: 'Símbolos básicos' },
+  { id: 'math', labelKey: 'word.latex.tab_math', fallback: 'Matemáticas' },
+  { id: 'physics', labelKey: 'word.latex.tab_physics', fallback: 'Física' },
+  { id: 'chemistry', labelKey: 'word.latex.tab_chemistry', fallback: 'Química' },
+  { id: 'biology', labelKey: 'word.latex.tab_biology', fallback: 'Biología' },
 ];
 
-const BASIC_SUB_TABS: { id: BasicSubCategory; label: string }[] = [
-  { id: 'symbols', label: 'Símbolos básicos' },
-  { id: 'fractions', label: 'Fracciones' },
-  { id: 'scripts', label: 'Super/Subíndice' },
-  { id: 'radicals', label: 'Radicales' },
-  { id: 'integrals', label: 'Integrales' },
-  { id: 'bigops', label: 'Operadores grandes' },
-  { id: 'brackets', label: 'Paréntesis y llaves' },
-  { id: 'functions', label: 'Funciones' },
-  { id: 'arrows', label: 'Flechas y símbolos' },
-  { id: 'limits', label: 'Límites y log' },
-  { id: 'matrices', label: 'Matrices' },
+const BASIC_SUB_TABS: { id: BasicSubCategory; labelKey: string; fallback: string }[] = [
+  { id: 'symbols', labelKey: 'word.latex.sub_symbols', fallback: 'Símbolos básicos' },
+  { id: 'fractions', labelKey: 'word.latex.sub_fractions', fallback: 'Fracciones' },
+  { id: 'scripts', labelKey: 'word.latex.sub_scripts', fallback: 'Super/Subíndice' },
+  { id: 'radicals', labelKey: 'word.latex.sub_radicals', fallback: 'Radicales' },
+  { id: 'integrals', labelKey: 'word.latex.sub_integrals', fallback: 'Integrales' },
+  { id: 'bigops', labelKey: 'word.latex.sub_bigops', fallback: 'Operadores grandes' },
+  { id: 'brackets', labelKey: 'word.latex.sub_brackets', fallback: 'Paréntesis y llaves' },
+  { id: 'functions', labelKey: 'word.latex.sub_functions', fallback: 'Funciones' },
+  { id: 'arrows', labelKey: 'word.latex.sub_arrows', fallback: 'Flechas y símbolos' },
+  { id: 'limits', labelKey: 'word.latex.sub_limits', fallback: 'Límites y log' },
+  { id: 'matrices', labelKey: 'word.latex.sub_matrices', fallback: 'Matrices' },
 ];
 
 const BASIC_SUB_CARDS: Record<BasicSubCategory, FormulaPresetCard[]> = {
@@ -343,6 +341,7 @@ const DOMAIN_PRESET_CARDS: Record<Exclude<PrimaryCategory, 'basic'>, FormulaPres
 })
 export class WordLatexModalComponent implements OnChanges {
   @Input() isOpen = false;
+  @Input() darkMode = false;
   @Input() initialLatex?: string;
   @Input() isEditingExisting?: boolean;
   @Output() close = new EventEmitter<void>();
@@ -353,12 +352,25 @@ export class WordLatexModalComponent implements OnChanges {
 
   private readonly latex = inject(LatexRendererService);
   private readonly sanitizer = inject(DomSanitizer);
+  readonly i18n = inject(I18nService, { optional: true });
+
+  t(key: string, paramsOrFallback?: Record<string, string | number> | string, fallback?: string): string {
+    if (!this.i18n?.t) {
+      return typeof paramsOrFallback === 'string' ? paramsOrFallback : (fallback || key);
+    }
+    if (typeof paramsOrFallback === 'string') {
+      const translated = this.i18n.t(key);
+      return translated !== key ? translated : paramsOrFallback;
+    }
+    const translated = this.i18n.t(key, paramsOrFallback);
+    return (translated !== key || !fallback) ? translated : fallback;
+  }
 
   readonly primaryTabs = PRIMARY_TABS;
   readonly basicSubTabs = BASIC_SUB_TABS;
-  readonly latexInput = signal<string>(DEFAULT_SAMPLE_LATEX);
+  readonly latexInput = signal<string>('');
   readonly primaryTab = signal<PrimaryCategory>('basic');
-  readonly basicSubTab = signal<BasicSubCategory>('integrals');
+  readonly basicSubTab = signal<BasicSubCategory>('symbols');
 
   readonly activeCards = computed<FormulaPresetCard[]>(() => {
     const primary = this.primaryTab();
@@ -374,7 +386,7 @@ export class WordLatexModalComponent implements OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if ((changes['isOpen'] || changes['initialLatex']) && this.isOpen) {
-      this.latexInput.set(this.initialLatex || DEFAULT_SAMPLE_LATEX);
+      this.latexInput.set(this.initialLatex || '');
     }
   }
 

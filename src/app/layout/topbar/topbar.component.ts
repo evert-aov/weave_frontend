@@ -3,8 +3,13 @@ import { CommonModule } from '@angular/common';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { AiService } from '../../core/services/ai.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { ExportModalComponent } from '../../export/components/export-modal/export-modal.component';
+import { LazyLoadStateComponent } from '../../shared/components/lazy-load-state/lazy-load-state.component';
+import { DocumentNavigationService } from '../../core/services/document-navigation.service';
+import { documentHref } from '../../core/utils/document-link';
+import { WorkspaceActionsService } from '../../core/services/workspace-actions.service';
 
 /**
  * Barra superior de Weave.
@@ -13,7 +18,7 @@ import { ExportModalComponent } from '../../export/components/export-modal/expor
 @Component({
   selector: 'app-topbar',
   standalone: true,
-  imports: [CommonModule, IconComponent, ExportModalComponent],
+  imports: [CommonModule, IconComponent, ExportModalComponent, LazyLoadStateComponent],
   templateUrl: './topbar.component.html',
   styleUrl: './topbar.component.scss',
 })
@@ -21,7 +26,14 @@ export class TopbarComponent {
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
   readonly themeService = inject(ThemeService);
+  readonly aiService = inject(AiService);
+  readonly navigation = inject(DocumentNavigationService);
+  private readonly actions = inject(WorkspaceActionsService);
   readonly Math = Math;
+  readonly currentSpacePath = computed(() => {
+    const path = this.notesService.currentNote()?.space || this.notesService.activeSpace();
+    return !path || path === 'all' ? this.i18n.t('nav.all_documents') : path;
+  });
 
   readonly isCopiedLink = signal<boolean>(false);
   readonly showExportModal = signal<boolean>(false);
@@ -61,7 +73,9 @@ export class TopbarComponent {
   }
 
   copyDocumentLink(): void {
-    const url = window.location.href;
+    const id = this.notesService.currentNote()?._id;
+    if (!id) return;
+    const url = new URL(documentHref(id), window.location.origin).href;
     navigator.clipboard.writeText(url).then(() => {
       this.isCopiedLink.set(true);
       setTimeout(() => this.isCopiedLink.set(false), 2000);
@@ -69,8 +83,7 @@ export class TopbarComponent {
   }
 
   deleteCurrentNote(): void {
-    if (confirm('¿Estás seguro de que deseas eliminar este documento?')) {
-      this.notesService.deleteCurrentNote().subscribe();
-    }
+    const note = this.notesService.currentNote();
+    if (note) this.actions.deleteDocument(note);
   }
 }

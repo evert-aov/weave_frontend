@@ -1,0 +1,23 @@
+@mixin document-links($color: #1d4ed8, $hover: #1e40af, $background: #eff6ff) {
+  a[href] {
+    color: $color !important;
+    text-decoration: underline;
+    text-decoration-thickness: 1.25px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    border-radius: 2px;
+
+    span, strong, em, b, i, u, s, code { color: inherit !important; }
+
+    &:hover {
+      color: $hover !important;
+      background-color: $background;
+      text-decoration-thickness: 2px;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $color;
+      outline-offset: 3px;
+    }
+  }
+}

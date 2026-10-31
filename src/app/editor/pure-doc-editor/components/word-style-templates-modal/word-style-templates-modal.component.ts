@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnInit, Output, computed, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   LucideAlignCenter,
@@ -24,6 +24,7 @@ import {
   TextAlignment,
 } from '../../models/word-document.model';
 import { FONT_FAMILIES } from '../../constants/word-document.constants';
+import { I18nService } from '../../../../core/services/i18n.service';
 
 const TARGET_TAGS: StyleTargetTag[] = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P'];
 
@@ -51,8 +52,9 @@ const TARGET_TAGS: StyleTargetTag[] = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P'];
   templateUrl: './word-style-templates-modal.component.html',
   styleUrls: ['./word-style-templates-modal.component.scss'],
 })
-export class WordStyleTemplatesModalComponent implements OnInit {
+export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
   @Input() isOpen = false;
+  @Input() darkMode = false;
   @Input() templates: StyleTemplate[] = [];
   @Input() activeTemplateId = '';
   @Output() close = new EventEmitter<void>();
@@ -61,14 +63,28 @@ export class WordStyleTemplatesModalComponent implements OnInit {
   @Output() applyTemplateToDocument = new EventEmitter<StyleTemplate>();
   @Output() applySingleRuleToSelection = new EventEmitter<ElementStyleRule>();
 
+  private readonly i18n = inject(I18nService, { optional: true });
+
+  t(key: string, paramsOrFallback?: Record<string, string | number> | string, fallback?: string): string {
+    if (!this.i18n?.t) {
+      return typeof paramsOrFallback === 'string' ? paramsOrFallback : (fallback || key);
+    }
+    if (typeof paramsOrFallback === 'string') {
+      const translated = this.i18n.t(key);
+      return translated !== key ? translated : paramsOrFallback;
+    }
+    const translated = this.i18n.t(key, paramsOrFallback);
+    return (translated !== key || !fallback) ? translated : fallback;
+  }
+
   readonly Number = Number;
   readonly targetTags = TARGET_TAGS;
   readonly fontFamilies = FONT_FAMILIES;
-  readonly alignOptions: { id: TextAlignment; icon: string; label: string }[] = [
-    { id: 'left', icon: 'align-left', label: 'Izquierda' },
-    { id: 'center', icon: 'align-center', label: 'Centrado' },
-    { id: 'right', icon: 'align-right', label: 'Derecha' },
-    { id: 'justify', icon: 'align-justify', label: 'Justificado' },
+  readonly alignOptions: { id: TextAlignment; icon: string; labelKey: string; fallback: string }[] = [
+    { id: 'left', icon: 'align-left', labelKey: 'word.style.align_left', fallback: 'Izquierda' },
+    { id: 'center', icon: 'align-center', labelKey: 'word.style.align_center', fallback: 'Centrado' },
+    { id: 'right', icon: 'align-right', labelKey: 'word.style.align_right', fallback: 'Derecha' },
+    { id: 'justify', icon: 'align-justify', labelKey: 'word.style.align_justify', fallback: 'Justificado' },
   ];
 
   readonly selectedTemplateId = signal<string>('');
@@ -84,6 +100,14 @@ export class WordStyleTemplatesModalComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    this.loadActiveTemplate();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['isOpen']?.currentValue) this.loadActiveTemplate();
+  }
+
+  private loadActiveTemplate(): void {
     const currentInitial =
       this.templates.find((t) => t.id === this.activeTemplateId) || this.templates[0];
     if (!currentInitial) return;
@@ -147,7 +171,7 @@ export class WordStyleTemplatesModalComponent implements OnInit {
 
   handleSaveAndApplyAll(): void {
     const updatedTpl: StyleTemplate = {
-      id: this.selectedTemplateId().startsWith('custom-')
+      id: this.templates.some(template => template.id === this.selectedTemplateId() && template.isCustom)
         ? this.selectedTemplateId()
         : `custom-tpl-${Date.now().toString(36)}`,
       name: this.draftName().trim() || 'Mi Plantilla de Estilos',
@@ -155,7 +179,6 @@ export class WordStyleTemplatesModalComponent implements OnInit {
       isCustom: true,
       rules: JSON.parse(JSON.stringify(this.draftRules())),
     };
-    this.saveCustomTemplate.emit(updatedTpl);
     this.applyTemplateToDocument.emit(updatedTpl);
     this.close.emit();
   }

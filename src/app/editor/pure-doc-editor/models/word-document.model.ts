@@ -41,6 +41,10 @@ export interface ElementStyleRule {
   spaceBeforePt: number;
   spaceAfterPt: number;
   firstLineIndentPt: number;
+  indentLeftPt?: number;
+  indentRightPt?: number;
+  strikeThrough?: boolean;
+  backgroundColor?: string;
 }
 
 export interface StyleTemplate {
@@ -95,6 +99,8 @@ export interface DocumentLayoutConfig {
   showHeaderFooter: boolean;
   showLineNumbers?: boolean;
   hyphenation?: boolean;
+  pageColor?: string;
+  watermarkText?: string;
 }
 
 export interface HeadingItem {
@@ -119,6 +125,8 @@ export interface TableItem {
 export interface DocumentPage {
   id: string;
   html: string;
+  /** Only user/imported page breaks stop automatic forward/backward text flow. */
+  breakBefore?: 'manual';
 }
 
 export interface DocxDocumentProperties {

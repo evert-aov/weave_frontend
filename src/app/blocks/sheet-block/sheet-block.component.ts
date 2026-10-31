@@ -1,3 +1,5 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { sheetAiAdapter } from '../../shared/utils/ai-sheet-adapter';
 import {
   Component,
   Input,
@@ -50,6 +52,13 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   private saveTimeout: any = null;
   private commandSubscription: any = null;
 
+  private aiOwner?: string;
+  private readonly aiDocuments = inject(AiDocumentService);
+  private readonly unregisterAi = this.aiDocuments.register(sheetAiAdapter(
+    () => this.aiOwner, () => this.univerAPI?.getActiveWorkbook(),
+    snapshot => { clearTimeout(this.saveTimeout); this.notesService.updateBlockContent(this.block.id, { workbookData: snapshot }, this.aiOwner); }, () => `block:${this.block.id}:`,
+  ));
+
   constructor() {
     this.updateReadingHeight();
     effect(() => {
@@ -68,6 +77,7 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.aiOwner = this.notesService.currentNote()?._id;
     this.initUniver();
     this.updateReadingHeight();
     setTimeout(() => {
@@ -249,6 +259,7 @@ export class SheetBlockComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.unregisterAi();
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }

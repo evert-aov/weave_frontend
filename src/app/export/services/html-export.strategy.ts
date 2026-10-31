@@ -1,9 +1,9 @@
+import { renderFormula } from '../../shared/latex/render-formula';
 import { Injectable } from '@angular/core';
-import * as katex from 'katex';
 import { Note } from '../../core/models/note.model';
 import { Block } from '../../core/models/block.model';
 import { ExportOptions, ExportStrategy } from '../models/export.model';
-import { formatMultiLineLatex } from '../../blocks/latex-block/latex-block.component';
+import { isLatexDocument, normalizeLatexAlignment, normalizeLatexFontSize } from '../../shared/utils/latex';
 
 @Injectable({
   providedIn: 'root',
@@ -81,6 +81,7 @@ export class HtmlExportStrategy implements ExportStrategy {
     .table-box th, .table-box td { border: 1px solid #e5e7eb; padding: 8px 12px; }
     .table-box th { background: #f9fafb; font-weight: 600; }
     .latex-box { background: #f9fafb; padding: 12px 18px; border-radius: 8px; text-align: center; border: 1px solid #e5e7eb; font-size: 11.5px; }
+    .latex-box .katex-display, .latex-box .katex-display > .katex { text-align: inherit; }
     .latex-box .katex { font-size: 1em !important; }
     img { max-width: 100%; border-radius: 8px; }
   </style>
@@ -127,14 +128,16 @@ export class HtmlExportStrategy implements ExportStrategy {
       }
       case 'latex': {
         const rawFormula = content['formula'] || '';
-        const formula = formatMultiLineLatex(rawFormula);
+        if (content['mode'] === 'document' || isLatexDocument(rawFormula)) {
+          return `<div class="block"><p>LaTeX avanzado — código fuente. Descarga el PDF desde la vista previa del bloque.</p><pre><code>${this.escapeHtml(rawFormula)}</code></pre></div>`;
+        }
         let rendered = '';
         try {
-          rendered = katex.renderToString(formula, { displayMode: true, throwOnError: false });
+          rendered = renderFormula(rawFormula, content);
         } catch {
           rendered = this.escapeHtml(rawFormula);
         }
-        return `<div class="block latex-box">${rendered}</div>`;
+        return `<div class="block latex-box" style="font-size: ${normalizeLatexFontSize(content['fontSizePx'])}px; text-align: ${normalizeLatexAlignment(content['alignment'])};">${rendered}</div>`;
       }
       case 'code':
         return `<div class="block"><pre><code>${this.escapeHtml(content['code'] || '')}</code></pre></div>`;

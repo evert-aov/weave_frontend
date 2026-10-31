@@ -43,7 +43,7 @@
       </div>
 
       <!-- Opciones adicionales si es PDF -->
-      @if (selectedFormat() === 'pdf') {
+      @if (selectedFormat() === 'pdf' && note.docType !== 'latex') {
         <div class="options-box">
           <label class="section-label">
             {{ i18n.currentLang() === 'es' ? 'Método de generación PDF:' : 'PDF method:' }}
@@ -54,14 +54,14 @@
               [class.active]="pdfMethod() === 'download'"
               (click)="pdfMethod.set('download')"
             >
-              📥 {{ i18n.currentLang() === 'es' ? 'Descargar .PDF' : 'Download .PDF' }}
+              <app-icon name="download" [size]="14" /> {{ i18n.currentLang() === 'es' ? 'Descargar .PDF' : 'Download .PDF' }}
             </button>
             <button
               type="button"
               [class.active]="pdfMethod() === 'print'"
               (click)="pdfMethod.set('print')"
             >
-              🖨️ {{ i18n.currentLang() === 'es' ? 'Imprimir / PDF Vectorial' : 'Print / Vector PDF' }}
+              <app-icon name="printer" [size]="14" /> {{ i18n.currentLang() === 'es' ? 'Imprimir / PDF Vectorial' : 'Print / Vector PDF' }}
             </button>
           </div>
 
@@ -85,6 +85,7 @@
       }
 
       <!-- Toggles generales -->
+      @if (note.docType !== 'latex') {
       <div class="toggles-box">
         <label class="checkbox-row">
           <input type="checkbox" [(ngModel)]="includeMetadata" />
@@ -95,6 +96,7 @@
           <span>{{ i18n.currentLang() === 'es' ? 'Incluir etiquetas (#tags)' : 'Include tags' }}</span>
         </label>
       </div>
+      }
     </div>
 
     <!-- Acciones inferiores -->

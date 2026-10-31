@@ -1,9 +1,11 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, catchError, of, Subject, debounceTime, switchMap } from 'rxjs';
-import { Note, DocType } from '../models/note.model';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Observable, tap, catchError, of, Subject, debounceTime, groupBy, mergeMap, concatMap, map, EMPTY, takeUntil, defer, finalize, throwError } from 'rxjs';
+import { Note, NoteSummary, DocType } from '../models/note.model';
 import { Block, BlockType } from '../models/block.model';
 import { DocumentTab } from '../models/tab.model';
+import { DocumentHistoryService } from './document-history.service';
 
 import { environment } from '../../../environments/environment';
 
@@ -16,13 +18,20 @@ import { environment } from '../../../environments/environment';
   providedIn: 'root',
 })
 export class NotesService {
+  private readonly documentHistory = inject(DocumentHistoryService);
   private readonly http = inject(HttpClient);
   private readonly serverBaseUrl = environment.serverBaseUrl;
   private readonly apiUrl = `${environment.apiUrl}/notes`;
   private readonly assetsUrl = `${environment.apiUrl}/assets`;
 
-  readonly notesList = signal<Note[]>([]);
+  readonly notesList = signal<NoteSummary[]>([]);
   readonly currentNote = signal<Note | null>(null);
+  readonly isLoadingNote = signal(false);
+  readonly isLoadingList = signal(false);
+  readonly noteLoadFailed = signal(false);
+  private readonly loadedNotes = new Map<string, Note>();
+  private noteLoadVersion = 0;
+  private listLoadVersion = 0;
   readonly activeSpace = signal<string>('Research');
   readonly saveStatus = signal<'saved' | 'saving' | 'unsaved'>('saved');
   readonly isSidebarCollapsed = signal<boolean>(false);
@@ -75,46 +84,59 @@ export class NotesService {
     this.documentZoom.set(1.0);
   }
 
-  private readonly autoSaveSubject = new Subject<Note>();
-  private lastSavedPayload = '';
+  private readonly autoSaveSubject = new Subject<{ note: Note; session: number }>();
+  private readonly stopAutoSave = new Subject<void>();
+  private saveSession = 0;
+  private readonly savedPayloads = new Map<string, string>();
+  private readonly pendingSaveIds = new Set<string>();
 
   constructor() {
-    // Pipeline de autoguardado con debounce de 800ms
+    // Cada documento tiene su debounce y sus escrituras se completan en orden.
     this.autoSaveSubject
       .pipe(
-        debounceTime(800),
-        tap(() => this.saveStatus.set('saving')),
-        switchMap((note) =>
-          this.http
-            .put<Note>(`${this.apiUrl}/${note._id}`, {
-              title: note.title,
-              lead: note.lead,
-              space: note.space,
-              docType: note.docType,
-              docUrl: note.docUrl,
-              docData: note.docData,
-              tags: note.tags,
-              blocks: note.blocks,
-            })
-            .pipe(
-              tap((updated) => {
-                this.lastSavedPayload = this.getNotePayload(updated);
-                this.saveStatus.set('saved');
-                // Sincronizar la nota activa y la lista general
-                if (this.currentNote()?._id === updated._id) {
-                  this.currentNote.set(updated);
-                }
-                this.notesList.update((list) =>
-                  list.map((n) => (n._id === updated._id ? updated : n)),
+        groupBy((job) => `${job.session}:${job.note._id}`, { duration: () => this.stopAutoSave }),
+        mergeMap((jobs) =>
+          jobs.pipe(
+            debounceTime(800),
+            concatMap(({ note, session }) => {
+              if (session !== this.saveSession || !this.loadedNotes.has(note._id)) return EMPTY;
+              this.saveStatus.set('saving');
+              return this.http
+                .put<Note>(`${this.apiUrl}/${note._id}`, {
+                  title: note.title,
+                  lead: note.lead,
+                  space: note.space,
+                  docType: note.docType,
+                  docUrl: note.docUrl,
+                  docData: note.docData,
+                  tags: note.tags,
+                  blocks: note.blocks,
+                })
+                .pipe(
+                  takeUntil(this.stopAutoSave),
+                  tap((updated) => {
+                    this.savedPayloads.set(updated._id, this.getNotePayload(updated));
+                    // Una respuesta anterior no sustituye una edición local más reciente.
+                    if (this.loadedNotes.get(note._id) === note) {
+                      this.loadedNotes.set(updated._id, updated);
+                      this.pendingSaveIds.delete(updated._id);
+                      if (this.currentNote()?._id === updated._id) this.currentNote.set(updated);
+                      this.notesList.update((list) =>
+                        list.map((n) => (n._id === updated._id ? this.summarize(updated) : n)),
+                      );
+                    }
+                    this.saveStatus.set(this.pendingSaveIds.size ? 'unsaved' : 'saved');
+                  }),
+                  catchError((err) => {
+                    console.error('Error during auto-save:', err);
+                    this.saveStatus.set('unsaved');
+                    return of(null);
+                  }),
                 );
-              }),
-              catchError((err) => {
-                console.error('Error during auto-save:', err);
-                this.saveStatus.set('unsaved');
-                return of(null);
-              }),
-            ),
+            }),
+          ),
         ),
+        takeUntilDestroyed(),
       )
       .subscribe();
   }
@@ -123,11 +145,21 @@ export class NotesService {
    * Limpia el estado reactivo en memoria al cambiar de usuario o cerrar sesión.
    */
   clearState(): void {
+    this.documentHistory.clear();
+    this.saveSession++;
+    this.stopAutoSave.next();
+    this.noteLoadVersion++;
+    this.listLoadVersion++;
+    this.loadedNotes.clear();
+    this.isLoadingNote.set(false);
+    this.isLoadingList.set(false);
+    this.noteLoadFailed.set(false);
     this.notesList.set([]);
     this.currentNote.set(null);
     this.openTabs.set([]);
     this.activeSpace.set('Research');
-    this.lastSavedPayload = '';
+    this.savedPayloads.clear();
+    this.pendingSaveIds.clear();
     this.saveStatus.set('saved');
     this.isReadingMode.set(true);
   }
@@ -222,50 +254,63 @@ export class NotesService {
   /**
    * Carga la lista de notas de un espacio.
    */
-  loadNotes(space?: string): Observable<Note[]> {
+  loadNotes(space?: string): Observable<NoteSummary[]> {
     const targetSpace = space !== undefined ? space : this.activeSpace();
     const queryParam =
       targetSpace && targetSpace !== 'all'
-        ? `?space=${encodeURIComponent(targetSpace)}`
+        ? `&space=${encodeURIComponent(targetSpace)}`
         : '';
 
-    return this.http.get<Note[]>(`${this.apiUrl}${queryParam}`).pipe(
-      tap((notes) => {
-        this.notesList.set(notes);
-        if (notes.length > 0) {
-          const current = this.currentNote();
-          if (!current || !notes.some((n) => n._id === current._id)) {
-            this.currentNote.set(notes[0]);
-            this.lastSavedPayload = this.getNotePayload(notes[0]);
-            this.saveStatus.set('saved');
-            this.isReadingMode.set(true);
-            this.openTab(notes[0]);
-          } else {
-            this.openTab(current);
-          }
-        } else {
-          this.currentNote.set(null);
-          this.lastSavedPayload = '';
-          this.saveStatus.set('saved');
-          this.openTabs.set([]);
-        }
-      }),
-    );
+    return defer(() => {
+      const version = ++this.listLoadVersion;
+      this.isLoadingList.set(true);
+      this.noteLoadFailed.set(false);
+      return this.http.get<NoteSummary[]>(`${this.apiUrl}?view=summary${queryParam}`).pipe(
+        tap((notes) => {
+          if (version !== this.listLoadVersion) return;
+          this.notesList.set(notes);
+        }),
+        finalize(() => {
+          if (version === this.listLoadVersion) this.isLoadingList.set(false);
+        }),
+        catchError(error => {
+          if (version === this.listLoadVersion) this.noteLoadFailed.set(true);
+          return throwError(() => error);
+        }),
+      );
+    });
   }
 
   /**
    * Selecciona o carga una nota por su ID.
    */
-  loadNoteById(id: string): Observable<Note> {
-    return this.http.get<Note>(`${this.apiUrl}/${id}`).pipe(
-      tap((note) => {
-        this.currentNote.set(note);
-        this.lastSavedPayload = this.getNotePayload(note);
-        this.saveStatus.set('saved');
-        this.isReadingMode.set(true);
-        this.openTab(note);
-      }),
-    );
+  loadNoteById(id: string, historyIndex?: number): Observable<Note> {
+    return defer(() => {
+      const version = ++this.noteLoadVersion;
+      this.isLoadingNote.set(true);
+      this.noteLoadFailed.set(false);
+      return this.http.get<Note>(`${this.apiUrl}/${id}`).pipe(
+        // La API puede seguir devolviendo la versión anterior mientras hay un guardado pendiente.
+        map((note) => this.pendingSaveIds.has(id) ? (this.loadedNotes.get(id) ?? note) : note),
+        tap((note) => {
+          if (version !== this.noteLoadVersion) return;
+          this.documentHistory.record(note._id, historyIndex);
+          this.loadedNotes.set(note._id, note);
+          this.currentNote.set(note);
+          if (!this.pendingSaveIds.has(id)) this.savedPayloads.set(id, this.getNotePayload(note));
+          this.saveStatus.set(this.pendingSaveIds.size ? 'unsaved' : 'saved');
+          this.isReadingMode.set(true);
+          this.openTab(note);
+        }),
+        catchError(error => {
+          if (version === this.noteLoadVersion) this.noteLoadFailed.set(true);
+          return throwError(() => error);
+        }),
+        finalize(() => {
+          if (version === this.noteLoadVersion) this.isLoadingNote.set(false);
+        }),
+      );
+    });
   }
 
   /**
@@ -279,6 +324,7 @@ export class NotesService {
       doc: 'Nuevo Documento',
       canvas: 'Nueva Pizarra Excalidraw',
       slide: 'Nueva Presentación PowerPoint',
+      latex: 'Nuevo documento LaTeX',
     };
     const t = title || defaultTitles[docType] || 'Untitled note';
 
@@ -289,7 +335,7 @@ export class NotesService {
               id: `b-${Date.now()}-1`,
               type: 'text',
               order: 0,
-              content: { html: '<p>Start writing your thoughts...</p>' },
+              content: { format: 'richtext', html: '<p></p>' },
               metadata: {},
             },
           ]
@@ -307,10 +353,12 @@ export class NotesService {
       })
       .pipe(
         tap((created) => {
-          this.notesList.update((list) => [created, ...list]);
+          this.documentHistory.record(created._id);
+          this.loadedNotes.set(created._id, created);
+          this.notesList.update((list) => [this.summarize(created), ...list]);
           this.currentNote.set(created);
-          this.lastSavedPayload = this.getNotePayload(created);
-          this.saveStatus.set('saved');
+          this.savedPayloads.set(created._id, this.getNotePayload(created));
+          this.saveStatus.set(this.pendingSaveIds.size ? 'unsaved' : 'saved');
           this.openTab(created);
         }),
       );
@@ -323,20 +371,17 @@ export class NotesService {
    */
   updateDocData(docData: any, targetNoteId?: string): void {
     const note = this.currentNote();
-    if (!note) return;
-
-    if (targetNoteId && note._id !== targetNoteId) {
-      console.warn(
-        `[NotesService] updateDocData ignorado para la nota activa: objetivo=${targetNoteId}, activa=${note._id}`
-      );
+    if (targetNoteId && note?._id !== targetNoteId) {
       // Actualizar la nota en la lista general en segundo plano si existe
-      const cached = this.notesList().find((n) => n._id === targetNoteId);
+      const cached = this.loadedNotes.get(targetNoteId);
       if (cached) {
-        const updatedTarget: Note = { ...cached, docData };
+        const summary = this.notesList().find(item => item._id === targetNoteId);
+        const updatedTarget: Note = { ...cached, space: summary?.space ?? cached.space, docData };
         this.triggerAutoSave(updatedTarget);
       }
       return;
     }
+    if (!note) return;
 
     const updatedNote: Note = {
       ...note,
@@ -344,6 +389,44 @@ export class NotesService {
     };
     this.currentNote.set(updatedNote);
     this.triggerAutoSave(updatedNote);
+  }
+
+  /**
+   * Fuerza el guardado manual e inmediato de la nota actual en la base de datos sin esperar el debounce.
+   */
+  saveCurrentNote(): void {
+    const note = this.currentNote();
+    if (!note) return;
+    this.saveStatus.set('saving');
+    this.http
+      .put<Note>(`${this.apiUrl}/${note._id}`, {
+        title: note.title,
+        lead: note.lead,
+        space: note.space,
+        tags: note.tags,
+        docType: note.docType,
+        docData: note.docData,
+        blocks: note.blocks,
+      })
+      .pipe(
+        takeUntil(this.stopAutoSave),
+        tap((updated) => {
+          this.savedPayloads.set(updated._id, this.getNotePayload(updated));
+          this.loadedNotes.set(updated._id, updated);
+          this.pendingSaveIds.delete(updated._id);
+          if (this.currentNote()?._id === updated._id) this.currentNote.set(updated);
+          this.notesList.update((list) =>
+            list.map((n) => (n._id === updated._id ? this.summarize(updated) : n)),
+          );
+          this.saveStatus.set('saved');
+        }),
+        catchError((err) => {
+          console.error('Error during manual save:', err);
+          this.saveStatus.set('unsaved');
+          return of(null);
+        }),
+      )
+      .subscribe();
   }
 
   /**
@@ -411,8 +494,9 @@ export class NotesService {
   /**
    * Actualiza el contenido de un bloque si existen cambios reales y activa el guardado.
    */
-  updateBlockContent(blockId: string, contentUpdate: Record<string, any>): void {
-    const note = this.currentNote();
+  updateBlockContent(blockId: string, contentUpdate: Record<string, any>, targetNoteId?: string): void {
+    const current = this.currentNote();
+    const note = targetNoteId && current?._id !== targetNoteId ? this.loadedNotes.get(targetNoteId) : current;
     if (!note) return;
 
     const currentBlock = note.blocks.find((b) => b.id === blockId);
@@ -453,7 +537,7 @@ export class NotesService {
       blocks: updatedBlocks,
     };
 
-    this.currentNote.set(updatedNote);
+    if (this.currentNote()?._id === note._id) this.currentNote.set(updatedNote);
     this.triggerAutoSave(updatedNote);
   }
 
@@ -537,11 +621,19 @@ export class NotesService {
   deleteCurrentNote(): Observable<any> {
     const note = this.currentNote();
     if (!note) return of(null);
+    return this.deleteNote(note._id);
+  }
 
-    const noteIdToDelete = note._id;
+  /** El ID queda fijado al abrir la confirmación, aunque después cambie el archivo activo. */
+  deleteNote(noteIdToDelete: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/${noteIdToDelete}`).pipe(
       tap(() => {
+        this.loadedNotes.delete(noteIdToDelete);
+        this.documentHistory.remove(noteIdToDelete);
+        this.savedPayloads.delete(noteIdToDelete);
+        this.pendingSaveIds.delete(noteIdToDelete);
         this.closeTab(noteIdToDelete);
+        if (this.currentNote()?._id === noteIdToDelete) this.currentNote.set(null);
         const remaining = this.notesList().filter((n) => n._id !== noteIdToDelete);
         this.notesList.set(remaining);
       }),
@@ -556,6 +648,7 @@ export class NotesService {
       .put<Note>(`${this.apiUrl}/${noteId}`, { space: targetSpace })
       .pipe(
         tap((updated) => {
+          this.loadedNotes.set(updated._id, updated);
           this.notesList.update((list) =>
             list.map((n) => (n._id === noteId ? { ...n, space: targetSpace } : n)),
           );
@@ -620,16 +713,14 @@ export class NotesService {
   private getDefaultContentForType(type: BlockType): Record<string, any> {
     switch (type) {
       case 'text':
-        return { html: '<p></p>' };
+        return { format: 'richtext', html: '<p></p>' };
       case 'code':
         return {
           language: 'python',
           code: 'def attention(query, key, value):\n    scores = query @ key.transpose(-2, -1)\n    weights = scores.softmax(dim=-1)\n    return weights @ value',
         };
       case 'latex':
-        return {
-          formula: 'Attention(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V',
-        };
+        return { formula: '' };
       case 'sheet':
         return {
           cells: [
@@ -674,11 +765,23 @@ export class NotesService {
   }
 
   private triggerAutoSave(note: Note): void {
+    this.loadedNotes.set(note._id, note);
     const payload = this.getNotePayload(note);
-    if (payload === this.lastSavedPayload) {
+    if (payload === this.savedPayloads.get(note._id) && !this.pendingSaveIds.has(note._id)) {
       return; // El contenido es idéntico al guardado: no activar guardado en base de datos
     }
     this.saveStatus.set('unsaved');
-    this.autoSaveSubject.next(note);
+    this.pendingSaveIds.add(note._id);
+    this.autoSaveSubject.next({ note, session: this.saveSession });
+  }
+
+  private summarize(note: Note): NoteSummary {
+    const { blocks, docData, ...summary } = note;
+    return summary;
+  }
+
+  /** Solo metadatos para referencias; no cambia selección, pestañas ni espacio activo. */
+  listDocumentReferences(): Observable<NoteSummary[]> {
+    return this.http.get<NoteSummary[]>(`${this.apiUrl}?view=summary`);
   }
 }

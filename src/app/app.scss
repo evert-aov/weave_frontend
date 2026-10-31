@@ -1,0 +1,24 @@
+.route-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--canvas);
+  color: var(--muted);
+  font: 13px system-ui, sans-serif;
+  strong { color: var(--text); font-size: 20px; }
+}
+.loading-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--accent);
+  color: white;
+  font: 700 28px Georgia, serif;
+}

@@ -1,3 +1,5 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { unwrapCodeFence } from '../../core/utils/ai-edit-text';
 import {
   Component,
   Input,
@@ -45,7 +47,7 @@ export class MermaidBlockComponent implements OnInit {
       mermaid.initialize({
         startOnLoad: false,
         theme: isDark ? 'dark' : 'default',
-        securityLevel: 'loose',
+        securityLevel: 'strict',
         fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       });
       if (this.chartText) {
@@ -59,7 +61,22 @@ export class MermaidBlockComponent implements OnInit {
     this.isEditing.set(true);
   }
 
+  private aiOwner?: string;
+  private readonly aiDocuments = inject(AiDocumentService);
+  private readonly unregisterAi = this.aiDocuments.register({
+    owner: () => this.aiOwner,
+    fields: () => [{ id: `mermaid:${this.block.id}`, text: this.chartText }],
+    apply: values => {
+      const raw = values.get(`mermaid:${this.block.id}`);
+      if (raw !== undefined) { const value = unwrapCodeFence(raw); this.chartText = value;
+        this.notesService.updateBlockContent(this.block.id, { chart: value }, this.aiOwner); void this.renderChart(); }
+    },
+  });
+
+  ngOnDestroy(): void { this.unregisterAi(); }
+
   ngOnInit(): void {
+    this.aiOwner = this.notesService.currentNote()?._id;
     this.chartText =
       this.block.content?.['chart'] ||
       'graph TD\n    A[Input tokens] --> B[Transformer Encoder]\n    B --> C[Attention Context]\n    C --> D[Output Projection]';
@@ -82,7 +99,7 @@ export class MermaidBlockComponent implements OnInit {
       mermaid.initialize({
         startOnLoad: false,
         theme: isDark ? 'dark' : 'default',
-        securityLevel: 'loose',
+        securityLevel: 'strict',
         fontFamily: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       });
 
@@ -98,11 +115,11 @@ export class MermaidBlockComponent implements OnInit {
       });
     } catch (err) {
       console.error('Mermaid render error:', err);
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorMsg = (err instanceof Error ? err.message : String(err)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       this.svgOutput.set(
         this.sanitizer.bypassSecurityTrustHtml(
           `<div class="mermaid-error-box">
-             <div class="error-title">⚠️ ${this.i18n.currentLang() === 'es' ? 'Error de sintaxis en diagrama Mermaid' : 'Syntax error in Mermaid diagram'}</div>
+             <div class="error-title">${this.i18n.currentLang() === 'es' ? 'Error de sintaxis en diagrama Mermaid' : 'Syntax error in Mermaid diagram'}</div>
              <pre>${errorMsg}</pre>
            </div>`,
         ),

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   LucideCheckCircle2,
@@ -12,6 +12,7 @@ import {
   provideLucideIcons,
 } from '@lucide/angular';
 import { HeadingItem, TableItem } from '../../models/word-document.model';
+import { I18nService } from '../../../../core/services/i18n.service';
 
 const LEVEL_BADGE_COLORS: Record<number, string> = {
   1: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -41,6 +42,13 @@ const LEVEL_BADGE_COLORS: Record<number, string> = {
   styleUrls: ['./word-toc-sidebar.component.scss'],
 })
 export class WordTocSidebarComponent {
+  readonly i18n = inject(I18nService, { optional: true });
+
+  t(key: string, params?: Record<string, string | number>): string {
+    return this.i18n?.t ? this.i18n.t(key, params) : key;
+  }
+
+  @Input() darkMode = false;
   @Input() headings: HeadingItem[] = [];
   @Input() tables: TableItem[] = [];
   @Input() hasDetectedDocxToc?: boolean;

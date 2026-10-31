@@ -1,8 +1,35 @@
-<div class="flex min-h-screen w-full bg-[var(--canvas)] text-[var(--text)] overflow-hidden">
+<div class="workspace-shell" [attr.inert]="dialogs.request() ? '' : null">
+  @if (!notesService.isSidebarCollapsed()) {
+    <button
+      type="button"
+      class="navigation-backdrop"
+      [attr.aria-label]="i18n.t('nav.collapse_navigation')"
+      (click)="notesService.isSidebarCollapsed.set(true)"
+    ></button>
+  }
   <app-sidebar></app-sidebar>
-  <main class="flex-1 min-w-0 h-screen flex flex-col bg-[var(--canvas)] overflow-hidden">
-    <app-topbar></app-topbar>
+  <main class="workspace-main">
     <app-document-tabs></app-document-tabs>
-    <app-document-editor></app-document-editor>
+    @if (navigation.error()) {
+      <div role="alert" class="document-navigation-error">
+        <span>{{ navigation.error() }}</span>
+        <button type="button" (click)="navigation.error.set('')" aria-label="Cerrar aviso">Cerrar</button>
+      </div>
+    }
+    <div class="workspace-content">
+      <div class="editor-pane" appDocumentReferences [attr.data-document-id]="notesService.currentNote()?._id">
+        @defer (on immediate) {
+          <app-document-editor></app-document-editor>
+        } @placeholder {
+          <app-lazy-load-state></app-lazy-load-state>
+        } @error {
+          <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+        }
+      </div>
+      <!-- El asistente acompaña al documento desde el lateral derecho. -->
+      <app-ai-assistant-sidebar></app-ai-assistant-sidebar>
+    </div>
   </main>
 </div>
+@if (references.request()) { <app-document-reference-picker /> }
+@if (dialogs.request(); as request) { <app-dialog [request]="request" /> }

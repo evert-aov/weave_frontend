@@ -11,4 +11,13 @@ import { appConfig } from './app/app.config';
 import { App } from './app/app';
 
 bootstrapApplication(App, appConfig)
-  .catch((err) => console.error(err));
+  .catch((err) => {
+    console.error(err);
+    const root = document.querySelector('app-root');
+    if (root) {
+      const message = document.createElement('p');
+      message.setAttribute('role', 'alert');
+      message.textContent = 'No se pudo iniciar Weave. Comprueba tu conexión y recarga la página.';
+      root.replaceChildren(message);
+    }
+  });

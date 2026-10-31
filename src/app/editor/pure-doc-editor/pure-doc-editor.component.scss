@@ -4,6 +4,8 @@
  * inyecta dinámicamente vía innerHTML (sin atributos _ngcontent de Angular).
  * --------------------------------------------------------------------------- */
 
+@use '../../shared/styles/document-links' as links;
+
 app-pure-doc-editor {
   display: block;
   width: 100%;
@@ -13,10 +15,29 @@ app-pure-doc-editor {
 /* Word-faithful typography and paragraph spacing for contentEditable rich text area */
 .word-editor-canvas {
   outline: none;
+  display: flow-root;
+  // The editor is a flex child inside a fixed-size page. Declare its inline
+  // size explicitly so an empty/flex-collapsed paragraph cannot reduce the
+  // editable column to the width of a single glyph.
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 0;
+  overflow-wrap: break-word;
   font-family: 'Times New Roman', 'Calibri', 'Inter', serif;
   color: #0f172a;
   line-height: 1.15;
   font-size: 11pt;
+
+  // A fragment on a new sheet continues its paragraph without a second indent or list bullet.
+  [data-word-continuation] {
+    margin-top: 0 !important;
+    text-indent: 0 !important;
+  }
+  li[data-word-continuation] {
+    list-style-type: none;
+  }
 
   h1 {
     font-size: 16pt;
@@ -148,10 +169,7 @@ app-pure-doc-editor {
     border-top: 1.5px solid #cbd5e1;
     margin: 0.75rem 0;
   }
-  a {
-    color: #2563eb;
-    text-decoration: underline;
-  }
+  @include links.document-links;
   img {
     max-width: 100%;
     height: auto;
@@ -187,6 +205,13 @@ app-pure-doc-editor {
     &:hover {
       background-color: #eff6ff;
       border-color: #93c5fd;
+    }
+  }
+
+  /* Document Watermark Overlay */
+  .word-watermark-overlay {
+    span {
+      color: rgba(148, 163, 184, 0.35);
     }
   }
 
@@ -268,25 +293,118 @@ app-pure-doc-editor {
 
 /* Dark Mode Canvas Override */
 .word-dark-sheet {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
+  background-color: #18181b !important;
+  color: #f4f4f5 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
 
   .word-editor-canvas,
   .word-editor-canvas h1,
   .word-editor-canvas h2,
   .word-editor-canvas h3,
   .word-editor-canvas h4,
+  .word-editor-canvas h5,
+  .word-editor-canvas h6,
   .word-editor-canvas p,
   .word-editor-canvas li,
   .word-editor-canvas span,
   .word-toc-header,
   .word-toc-entry {
-    color: #f1f5f9 !important;
+    color: #f4f4f5 !important;
+  }
+
+  .word-header-area,
+  .word-footer-area,
+  .word-header-area *,
+  .word-footer-area * {
+    color: #a1a1aa !important;
   }
 
   .word-editor-canvas th,
   .word-editor-canvas td {
-    border-color: #475569 !important;
+    border-color: #3f3f46 !important;
+  }
+
+  .word-editor-canvas blockquote {
+    border-left-color: #3b82f6 !important;
+    background-color: rgba(39, 39, 42, 0.6) !important;
+    color: #e4e4e7 !important;
+  }
+
+  .word-editor-canvas code,
+  .word-editor-canvas pre {
+    background-color: #121214 !important;
+    color: #93c5fd !important;
+    border-color: #27272a !important;
+  }
+
+  .word-editor-canvas hr {
+    border-color: #3f3f46 !important;
+  }
+
+  .word-editor-canvas .docx-tab-dots::before {
+    color: #71717a !important;
+  }
+
+  .word-editor-canvas {
+    @include links.document-links(#93c5fd, #bfdbfe, #1e3a8a);
+  }
+
+  .word-latex-formula {
+    color: #f4f4f5 !important;
+
+    *,
+    .word-latex-math-rendered,
+    div,
+    span,
+    table,
+    td {
+      color: #f4f4f5 !important;
+      border-color: #f4f4f5 !important;
+    }
+
+    svg {
+      path,
+      line {
+        fill: #f4f4f5 !important;
+        stroke: #f4f4f5 !important;
+      }
+    }
+
+    ::ng-deep .katex,
+    .katex {
+      color: #f4f4f5 !important;
+
+      * {
+        color: #f4f4f5 !important;
+        border-color: #f4f4f5 !important;
+      }
+
+      svg {
+        path,
+        line {
+          fill: #f4f4f5 !important;
+          stroke: #f4f4f5 !important;
+        }
+      }
+
+      .frac-line {
+        border-bottom-color: #f4f4f5 !important;
+      }
+
+      .sqrt-sign {
+        stroke: #f4f4f5 !important;
+        fill: #f4f4f5 !important;
+      }
+    }
+
+    &:hover {
+      background-color: #27272a !important;
+      border-color: #3b82f6 !important;
+    }
+  }
+
+  .word-watermark-overlay span {
+    color: rgba(244, 244, 245, 0.22) !important;
   }
 }
 
@@ -314,5 +432,87 @@ app-pure-doc-editor {
   }
   .no-print {
     display: none !important;
+  }
+}
+
+/* Presentation only: marks never enter document HTML, clipboard or exports. */
+.word-show-formatting-marks {
+  :is(p,h1,h2,h3,h4,h5,h6,li)::after {
+    content: '¶'; color: #3b82f6; font-family: sans-serif; font-size: 10px;
+    font-weight: normal; margin-left: 3px; pointer-events: none;
+  }
+  .docx-tab { background: #dbeafe; }
+  .docx-tab::before { content: '→'; color: #3b82f6; }
+}
+.word-multilevel-list {
+  list-style-type: decimal;
+  ol { list-style-type: lower-alpha; ol { list-style-type: lower-roman; } }
+}
+@media print {
+  .word-show-formatting-marks :is(p,h1,h2,h3,h4,h5,h6,li)::after,
+  .word-show-formatting-marks .docx-tab::before { content: none; }
+  .word-show-formatting-marks .docx-tab { background: transparent; }
+}
+
+/* Override resets for imported/legacy semantic scripts as well as explicit run styles. */
+.word-editor-canvas sub,
+.word-editor-canvas sup {
+  position: static; top: auto; bottom: auto; font-size: 0.75em; line-height: 0;
+}
+.word-editor-canvas sub { vertical-align: sub; }
+.word-editor-canvas sup { vertical-align: super; }
+
+/* Word Inserted Elements: SmartArt, Shapes, Badges, Drawing Canvas */
+.word-smartart-container {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  &:hover {
+    border-color: #93c5fd !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+  }
+}
+
+.word-shape-wrapper {
+  margin: 14px 0;
+  text-align: center;
+  user-select: none;
+}
+
+.word-shape-container,
+.word-shape-box {
+  user-select: none;
+  transition: transform 0.15s ease;
+  &:hover {
+    filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.2));
+  }
+}
+
+.word-doc-icon {
+  display: inline-block !important;
+  vertical-align: -4px !important;
+  margin: 0 4px !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+.word-icon-inline {
+  display: inline-block !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  line-height: 1 !important;
+}
+
+.word-icon-badge {
+  user-select: none;
+  vertical-align: middle;
+}
+
+.word-comment-badge {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.word-drawing-canvas {
+  transition: border-color 0.2s ease;
+  &:hover {
+    border-color: #2563eb !important;
   }
 }

@@ -165,8 +165,8 @@ export const DEFAULT_LAYOUT_CONFIG: DocumentLayoutConfig = {
     left: true,
     right: true,
   },
-  headerHtml: '<div style="text-align: right; color: #64748b; font-size: 9.5pt;">Documento Corporativo · Confidencial</div>',
-  footerHtml: '<div style="text-align: center; color: #64748b; font-size: 9.5pt;">Word Studio Pro — Compatible con Microsoft Word</div>',
+  headerHtml: '',
+  footerHtml: '',
   showHeaderFooter: true,
 };
 
@@ -515,6 +515,7 @@ export const FONT_FAMILIES = [
   { label: 'Calibri', value: 'Calibri, Candara, Segoe, Optima, sans-serif' },
   { label: 'Aptos', value: 'Aptos, Calibri, Inter, sans-serif' },
   { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+  { label: 'Arial Black', value: '"Arial Black", Arial, sans-serif' },
   { label: 'Cambria', value: 'Cambria, Georgia, serif' },
   { label: 'Georgia', value: 'Georgia, serif' },
   { label: 'Merriweather', value: 'Merriweather, serif' },
@@ -559,65 +560,7 @@ export const CODE_LANGUAGES = [
   'Bash'
 ];
 
+/** New documents start with one empty, editable paragraph. */
 export const INITIAL_DOCUMENT_PAGES: DocumentPage[] = [
-  {
-    id: 'page-1',
-    html: `
-<h1 id="heading-init-1">Propuesta Estratégica y Guía de Usuario 2025</h1>
-<p>Bienvenido a <strong>Word Studio Pro Multipágina</strong>. Esta versión incluye <strong>Plantillas de Estilos Personalizables</strong> (como <em>H1 en Times New Roman 12pt Centrado</em>) e importación avanzada de <code>.docx</code> que conserva el tamaño exacto de cada encabezado, imágenes incrustadas, tabulaciones y espaciado de párrafos.</p>
-
-<h2 id="heading-init-2">1. Importación Fiel de .DOCX (Imágenes, Títulos, Tabulados y Espaciado)</h2>
-<p>Al cargar un archivo <strong>.docx</strong> desde tu equipo, el motor OpenXML analiza internamente todas las relaciones y estilos para aplicar automáticamente:</p>
-<ul>
-  <li><strong>Tamaño Exacto en Encabezados (H1–H6):</strong> Lee el tamaño en puntos (<code>w:sz</code>) tanto de <code>word/styles.xml</code> como de los fragmentos directos del título y los aplica sin perder su jerarquía en el Índice.</li>
-  <li><strong>Imágenes Incrustadas (<code>word/media/*</code>):</strong> Extrae todas las imágenes dentro del paquete <code>.docx</code>, resuelve sus relaciones (<code>document.xml.rels</code>) y las inserta con sus dimensiones originales.</li>
-  <li><strong>Tabulaciones, Sangrías y Espaciado:</strong> Respeta las tabulaciones (<code>w:tab</code> y tecla <code>Tab</code>), sangría izquierda/derecha, sangría de primera línea (<code>w:ind</code>), espaciado anterior/posterior e interlineado (<code>w:spacing</code>).</li>
-</ul>
-
-<h3 id="heading-init-3">1.1 Plantillas de Estilos (Ej. H1 Times New Roman 12pt Centrado)</h3>
-<p>Abre la pestaña <strong>Plantillas de Estilos</strong> en la barra superior o pulsa el botón <em>"Diseñador de Estilos"</em> para configurar cómo debe lucir cada nivel (<code>H1..H6</code> y <code>P</code>) y aplicarlo a todo el documento con un clic.</p>
-`
-  },
-  {
-    id: 'page-2',
-    html: `
-<h2 id="heading-init-4">2. Resumen de Capacidades de Formato y Plantillas</h2>
-<p>Esta es la <strong>Página 2</strong> del documento. En la tabla inferior se detallan las mejoras de fidelidad visual con Microsoft Word:</p>
-
-<table>
-  <thead>
-    <tr>
-      <th>Característica</th>
-      <th>Soporte en Importación .DOCX</th>
-      <th>Edición en Vivo</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Tamaño y Fuente de H1–H6</strong></td>
-      <td>Aplica <code>font-size</code>, <code>font-family</code>, color y alineación reales</td>
-      <td>Sí (Barra + Plantillas)</td>
-    </tr>
-    <tr>
-      <td><strong>Imágenes del Documento</strong></td>
-      <td>Extrae binarios de <code>word/media/</code> como Base64</td>
-      <td>Sí</td>
-    </tr>
-    <tr>
-      <td><strong>Tabulado y Espaciado</strong></td>
-      <td>Preserva <code>w:tab</code>, <code>w:ind</code> (sangrías) y <code>w:spacing</code></td>
-      <td>Sí (Tecla Tab + Sangría)</td>
-    </tr>
-    <tr>
-      <td><strong>Plantillas de Estilos</strong></td>
-      <td>Incluye APA 7 (Times New Roman 12pt Centrado) y creador propio</td>
-      <td>Sí (Aplicar a todo el doc)</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="heading-init-5">2.1 Prueba de Tabulado y Sangría</h3>
-<p style="text-indent: 36pt; line-height: 1.8;">Este párrafo demuestra una <strong>sangría de primera línea de 36pt (1.27 cm)</strong> e interlineado extendido, tal como se utiliza en documentos académicos y jurídicos. También puedes presionar la tecla <code>Tab</code> en cualquier parte del documento para insertar un tabulado real.</p>
-`
-  }
+  { id: 'page-1', html: '<p><br></p>' },
 ];

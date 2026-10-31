@@ -1,16 +1,18 @@
-import { Injectable } from '@angular/core';
+import { renderFormula } from '../../shared/latex/render-formula';
+import { Injectable, inject } from '@angular/core';
+import { DialogService } from '../../core/services/dialog.service';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import * as katex from 'katex';
 import { Note } from '../../core/models/note.model';
 import { Block } from '../../core/models/block.model';
 import { ExportOptions, ExportStrategy } from '../models/export.model';
-import { formatMultiLineLatex } from '../../blocks/latex-block/latex-block.component';
+import { isLatexDocument, normalizeLatexAlignment, normalizeLatexFontSize } from '../../shared/utils/latex';
 
 @Injectable({
   providedIn: 'root',
 })
 export class PdfExportStrategy implements ExportStrategy {
+  private readonly dialogs = inject(DialogService);
   readonly format = 'pdf';
   readonly label = 'Documento PDF';
   readonly description = 'Exportación de alta fidelidad con fórmulas KaTeX, código y tablas maquetadas.';
@@ -209,7 +211,7 @@ export class PdfExportStrategy implements ExportStrategy {
   private printViaBrowser(note: Note, options: ExportOptions): void {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert('Por favor permite las ventanas emergentes para imprimir el documento.');
+      this.dialogs.notice('Impresión bloqueada', 'Permite las ventanas emergentes para imprimir el documento.');
       return;
     }
 
@@ -410,19 +412,18 @@ export class PdfExportStrategy implements ExportStrategy {
 
       case 'latex': {
         const rawFormula = content['formula'] || '';
-        const formula = formatMultiLineLatex(rawFormula);
+        if (content['mode'] === 'document' || isLatexDocument(rawFormula)) {
+          return `<div class="block"><p>LaTeX avanzado — código fuente. Descarga el PDF desde la vista previa del bloque.</p><pre><code>${this.escapeHtml(rawFormula)}</code></pre></div>`;
+        }
         let renderedMath = '';
         try {
-          renderedMath = katex.renderToString(formula, {
-            displayMode: true,
-            throwOnError: false,
-          });
+          renderedMath = renderFormula(rawFormula, content);
         } catch {
           renderedMath = `<code>${this.escapeHtml(rawFormula)}</code>`;
         }
         return `
           <div class="pdf-block pdf-latex-block page-break-avoid">
-            <div class="pdf-latex-inner">${renderedMath}</div>
+            <div class="pdf-latex-inner" style="font-size: ${normalizeLatexFontSize(content['fontSizePx'])}px; text-align: ${normalizeLatexAlignment(content['alignment'])};">${renderedMath}</div>
           </div>
         `;
       }
@@ -1003,11 +1004,12 @@ export class PdfExportStrategy implements ExportStrategy {
         font-size: 11.5px;
       }
       .pdf-latex-inner {
-        display: flex;
-        justify-content: center;
+        display: block;
+        text-align: center;
         overflow-x: auto;
         font-size: 11.5px;
       }
+      .pdf-latex-inner .katex-display, .pdf-latex-inner .katex-display > .katex { text-align: inherit; }
       .pdf-latex-block .katex {
         font-size: 1em !important;
       }

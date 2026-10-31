@@ -1,3 +1,6 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { richTextHtml } from '../../core/utils/ai-edit-text';
+import { DestroyRef } from '@angular/core';
 import {
   Component,
   ElementRef,
@@ -22,7 +25,10 @@ import { CodeBlockComponent } from '../../blocks/code-block/code-block.component
 import { MermaidBlockComponent } from '../../blocks/mermaid-block/mermaid-block.component';
 import { FileBlockComponent } from '../../blocks/file-block/file-block.component';
 import { BlockType } from '../../core/models/block.model';
+import { LazyLoadStateComponent } from '../../shared/components/lazy-load-state/lazy-load-state.component';
+import { WorkspaceActionsService } from '../../core/services/workspace-actions.service';
 
+import { PureLatexEditorComponent } from '../pure-latex-editor/pure-latex-editor.component';
 import { PureSheetEditorComponent } from '../pure-sheet-editor/pure-sheet-editor.component';
 import { PureDocEditorComponent } from '../pure-doc-editor/pure-doc-editor.component';
 import { PureCanvasEditorComponent } from '../pure-canvas-editor/pure-canvas-editor.component';
@@ -52,6 +58,8 @@ import { PureSlideEditorComponent } from '../pure-slide-editor/pure-slide-editor
     CodeBlockComponent,
     MermaidBlockComponent,
     FileBlockComponent,
+    LazyLoadStateComponent,
+    PureLatexEditorComponent,
     PureSheetEditorComponent,
     PureDocEditorComponent,
     PureCanvasEditorComponent,
@@ -63,6 +71,24 @@ import { PureSlideEditorComponent } from '../pure-slide-editor/pure-slide-editor
 export class DocumentEditorComponent {
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
+  private readonly actions = inject(WorkspaceActionsService);
+
+  private readonly aiDocuments = inject(AiDocumentService);
+  constructor() {
+    inject(DestroyRef).onDestroy(this.aiDocuments.register({
+      owner: () => { const note = this.notesService.currentNote(); return note && (!note.docType || note.docType === 'block') ? note._id : undefined; },
+      fields: () => [{ id: 'document:append', text: '' }],
+      apply: values => {
+        const text = values.get('document:append');
+        if (!text) return;
+        this.notesService.addBlock('text');
+        const block = this.notesService.currentNote()?.blocks.at(-1);
+        if (block) {
+          this.notesService.updateBlockContent(block.id, { format: 'richtext', html: richTextHtml(text) });
+        }
+      },
+    }));
+  }
 
   readonly showSlashMenu = signal<boolean>(false);
   readonly insertAfterIndex = signal<number | null>(null);
@@ -302,7 +328,7 @@ export class DocumentEditorComponent {
 
   @HostListener('window:keydown', ['$event'])
   handleGlobalKeydown(event: KeyboardEvent): void {
-    if (this.notesService.isReadingMode()) return;
+    if (this.notesService.isReadingMode() || (this.notesService.currentNote()?.docType && this.notesService.currentNote()?.docType !== 'block')) return;
     // Ctrl+Enter / Cmd+Enter: insertar bloque de texto debajo del bloque activo actual
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       const activeIdx = this.activeBlockIndex();
@@ -314,12 +340,6 @@ export class DocumentEditorComponent {
   }
 
   createNewNote(): void {
-    const isEs = this.i18n.currentLang() === 'es';
-    const name = prompt(isEs ? 'Nombre del documento:' : 'Document name:');
-    if (name === null) {
-      return; // El usuario canceló la creación.
-    }
-    const title = name.trim() || undefined;
-    this.notesService.createNote(title).subscribe();
+    this.actions.createDocument();
   }
 }

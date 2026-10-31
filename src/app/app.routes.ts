@@ -1,22 +1,20 @@
 import { Routes } from '@angular/router';
-import { WorkspaceComponent } from './pages/workspace/workspace.component';
-import { LoginComponent } from './pages/login/login.component';
-import { RegisterComponent } from './pages/register/register.component';
-import { authGuard } from './core/guards/auth.guard';
+import { authMatchGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
     path: '',
-    component: WorkspaceComponent,
-    canActivate: [authGuard],
+    pathMatch: 'full',
+    loadComponent: () => import('./pages/workspace/workspace.component').then(m => m.WorkspaceComponent),
+    canMatch: [authMatchGuard],
   },
   {
     path: 'login',
-    component: LoginComponent,
+    loadComponent: () => import('./pages/login/login.component').then(m => m.LoginComponent),
   },
   {
     path: 'register',
-    component: RegisterComponent,
+    loadComponent: () => import('./pages/register/register.component').then(m => m.RegisterComponent),
   },
   {
     path: '**',

@@ -1,3 +1,5 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { sheetAiAdapter } from '../../shared/utils/ai-sheet-adapter';
 import {
   Component,
   Input,
@@ -77,6 +79,13 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnChange
   private loadedNoteId: string | null = null;
   private isDestroyed = false;
 
+  private readonly aiReadyOwner = signal<string | undefined>(undefined);
+  private readonly aiDocuments = inject(AiDocumentService);
+  private readonly unregisterAi = this.aiDocuments.register(sheetAiAdapter(
+    () => this.aiReadyOwner(), () => this.univerAPI?.getActiveWorkbook(),
+    snapshot => { clearTimeout(this.saveTimeout); this.notesService.updateDocData(snapshot, this.loadedNoteId ?? undefined); }, () => '',
+  ));
+
   constructor() {
     effect(() => {
       this.notesService.documentZoom();
@@ -108,6 +117,7 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnChange
   }
 
   ngOnDestroy(): void {
+    this.unregisterAi();
     this.isDestroyed = true;
     this.destroyUniver();
   }
@@ -124,6 +134,7 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnChange
   }
 
   private destroyUniver(): void {
+    this.aiReadyOwner.set(undefined);
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
@@ -140,6 +151,7 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnChange
       } catch {}
       this.univerInstance = null;
     }
+    this.univerAPI = null;
     if (this.sheetContainer?.nativeElement) {
       this.sheetContainer.nativeElement.innerHTML = '';
     }
@@ -322,6 +334,7 @@ export class PureSheetEditorComponent implements OnInit, AfterViewInit, OnChange
           this.scheduleAutoSave(workbook);
         });
       }
+      this.aiReadyOwner.set(this.loadedNoteId ?? undefined);
     } catch (err) {
       console.error('[PureSheetEditor] Error initializing Univer Sheets:', err);
     }

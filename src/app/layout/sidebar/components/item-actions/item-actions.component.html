@@ -1,0 +1,40 @@
+<button
+  #trigger
+  type="button"
+  class="item-menu-trigger"
+  [class.active]="isOpen()"
+  [title]="triggerLabel()"
+  [attr.aria-label]="triggerLabel()"
+  aria-haspopup="menu"
+  [attr.aria-expanded]="isOpen()"
+  [attr.aria-controls]="menuId"
+  [attr.popovertarget]="menuId"
+  (click)="toggle($event)"
+>
+  <app-icon name="more" [size]="16"></app-icon>
+</button>
+<div
+  #menu
+  popover="auto"
+  class="item-menu"
+  [id]="menuId"
+  role="menu"
+  [attr.aria-label]="triggerLabel()"
+  (toggle)="syncOpen($event)"
+  (keydown)="onKeyDown($event)"
+  (click)="$event.stopPropagation()"
+>
+  <div class="item-menu-label">{{ label() }}</div>
+  @for (action of actions(); track action.id) {
+    <button
+      type="button"
+      role="menuitem"
+      class="item-menu-action"
+      [class.destructive]="action.destructive"
+      (click)="select(action.id, $event)"
+    >
+      <app-icon [name]="action.icon" [size]="15"></app-icon>
+      <span>{{ action.label }}</span>
+    </button>
+  }
+</div>

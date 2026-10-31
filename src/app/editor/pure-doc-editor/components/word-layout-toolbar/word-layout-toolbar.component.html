@@ -1,0 +1,355 @@
+<div class="layout-ribbon" [class.dark-mode]="darkMode" (keydown.escape)="openMenu.set(null)">
+  <!-- 1. PAGE SETUP GROUP (Matching Image 1) -->
+  <section class="layout-group" [attr.aria-label]="t('word.layout.page_setup', 'Configurar página')">
+    <div class="control-row">
+      <!-- Margins (Image 1) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('margins')"
+          [title]="t('word.layout.margins', 'Márgenes')"
+        >
+          <div class="icon-margins-wrap">
+            <svg lucideIcon="ruler" [size]="20" class="icon-blue"></svg>
+          </div>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.layout.margins', 'Márgenes') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'margins') {
+          <div class="layout-dropdown-menu margins-menu">
+            <div class="dropdown-header">{{ t('word.layout.margins_presets', 'Márgenes predefinidos') }}</div>
+            <div class="space-y-1">
+              @for (item of marginPresets; track item.key) {
+                <button
+                  type="button"
+                  class="menu-row-btn"
+                  [class.selected]="layoutConfig.margins.label === item.preset.label"
+                  (click)="selectMarginPreset(item.preset)"
+                >
+                  <span class="font-medium">{{ getMarginLabel(item.key, item.preset.label) }}</span>
+                  <span class="text-[10px] text-slate-400">
+                    {{ (item.preset.topPx / 96 * 2.54).toFixed(1) }} × {{ (item.preset.leftPx / 96 * 2.54).toFixed(1) }} cm
+                  </span>
+                </button>
+              }
+            </div>
+
+            <!-- Custom Margins Inputs -->
+            <form (submit)="applyCustomMargins($event)" class="custom-margins-box">
+              <div class="custom-header">{{ t('word.layout.margins_custom', 'Márgenes personalizados (cm)') }}</div>
+              <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+                <label>
+                  <span>{{ t('word.layout.margin_top_short', 'Sup') }}</span>
+                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginTopCm()" (input)="customMarginTopCm.set(Number($any($event.target).value))" />
+                </label>
+                <label>
+                  <span>{{ t('word.layout.margin_bottom_short', 'Inf') }}</span>
+                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginBottomCm()" (input)="customMarginBottomCm.set(Number($any($event.target).value))" />
+                </label>
+                <label>
+                  <span>{{ t('word.layout.margin_left_short', 'Izq') }}</span>
+                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginLeftCm()" (input)="customMarginLeftCm.set(Number($any($event.target).value))" />
+                </label>
+                <label>
+                  <span>{{ t('word.layout.margin_right_short', 'Der') }}</span>
+                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginRightCm()" (input)="customMarginRightCm.set(Number($any($event.target).value))" />
+                </label>
+              </div>
+              <button type="submit" class="btn-apply-margins">
+                {{ t('word.layout.margins_apply', 'Aplicar') }}
+              </button>
+            </form>
+          </div>
+        }
+      </div>
+
+      <!-- Orientation (Image 1) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('orientation')"
+          [title]="t('word.layout.orientation', 'Orientación')"
+        >
+          <svg lucideIcon="rotate-cw" [size]="20" class="icon-blue"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.layout.orientation', 'Orientación') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'orientation') {
+          <div class="layout-dropdown-menu orientation-menu">
+            <button
+              type="button"
+              class="menu-row-btn"
+              [class.selected]="layoutConfig.orientation === 'portrait'"
+              (click)="setOrientation('portrait')"
+            >
+              <span>{{ t('word.layout.portrait', 'Vertical') }}</span>
+              <span class="text-xs text-slate-400">{{ t('word.layout.portrait_desc', 'Página normal vertical') }}</span>
+            </button>
+            <button
+              type="button"
+              class="menu-row-btn"
+              [class.selected]="layoutConfig.orientation === 'landscape'"
+              (click)="setOrientation('landscape')"
+            >
+              <span>{{ t('word.layout.landscape', 'Horizontal') }}</span>
+              <span class="text-xs text-slate-400">{{ t('word.layout.landscape_desc', 'Página apaisada horizontal') }}</span>
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Size (Image 1) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('paperSize')"
+          [title]="t('word.layout.paper_size', 'Tamaño de papel')"
+        >
+          <svg lucideIcon="book-open" [size]="20" class="icon-blue"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.layout.size', 'Tamaño') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'paperSize') {
+          <div class="layout-dropdown-menu paper-size-menu">
+            <div class="dropdown-header">{{ t('word.layout.paper_size', 'Tamaño de página') }}</div>
+            <div class="space-y-0.5 max-h-60 overflow-y-auto">
+              @for (formatId of paperFormatList; track formatId) {
+                @let preset = activePaperPresetFor(formatId);
+                <button
+                  type="button"
+                  class="menu-row-btn"
+                  [class.selected]="layoutConfig.paperFormatId === formatId"
+                  (click)="selectPaperFormat(formatId)"
+                >
+                  <span class="font-medium">{{ preset.name }}</span>
+                  <span class="text-[10px] font-mono text-slate-400">{{ preset.badge }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Columns (Image 1) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('columns')"
+          [title]="t('word.layout.columns', 'Columnas')"
+        >
+          <svg lucideIcon="columns" [size]="20" class="icon-blue"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.layout.columns', 'Columnas') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'columns') {
+          <div class="layout-dropdown-menu columns-menu">
+            <div class="dropdown-header">{{ t('word.layout.columns_header', 'Columnas (sección activa)') }}</div>
+            <div class="space-y-1">
+              @for (colOpt of columnOptions; track colOpt.id) {
+                <button
+                  type="button"
+                  class="menu-row-btn"
+                  (click)="selectColumns(colOpt.id)"
+                >
+                  <div>
+                    <div class="font-medium text-slate-800">{{ t(colOpt.labelKey) }}</div>
+                    <div class="text-[10px] text-slate-400">{{ t(colOpt.descKey) }}</div>
+                  </div>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Stacked Items Column beside Columns (Breaks, Line Numbers, Hyphenation - Matching Image 1) -->
+      <div class="stacked-setup-col">
+        <!-- Breaks -->
+        <button
+          type="button"
+          class="btn-compact-row"
+          (click)="insertPageBreak.emit()"
+          [title]="t('word.layout.page_breaks', 'Saltos de página')"
+        >
+          <svg lucideIcon="scissors" [size]="13" class="text-indigo-600"></svg>
+          <span>{{ t('word.layout.breaks', 'Saltos') }}</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+        </button>
+
+        <!-- Line Numbers -->
+        <button
+          type="button"
+          class="btn-compact-row"
+          [class.active]="layoutConfig.showLineNumbers"
+          (click)="toggleLineNumbers()"
+          [title]="t('word.layout.line_numbers_tooltip', 'Mostrar u ocultar números de línea')"
+        >
+          <svg lucideIcon="hash" [size]="13" class="text-blue-600"></svg>
+          <span>{{ t('word.layout.line_numbers', 'Núm. de línea') }}</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+        </button>
+
+        <!-- Hyphenation -->
+        <button
+          type="button"
+          class="btn-compact-row"
+          [class.active]="layoutConfig.hyphenation"
+          (click)="toggleHyphenation()"
+          [title]="t('word.layout.hyphenation_tooltip', 'Separación silábica automática de palabras al final de línea')"
+        >
+          <span class="hyphen-badge">a-bc</span>
+          <span>{{ t('word.layout.hyphenation', 'Guiones') }}</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+        </button>
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.layout.page_setup', 'Configurar página') }}</span>
+  </section>
+
+  <!-- 2. PARAGRAPH GROUP: Indent & Spacing Spinboxes (Matching Image 1) -->
+  <section class="layout-group" [attr.aria-label]="t('word.group.paragraph', 'Párrafo')">
+    <div class="control-row paragraph-spinners-row">
+      <!-- Indent Column -->
+      <div class="spinners-col">
+        <div class="col-title">{{ t('word.layout.indent_label', 'Sangría') }}</div>
+        <div class="spinner-field">
+          <span class="spinner-label">{{ t('word.layout.indent_left', 'Izq:') }}</span>
+          <div class="input-spinner-wrap">
+            <input
+              type="number"
+              step="0.25"
+              min="0"
+              max="10"
+              [value]="formats.indentLeftCm || 0"
+              (change)="onIndentLeftChange($any($event.target).value)"
+            />
+            <span class="unit">cm</span>
+          </div>
+        </div>
+        <div class="spinner-field">
+          <span class="spinner-label">{{ t('word.layout.indent_right', 'Der:') }}</span>
+          <div class="input-spinner-wrap">
+            <input
+              type="number"
+              step="0.25"
+              min="0"
+              max="10"
+              [value]="formats.indentRightCm || 0"
+              (change)="onIndentRightChange($any($event.target).value)"
+            />
+            <span class="unit">cm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spacing Column -->
+      <div class="spinners-col">
+        <div class="col-title">{{ t('word.layout.spacing_label', 'Espaciado') }}</div>
+        <div class="spinner-field">
+          <span class="spinner-label">{{ t('word.layout.spacing_before', 'Antes:') }}</span>
+          <div class="input-spinner-wrap">
+            <input
+              type="number"
+              step="2"
+              min="0"
+              max="72"
+              [value]="formats.spaceBeforePt || 0"
+              (change)="onSpaceBeforeChange($any($event.target).value)"
+            />
+            <span class="unit">pt</span>
+          </div>
+        </div>
+        <div class="spinner-field">
+          <span class="spinner-label">{{ t('word.layout.spacing_after', 'Después:') }}</span>
+          <div class="input-spinner-wrap">
+            <input
+              type="number"
+              step="2"
+              min="0"
+              max="72"
+              [value]="formats.spaceAfterPt || 8"
+              (change)="onSpaceAfterChange($any($event.target).value)"
+            />
+            <span class="unit">pt</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.group.paragraph', 'Párrafo') }}</span>
+  </section>
+
+  <!-- 3. ARRANGE GROUP (Matching Image 1) -->
+  <section class="layout-group" [attr.aria-label]="t('word.layout.arrange', 'Organizar')">
+    <div class="control-row arrange-row">
+      <!-- Position & Wrap Text (Compact icons) -->
+      <div class="arrange-col">
+        <button type="button" class="btn-compact-row disabled:opacity-40" disabled [title]="t('word.layout.position', 'Posición')">
+          <svg lucideIcon="move" [size]="13" class="text-slate-400"></svg>
+          <span>{{ t('word.layout.position', 'Posición') }}</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+        </button>
+        <button type="button" class="btn-compact-row disabled:opacity-40" disabled [title]="t('word.layout.wrap_text', 'Ajustar texto')">
+          <svg lucideIcon="layers" [size]="13" class="text-slate-400"></svg>
+          <span>{{ t('word.layout.wrap_text', 'Ajustar texto') }}</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+        </button>
+      </div>
+
+      <!-- Selection Pane (Image 1) -->
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="toggleNavSidebar.emit()"
+        [title]="t('word.layout.selection_pane', 'Panel de selección / Navegación')"
+      >
+        <svg lucideIcon="eye" [size]="20" class="text-amber-600"></svg>
+        <span class="btn-label flex items-center gap-0.5">
+          {{ t('word.layout.selection_pane_short', 'Panel sel.') }}
+        </span>
+      </button>
+
+      <!-- Align & Rotate (Image 1) -->
+      <div class="arrange-col">
+        <div class="relative">
+          <button type="button" class="btn-compact-row" (click)="toggle('align')" [title]="t('word.layout.align', 'Alinear')">
+            <svg lucideIcon="align-left" [size]="13" class="text-blue-600"></svg>
+            <span>{{ t('word.layout.align', 'Alinear') }}</span>
+            <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+          </button>
+
+          @if (openMenu() === 'align') {
+            <div class="layout-dropdown-menu align-menu">
+              <button type="button" class="menu-row-btn" (click)="applyLineHeight.emit('1.0'); openMenu.set(null)">{{ t('word.layout.line_single', 'Interlineado Sencillo (1.0)') }}</button>
+              <button type="button" class="menu-row-btn" (click)="applyLineHeight.emit('1.15'); openMenu.set(null)">{{ t('word.layout.line_standard', 'Interlineado Estándar (1.15)') }}</button>
+              <button type="button" class="menu-row-btn" (click)="applyLineHeight.emit('1.5'); openMenu.set(null)">{{ t('word.layout.line_1_5', 'Interlineado 1.5 líneas') }}</button>
+              <button type="button" class="menu-row-btn" (click)="applyLineHeight.emit('2.0'); openMenu.set(null)">{{ t('word.layout.line_double', 'Interlineado Doble (2.0)') }}</button>
+            </div>
+          }
+        </div>
+
+        <button type="button" class="btn-compact-row disabled:opacity-40" disabled [title]="t('word.layout.rotate', 'Girar')">
+          <svg lucideIcon="rotate-cw" [size]="13" class="text-slate-400"></svg>
+          <span>{{ t('word.layout.rotate', 'Girar') }}</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+        </button>
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.layout.arrange', 'Organizar') }}</span>
+  </section>
+</div>

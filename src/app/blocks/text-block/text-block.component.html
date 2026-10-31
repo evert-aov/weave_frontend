@@ -2,6 +2,7 @@
   class="text-block-root"
   [class.focused]="isFocused"
   [class.reading-mode]="notesService.isReadingMode()"
+  [class.preview-mode]="isPreview()"
   (click)="onRootClick($event)"
   [style.--custom-p-color]="blockStyles.p?.color || null"
   [style.--custom-p-size]="blockStyles.p?.fontSize || null"
@@ -25,8 +26,19 @@
   [style.--custom-h6-size]="blockStyles.h6?.fontSize || null"
   [style.--custom-h6-font]="blockStyles.h6?.fontFamily || null"
 >
-  <!-- Barra de herramientas superior estilo Trilium (siempre arriba, sticky) -->
   @if (editor && !notesService.isReadingMode()) {
+    <div class="text-view-switch" role="group" aria-label="Vista del bloque de texto" (click)="$event.stopPropagation()" (mousedown)="$event.preventDefault()">
+      <button type="button" class="tb-btn" [class.active]="!isPreview()" [attr.aria-pressed]="!isPreview()" (click)="setPreview(false)">
+        <app-icon name="pen" [size]="14"></app-icon> {{ i18n.currentLang() === 'es' ? 'Editar' : 'Edit' }}
+      </button>
+      <button type="button" class="tb-btn" [class.active]="isPreview()" [attr.aria-pressed]="isPreview()" (click)="setPreview(true)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+        {{ i18n.currentLang() === 'es' ? 'Vista previa' : 'Preview' }}
+      </button>
+    </div>
+  }
+  <!-- Barra de herramientas superior estilo Trilium (siempre arriba, sticky) -->
+  @if (editor && !notesService.isReadingMode() && !isPreview()) {
     <div class="trilium-top-toolbar" (mousedown)="$event.preventDefault()">
       <div class="toolbar-group">
         <button
@@ -163,7 +175,7 @@
           (click)="editor.chain().focus().toggleTaskList().run()"
           title="Lista de tareas (Checklist)"
         >
-          ☑ Tareas
+          <app-icon name="check" [size]="13"></app-icon> Tareas
         </button>
       </div>
 
@@ -186,7 +198,7 @@
           (click)="editor.chain().focus().toggleCodeBlock().run()"
           title="Bloque de código"
         >
-          💻 Bloque
+          <app-icon name="code" [size]="13"></app-icon> Bloque
         </button>
         <button
           type="button"
@@ -217,6 +229,9 @@
       <span class="tb-divider"></span>
 
       <div class="toolbar-group history-group">
+        <button type="button" class="tb-btn" (click)="insertDocumentReference()" title="Enlazar otro documento de Weave">
+          <app-icon name="file-text" [size]="14"></app-icon> Referencia
+        </button>
         <button
           type="button"
           class="tb-btn"
@@ -235,6 +250,27 @@
         >
           <app-icon name="redo" [size]="13"></app-icon>
         </button>
+      </div>
+      <span class="tb-divider"></span>
+      <div class="toolbar-group" role="group" aria-label="Tablas">
+        <button type="button" class="tb-btn" [disabled]="isTableActive()"
+          (click)="insertTable()" title="Insertar tabla de 3 filas y 3 columnas">
+          <app-icon name="sheet" [size]="14"></app-icon> Tabla
+        </button>
+        @if (isTableActive()) {
+          <button type="button" class="tb-btn" (click)="tableAction('addRow')" title="Añadir fila debajo">+ Fila</button>
+          <button type="button" class="tb-btn" (click)="tableAction('addColumn')" title="Añadir columna a la derecha">+ Columna</button>
+          <button type="button" class="tb-btn" (click)="tableAction('deleteRow')" title="Eliminar fila">− Fila</button>
+          <button type="button" class="tb-btn" (click)="tableAction('deleteColumn')" title="Eliminar columna">− Columna</button>
+          <button type="button" class="tb-btn" (click)="tableAction('toggleHeaderRow')" title="Alternar fila de encabezados">Encabezado</button>
+          <button type="button" class="tb-btn" [disabled]="!canTableAction('mergeCells')"
+            (click)="tableAction('mergeCells')" title="Combinar celdas seleccionadas">Combinar</button>
+          <button type="button" class="tb-btn" [disabled]="!canTableAction('splitCell')"
+            (click)="tableAction('splitCell')" title="Separar celda combinada">Separar</button>
+          <button type="button" class="tb-btn" (click)="tableAction('deleteTable')" title="Eliminar tabla" aria-label="Eliminar tabla">
+            <app-icon name="trash" [size]="14"></app-icon>
+          </button>
+        }
       </div>
     </div>
 

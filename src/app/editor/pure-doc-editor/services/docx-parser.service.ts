@@ -1141,14 +1141,17 @@ export class DocxParserService {
     const extractedTocHeadings: HeadingItem[] = [];
 
     const pagesHtmlChunks: string[][] = [[]];
+    const manualPageStarts = new Set<number>();
+    let tableFlowSequence = 0;
     let currentPageHeightPx = 0;
 
-    const pushExplicitPageBreak = () => {
+    const pushExplicitPageBreak = (manual = true) => {
       const currentChunk = pagesHtmlChunks[pagesHtmlChunks.length - 1];
       if (currentChunk.length === 0) {
         currentChunk.push('<p><br/></p>');
       }
       pagesHtmlChunks.push([]);
+      if (manual) manualPageStarts.add(pagesHtmlChunks.length - 1);
       currentPageHeightPx = 0;
     };
 
@@ -1482,14 +1485,9 @@ export class DocxParserService {
               runBuckets[runBuckets.length - 1].push('<br/>');
             }
           } else if (!insideTableCell && ln === 'lastRenderedPageBreak') {
+            // A cached Word layout hint is not a user-inserted page break.
+            // Actual pagination is recalculated with the editor's fonts and available height.
             flushTextSegment();
-            if (pagesHtmlChunks.length > 1 && currentPageHeightPx > maxPageContentHeightPx * 0.55) {
-              if (runBuckets[runBuckets.length - 1].length > 0) {
-                runBuckets.push([]);
-              } else if (pagesHtmlChunks[pagesHtmlChunks.length - 1].length > 0) {
-                pushExplicitPageBreak();
-              }
-            }
           } else if (
             ln === 'drawing' ||
             ln === 'pict' ||
@@ -1799,6 +1797,8 @@ export class DocxParserService {
     const appendPaginatedTableToPages = (tblEl: Element): void => {
       const rows = this.findDirectChildren(tblEl, 'tr');
       if (rows.length === 0) return;
+      const tableFlowId = `import-table-${Date.now().toString(36)}-${++tableFlowSequence}`;
+      let tableSlice = 0;
 
       const tblPr = this.findDirectChild(tblEl, 'tblPr');
       const tblGrid = this.findDirectChild(tblEl, 'tblGrid');
@@ -1828,10 +1828,14 @@ export class DocxParserService {
         colGroupHtml = `<colgroup>${colsHtml}</colgroup>`;
       }
 
-      const wrapRowsIntoTableHtml = (rowsMarkup: string[]) =>
-        `<table style="width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; margin: 4pt 0 8pt 0;">${colGroupHtml}<tbody>${rowsMarkup.join(
+      const wrapRowsIntoTableHtml = (rowsMarkup: string[]) => {
+        const continuation = tableSlice++ > 0 ? ` data-word-continuation="${tableFlowId}"` : '';
+        const bodyContinuation = continuation ? ` data-word-continuation="${tableFlowId}-body"` : '';
+        const repeatedCols = continuation ? colGroupHtml.replace('<colgroup', '<colgroup data-word-repeat="true"') : colGroupHtml;
+        return `<table data-word-flow="${tableFlowId}"${continuation} style="width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; margin: 4pt 0 8pt 0;">${repeatedCols}<tbody data-word-flow="${tableFlowId}-body"${bodyContinuation}>${rowsMarkup.join(
           ''
         )}</tbody></table>`;
+      };
 
       let currentSliceRows: string[] = [];
       let currentSliceHeightPx = 6;
@@ -1950,7 +1954,7 @@ export class DocxParserService {
             flushCurrentTableSlice();
           }
           if (pagesHtmlChunks[pagesHtmlChunks.length - 1].length > 0) {
-            pushExplicitPageBreak();
+            pushExplicitPageBreak(false);
           }
         }
 
@@ -2027,6 +2031,7 @@ export class DocxParserService {
 
     while (
       pagesHtmlChunks.length > 1 &&
+      !manualPageStarts.has(pagesHtmlChunks.length - 1) &&
       pagesHtmlChunks[pagesHtmlChunks.length - 1].every((b) => b === '<p><br/></p>' || !b.trim())
     ) {
       pagesHtmlChunks.pop();
@@ -2043,6 +2048,7 @@ export class DocxParserService {
     const pages: DocumentPage[] = finalPagesHtml.map((html, idx) => ({
       id: `docx-page-${idx + 1}-${Date.now().toString(36)}`,
       html,
+      ...(manualPageStarts.has(idx) ? { breakBefore: 'manual' as const } : {}),
     }));
 
     extractedTocHeadings.forEach((h) => {
@@ -2061,7 +2067,7 @@ export class DocxParserService {
       modified,
       application,
       pageCount: pages.length,
-      officialPageCountPreserved: true,
+      officialPageCountPreserved: false,
       wordCount: appWordsRaw && !isNaN(Number(appWordsRaw)) ? Number(appWordsRaw) : undefined,
       defaultFontFamily,
       defaultFontSizePt,

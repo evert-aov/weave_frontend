@@ -6,6 +6,7 @@ import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { ExportService } from '../../services/export.service';
 import { ExportFormat, ExportOptions } from '../../models/export.model';
 import { I18nService } from '../../../core/services/i18n.service';
+import { DialogService } from '../../../core/services/dialog.service';
 
 @Component({
   selector: 'app-export-modal',
@@ -19,9 +20,10 @@ export class ExportModalComponent {
   @Output() close = new EventEmitter<void>();
 
   private readonly exportService = inject(ExportService);
+  private readonly dialogs = inject(DialogService);
   readonly i18n = inject(I18nService);
 
-  readonly strategies = this.exportService.getAvailableStrategies();
+  get strategies() { return this.exportService.getAvailableStrategies(this.note?.docType); }
   readonly selectedFormat = signal<ExportFormat>('pdf');
   readonly pdfMethod = signal<'download' | 'print'>('download');
   readonly isExporting = signal<boolean>(false);
@@ -45,7 +47,7 @@ export class ExportModalComponent {
       this.close.emit();
     } catch (err) {
       console.error('[ExportModalComponent] Error during export:', err);
-      alert('Ocurrió un error al exportar el documento.');
+      this.dialogs.notice('Error al exportar', err instanceof Error ? err.message : 'Ocurrió un error al exportar el documento. Inténtalo de nuevo.');
     } finally {
       this.isExporting.set(false);
     }

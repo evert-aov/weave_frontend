@@ -1,0 +1,358 @@
+<div class="insert-ribbon" [class.dark-mode]="darkMode" (mousedown)="keepSelection($event)" (keydown.escape)="openMenu.set(null)">
+  <!-- 1. PAGES GROUP (sin Cover page) -->
+  <section class="insert-group" [attr.aria-label]="t('word.group.pages', 'Páginas')">
+    <div class="control-row">
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="addNewPage.emit()"
+        [title]="t('word.insert.new_page_tooltip', 'Añadir una hoja nueva en blanco')"
+      >
+        <svg lucideIcon="file-plus-2" [size]="20" class="icon-blue"></svg>
+        <span class="btn-label">{{ t('word.insert.blank_page', 'Página en blanco') }}</span>
+      </button>
+
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertPageBreak.emit()"
+        [title]="t('word.insert.page_break_tooltip', 'Dividir en el cursor y enviar el resto a una página nueva')"
+      >
+        <svg lucideIcon="scissors" [size]="20" class="icon-indigo"></svg>
+        <span class="btn-label">{{ t('word.insert.page_break', 'Salto de página') }}</span>
+      </button>
+    </div>
+    <span class="group-label">{{ t('word.group.pages', 'Páginas') }}</span>
+  </section>
+
+  <!-- 2. TABLES GROUP -->
+  <section class="insert-group" [attr.aria-label]="t('word.group.tables', 'Tablas')">
+    <div class="control-row relative">
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="toggleMenu('tablePicker')"
+        [title]="t('word.insert.table', 'Tabla')"
+      >
+        <svg lucideIcon="table" [size]="20" class="icon-blue"></svg>
+        <span class="btn-label flex items-center gap-0.5">
+          {{ t('word.insert.table', 'Tabla') }}
+          <svg lucideIcon="chevron-down" [size]="10"></svg>
+        </span>
+      </button>
+
+      @if (openMenu() === 'tablePicker') {
+        <app-word-table-picker
+          [darkMode]="darkMode"
+          (selectTable)="insertTable.emit($event); openMenu.set(null)"
+          (close)="openMenu.set(null)"
+        ></app-word-table-picker>
+      }
+    </div>
+    <span class="group-label">{{ t('word.group.tables', 'Tablas') }}</span>
+  </section>
+
+  <!-- 3. ILLUSTRATIONS GROUP -->
+  <section class="insert-group illustrations-group" [attr.aria-label]="t('word.group.illustrations', 'Ilustraciones')">
+    <div class="control-row">
+      <!-- Pictures -->
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertImage.emit()"
+        [title]="t('word.insert.image', 'Imágenes')"
+      >
+        <svg lucideIcon="image" [size]="20" class="icon-cyan"></svg>
+        <span class="btn-label">{{ t('word.insert.image', 'Imágenes') }}</span>
+      </button>
+
+      <!-- Shapes Dropdown (Image 1) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleMenu('shapes')"
+          [title]="t('word.insert.shapes', 'Formas')"
+        >
+          <svg lucideIcon="shapes" [size]="20" class="icon-blue"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.insert.shapes', 'Formas') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'shapes') {
+          <div class="shapes-dropdown-menu">
+            <div class="shapes-scroll-area">
+              @for (cat of shapeCategories; track cat.id) {
+                <div class="shape-category-block">
+                  <div class="shape-category-title">{{ t(cat.labelKey, cat.fallback) }}</div>
+                  <div class="shape-items-grid">
+                    @for (shape of getShapesForCategory(cat.id); track shape.id) {
+                      <button
+                        type="button"
+                        class="shape-tile-btn"
+                        [title]="shape.name"
+                        (mousedown)="onShapeMouseDown($event)"
+                        (click)="selectShape(shape)"
+                        (dblclick)="selectShape(shape)"
+                        [innerHTML]="getShapeSvg(shape)"
+                      ></button>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- New Drawing Canvas Button (matching Image 1) -->
+            <button type="button" class="btn-drawing-canvas" (click)="onNewCanvas()">
+              <svg lucideIcon="plus" [size]="14"></svg>
+              <span>{{ t('word.shapes.new_canvas', 'Nuevo lienzo de dibujo') }}</span>
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Icons (Lucide Icons Library) -->
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="openIconsModal.emit()"
+        [title]="t('word.insert.icons', 'Iconos')"
+      >
+        <svg lucideIcon="smile" [size]="20" class="icon-teal"></svg>
+        <span class="btn-label">{{ t('word.insert.icons', 'Iconos') }}</span>
+      </button>
+
+
+      <!-- SmartArt (Image 2) -->
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="openSmartArtModal.emit()"
+        [title]="t('word.insert.smartart', 'SmartArt')"
+      >
+        <div class="smartart-icon-wrap">
+          <svg lucideIcon="shapes" [size]="20" class="icon-green"></svg>
+        </div>
+        <span class="btn-label">{{ t('word.insert.smartart', 'SmartArt') }}</span>
+      </button>
+
+      <!-- Chart -->
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertChartTable.emit()"
+        [title]="t('word.insert.chart', 'Gráfico')"
+      >
+        <svg lucideIcon="bar-chart-3" [size]="20" class="icon-blue"></svg>
+        <span class="btn-label">{{ t('word.insert.chart', 'Gráfico') }}</span>
+      </button>
+
+      <!-- Screenshot -->
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertScreenshot.emit()"
+        [title]="t('word.insert.screenshot', 'Captura')"
+      >
+        <svg lucideIcon="camera" [size]="20" class="icon-slate"></svg>
+        <span class="btn-label">{{ t('word.insert.screenshot', 'Captura') }}</span>
+      </button>
+    </div>
+    <span class="group-label">{{ t('word.group.illustrations', 'Ilustraciones') }}</span>
+  </section>
+
+  <!-- 4. LINKS GROUP (sin bookmark, sin crossreference) -->
+  <section class="insert-group" [attr.aria-label]="t('word.group.links', 'Vínculos')">
+    <div class="control-row">
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertLink.emit()"
+        [title]="t('word.insert.link', 'Vínculo')"
+      >
+        <svg lucideIcon="link" [size]="20" class="icon-blue"></svg>
+        <span class="btn-label">{{ t('word.insert.link', 'Vínculo') }}</span>
+      </button>
+    </div>
+    <span class="group-label">{{ t('word.group.links', 'Vínculos') }}</span>
+  </section>
+
+  <!-- 5. COMMENTS GROUP -->
+  <section class="insert-group" [attr.aria-label]="t('word.group.comments', 'Comentarios')">
+    <div class="control-row">
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertComment.emit()"
+        [title]="t('word.insert.comment', 'Comentario')"
+      >
+        <svg lucideIcon="message-square" [size]="20" class="icon-amber"></svg>
+        <span class="btn-label">{{ t('word.insert.comment', 'Comentario') }}</span>
+      </button>
+    </div>
+    <span class="group-label">{{ t('word.group.comments', 'Comentarios') }}</span>
+  </section>
+
+  <!-- 6. HEADER & FOOTER GROUP -->
+  <section class="insert-group" [attr.aria-label]="t('word.group.header_footer', 'Encabezado y pie')">
+    <div class="control-row stacked-rows">
+      <button
+        type="button"
+        class="btn-compact"
+        (click)="focusHeaderArea.emit()"
+        [title]="t('word.insert.header', 'Encabezado')"
+      >
+        <svg lucideIcon="panel-top" [size]="14" class="icon-blue"></svg>
+        <span>{{ t('word.insert.header', 'Encabezado') }}</span>
+      </button>
+
+      <button
+        type="button"
+        class="btn-compact"
+        (click)="focusFooterArea.emit()"
+        [title]="t('word.insert.footer', 'Pie de página')"
+      >
+        <svg lucideIcon="panel-bottom" [size]="14" class="icon-indigo"></svg>
+        <span>{{ t('word.insert.footer', 'Pie de página') }}</span>
+      </button>
+
+      <button
+        type="button"
+        class="btn-compact"
+        (click)="insertPageNumber.emit()"
+        [title]="t('word.insert.page_number', 'Número de página')"
+      >
+        <svg lucideIcon="hash" [size]="14" class="icon-slate"></svg>
+        <span>{{ t('word.insert.page_number', 'Número de pág.') }}</span>
+      </button>
+    </div>
+    <span class="group-label">{{ t('word.group.header_footer', 'Encabezado y pie') }}</span>
+  </section>
+
+  <!-- 7. TEXT GROUP (sin quick parts, sin objects) -->
+  <section class="insert-group text-group" [attr.aria-label]="t('word.group.text', 'Texto')">
+    <div class="control-row">
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertTextBox.emit()"
+        [title]="t('word.insert.text_box', 'Cuadro de texto')"
+      >
+        <svg lucideIcon="type" [size]="20" class="icon-blue"></svg>
+        <span class="btn-label">{{ t('word.insert.text_box', 'Cuadro de texto') }}</span>
+      </button>
+
+      <!-- WordArt dropdown -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleMenu('wordart')"
+          [title]="t('word.insert.wordart', 'WordArt')"
+        >
+          <svg lucideIcon="sparkles" [size]="20" class="icon-purple"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.insert.wordart', 'WordArt') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'wordart') {
+          <div class="wordart-dropdown-menu">
+            <div class="wordart-title">{{ t('word.insert.wordart', 'Estilos WordArt') }}</div>
+            <div class="wordart-grid">
+              @for (preset of wordArtPresets; track preset.id) {
+                <button
+                  type="button"
+                  class="wordart-preset-btn"
+                  [style]="preset.cssStyle"
+                  (click)="selectWordArt(preset)"
+                >
+                  A
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="control-row stacked-rows">
+        <button
+          type="button"
+          class="btn-compact"
+          (click)="insertDropCap.emit()"
+          [title]="t('word.insert.drop_cap', 'Letra capital')"
+        >
+          <span class="font-serif font-bold text-sm text-blue-700">A=</span>
+          <span>{{ t('word.insert.drop_cap', 'Letra capital') }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="btn-compact"
+          (click)="insertSignatureLine.emit()"
+          [title]="t('word.insert.signature_line', 'Línea de firma')"
+        >
+          <span class="text-xs">✍</span>
+          <span>{{ t('word.insert.signature_line', 'Línea de firma') }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="btn-compact"
+          (click)="insertDateTime.emit()"
+          [title]="t('word.insert.date_time', 'Fecha y hora')"
+        >
+          <svg lucideIcon="calendar" [size]="13" class="icon-slate"></svg>
+          <span>{{ t('word.insert.date_time', 'Fecha y hora') }}</span>
+        </button>
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.group.text', 'Texto') }}</span>
+  </section>
+
+  <!-- 8. SYMBOLS GROUP -->
+  <section class="insert-group symbols-group" [attr.aria-label]="t('word.group.symbols', 'Símbolos')">
+    <div class="control-row">
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="openLatexModal.emit()"
+        [title]="t('word.insert.latex_tooltip', 'Insertar Fórmula Matemática / Científica en LaTeX')"
+      >
+        <span class="font-serif font-bold text-xl text-blue-700 leading-none">π</span>
+        <span class="btn-label">{{ t('word.insert.equation', 'Ecuación') }}</span>
+      </button>
+
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleMenu('symbols')"
+          [title]="t('word.insert.symbol', 'Símbolo')"
+        >
+          <span class="font-serif font-bold text-xl text-slate-800 leading-none">Ω</span>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.insert.symbol', 'Símbolo') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'symbols') {
+          <div class="symbols-dropdown-menu">
+            <div class="symbols-grid">
+              @for (sym of symbols; track sym) {
+                <button type="button" class="symbol-tile" (click)="selectSymbol(sym)">
+                  {{ sym }}
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.group.symbols', 'Símbolos') }}</span>
+  </section>
+</div>

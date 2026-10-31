@@ -1,0 +1,184 @@
+<!-- Panel lateral completo del Agente de IA -->
+@if (aiService.isSidebarOpen()) {
+  <aside class="ai-sidebar" [attr.aria-label]="i18n.t('ai.toggle')">
+    <div
+      class="panel-resize-handle"
+      [appResizePanel]="layout.assistantWidth()"
+      [resizeMin]="layout.assistantMinWidth"
+      [resizeMax]="layout.assistantMaxWidth"
+      [resizeDefault]="336"
+      [resizeDirection]="-1"
+      [resizeLabel]="i18n.t('nav.resize_assistant')"
+      [title]="i18n.t('nav.resize_hint')"
+      (panelWidthChange)="layout.setAssistantWidth($event)"
+    ></div>
+    <!-- Cabecera del Agente -->
+    <header class="ai-sidebar-header">
+      <div class="ai-agent-profile">
+        <div class="ai-avatar-badge">
+          <app-icon name="sparkles" [size]="18"></app-icon>
+        </div>
+        <div class="ai-agent-info">
+          <div class="ai-agent-name">
+            <strong>Weave AI</strong>
+            <span class="ai-badge-model">gemini-2.5-flash</span>
+          </div>
+          <span class="ai-agent-provider">Google Vertex AI</span>
+        </div>
+      </div>
+
+      <div class="ai-header-actions">
+        <!-- Alternar vinculación de contexto del documento -->
+        <button
+          type="button"
+          class="ai-icon-action"
+          [class.active]="aiService.includeDocumentContext()"
+          (click)="aiService.toggleIncludeDocumentContext()"
+          [title]="aiService.includeDocumentContext() ? 'Contexto del documento activado (Clic para desvincular)' : 'Contexto del documento desactivado (Clic para vincular)'"
+        >
+          <app-icon name="file-text" [size]="15"></app-icon>
+          <span class="ai-ctx-dot" [class.on]="aiService.includeDocumentContext()"></span>
+        </button>
+
+        <!-- Limpiar historial -->
+        <button
+          type="button"
+          class="ai-icon-action"
+          (click)="aiService.clearHistory()"
+          title="Borrar historial"
+          [disabled]="aiService.isClearingHistory() || aiService.isLoadingHistory() || !aiService.activeConversationId()"
+        >
+          <app-icon name="refresh" [size]="15"></app-icon>
+        </button>
+
+        <!-- Ocultar barra lateral del agente -->
+        <button
+          type="button"
+          class="ai-icon-action close-action"
+          (click)="aiService.closeSidebar()"
+          [title]="i18n.t('ai.close')"
+          [attr.aria-label]="i18n.t('ai.close')"
+        >
+          <app-icon name="close" [size]="15"></app-icon>
+        </button>
+      </div>
+    </header>
+
+    <div class="ai-chat-picker">
+      <select aria-label="Conversación" [ngModel]="aiService.activeConversationId()" (ngModelChange)="aiService.selectConversation($event)" [disabled]="aiService.isManagingChats()">
+        @for (chat of aiService.conversations(); track chat.id) { <option [value]="chat.id">{{ chat.title }}</option> }
+        @if (!aiService.conversations().length) { <option value="">Sin chats</option> }
+      </select>
+      <button type="button" class="ai-icon-action" (click)="aiService.createConversation()" [disabled]="aiService.isManagingChats()" title="Nuevo chat" aria-label="Nuevo chat"><app-icon name="plus" [size]="16" /></button>
+      <button type="button" class="ai-icon-action" (click)="renameChat()" [disabled]="!aiService.activeConversationId()" title="Renombrar chat" aria-label="Renombrar chat"><app-icon name="pen" [size]="14" /></button>
+      <button type="button" class="ai-icon-action" (click)="deleteChat()" [disabled]="!aiService.activeConversationId()" title="Eliminar chat" aria-label="Eliminar chat"><app-icon name="trash" [size]="14" /></button>
+    </div>
+    <div class="ai-edit-mode">
+      <label><input type="checkbox" [ngModel]="aiService.editMode()" (ngModelChange)="aiService.editMode.set($event)"
+        [disabled]="aiService.isGenerating() || (!aiService.editMode() && (!aiService.documents.supported() || aiService.documents.isReadingLocked() || !aiService.includeDocumentContext()))" /> Editar documento directamente</label>
+      @if (notesService.currentNote()?.docType === 'canvas') { <small>El lienzo admite conversación, sin edición automática.</small> }
+      @else if (aiService.documents.isReadingLocked()) { <small>Activa Editar en el documento para permitir cambios.</small> }
+      @if (aiService.editStatus()) { <p role="status">{{ aiService.editStatus() }}</p> }
+    </div>
+
+    <!-- Barra de Contexto del Documento Activo -->
+    <div class="ai-doc-context-strip" [class.linked]="aiService.includeDocumentContext()">
+      <div class="ai-doc-name-wrapper">
+        <app-icon name="file" [size]="13"></app-icon>
+        <span class="ai-doc-title">
+          {{ notesService.currentNote()?.title || 'Sin documento activo' }}
+        </span>
+      </div>
+      <span class="ai-doc-status-badge">
+        {{ aiService.includeDocumentContext() ? (aiService.documentContextTruncated() ? 'Contexto parcial' : 'Contexto activo') : 'Solo chat libre' }}
+      </span>
+    </div>
+
+    <!-- Contenedor con scroll de mensajes de la conversación -->
+    <div class="ai-messages-container" #messagesContainer>
+      @if (aiService.historyError()) {
+        <div class="ai-history-status" role="alert">
+          <span>{{ aiService.historyError() }}</span>
+          <button type="button" (click)="aiService.initialize()">Volver a cargar</button>
+        </div>
+      }
+      @if (aiService.isLoadingHistory()) {
+        <p class="ai-history-status" role="status">Cargando historial...</p>
+      } @else if (aiService.hasMoreHistory()) {
+        <button type="button" class="ai-history-more" (click)="aiService.loadHistory(true)">
+          <app-icon name="up" [size]="14"></app-icon>
+          Ver mensajes anteriores
+        </button>
+      }
+      @for (msg of aiService.messages(); track msg.id) {
+        <div class="ai-message-row" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'">
+          @if (msg.role === 'assistant') {
+            <div class="ai-msg-avatar">
+              <app-icon name="bot" [size]="14"></app-icon>
+            </div>
+          }
+
+          <div class="ai-message-bubble" [class.error]="msg.error">
+            <div class="ai-msg-content" [innerHTML]="formatMarkdown(msg.content)"></div>
+            <div class="ai-msg-footer">
+              <span class="ai-msg-time">{{ msg.timestamp | date:'shortTime' }}</span>
+              @if (msg.role === 'assistant' && !msg.error) {
+                <button
+                  type="button"
+                  class="ai-copy-btn"
+                  (click)="copyToClipboard(msg.content, msg.id)"
+                  [title]="copiedMessageId() === msg.id ? '¡Copiado!' : 'Copiar respuesta'"
+                >
+                  <app-icon [name]="copiedMessageId() === msg.id ? 'check' : 'share'" [size]="11"></app-icon>
+                  <span>{{ copiedMessageId() === msg.id ? 'Copiado' : 'Copiar' }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Indicador animado de generación en curso -->
+      @if (aiService.isGenerating()) {
+        <div class="ai-message-row assistant">
+          <div class="ai-msg-avatar pulse">
+            <app-icon name="bot" [size]="14"></app-icon>
+          </div>
+          <div class="ai-message-bubble generating">
+            <div class="ai-typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <span class="ai-typing-text">Weave AI está pensando...</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Área de entrada de texto para el usuario -->
+    <footer class="ai-input-footer">
+      <div class="ai-input-box">
+        <textarea
+          [(ngModel)]="inputText"
+          (keydown)="onKeyDown($event)"
+          placeholder="Escribe un mensaje..."
+          rows="2"
+          [disabled]="aiService.isGenerating() || aiService.isLoadingHistory() || aiService.isClearingHistory() || !aiService.activeConversationId()"
+        ></textarea>
+        <button
+          type="button"
+          class="ai-send-btn"
+          (click)="onSend()"
+          [disabled]="!inputText().trim() || aiService.isGenerating() || aiService.isLoadingHistory() || aiService.isClearingHistory() || !aiService.activeConversationId()"
+          title="Enviar mensaje (Enter)"
+        >
+          <app-icon name="send" [size]="15"></app-icon>
+        </button>
+      </div>
+      <div class="ai-input-helper">
+        <span>Enter para enviar · Shift+Enter para nueva línea</span>
+      </div>
+    </footer>
+  </aside>
+}

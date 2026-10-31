@@ -21,6 +21,7 @@ export function analyzePageHtmlFast(
     const level = parseInt(match[1], 10) || 1;
     const attrs = match[2] || '';
     const innerHtml = match[3] || '';
+    if (/\bdata-word-continuation\s*=/.test(attrs)) continue;
     const rawText = innerHtml
       .replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ')

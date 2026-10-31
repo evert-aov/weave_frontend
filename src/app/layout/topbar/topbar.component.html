@@ -5,13 +5,24 @@
       type="button"
       class="icon-btn"
       (click)="toggleSidebar()"
-      title="Toggle sidebar"
+      [title]="notesService.isSidebarCollapsed() ? i18n.t('nav.expand_navigation') : i18n.t('nav.collapse_navigation')"
+      [attr.aria-label]="notesService.isSidebarCollapsed() ? i18n.t('nav.expand_navigation') : i18n.t('nav.collapse_navigation')"
+      [attr.aria-expanded]="!notesService.isSidebarCollapsed()"
     >
       <app-icon name="panel" [size]="17"></app-icon>
     </button>
-    <span>{{ notesService.activeSpace() || 'Notes' }}</span>
-    <b>/</b>
-    <strong>{{ notesService.currentNote()?.title || 'Untitled' }}</strong>
+    <div class="breadcrumb-copy">
+      <span class="breadcrumb-location" [title]="currentSpacePath()">{{ currentSpacePath() }}</span>
+      <strong [title]="notesService.currentNote()?.title || i18n.t('doc.none_open')">{{ notesService.currentNote()?.title || i18n.t('doc.none_open') }}</strong>
+    </div>
+    <button type="button" class="icon-btn" [disabled]="!navigation.history.canGoBack()"
+      (click)="navigation.back()" title="Volver al documento anterior (Ctrl+I)" aria-label="Volver al documento anterior">
+      <app-icon name="arrow-left" [size]="15" />
+    </button>
+    <button type="button" class="icon-btn" [disabled]="!navigation.history.canGoForward()"
+      (click)="navigation.forward()" title="Avanzar en el historial" aria-label="Avanzar en el historial">
+      <app-icon name="arrow-right" [size]="15" />
+    </button>
   </div>
 
   <!-- Acciones de cabecera -->
@@ -52,6 +63,20 @@
       [title]="i18n.t('theme.toggle')"
     >
       <app-icon [name]="themeService.isDark() ? 'sun' : 'moon'" [size]="16"></app-icon>
+    </button>
+
+    <!-- Botón de Agente de IA (Vertex AI / Gemini) -->
+    <button
+      type="button"
+      class="ai-toggle-btn"
+      [class.active]="aiService.isSidebarOpen()"
+      (click)="aiService.toggleSidebar()"
+      [title]="aiService.isSidebarOpen() ? i18n.t('ai.close') : i18n.t('ai.open')"
+      [attr.aria-label]="aiService.isSidebarOpen() ? i18n.t('ai.close') : i18n.t('ai.open')"
+      [attr.aria-expanded]="aiService.isSidebarOpen()"
+    >
+      <app-icon name="sparkles" [size]="14"></app-icon>
+      <span>{{ i18n.t('ai.toggle') }}</span>
     </button>
 
     <!-- Botón de Modo Lectura / Modo Edición (bloques y lienzo) -->
@@ -127,7 +152,7 @@
       title="Copiar enlace del documento"
     >
       <app-icon name="share" [size]="14"></app-icon>
-      {{ isCopiedLink() ? '¡Copiado!' : i18n.t('topbar.share') }}
+      <span>{{ isCopiedLink() ? '¡Copiado!' : i18n.t('topbar.share') }}</span>
     </button>
 
     <!-- Botón para eliminar nota activa en MongoDB -->
@@ -144,8 +169,14 @@
 
 <!-- Modal de exportación de documentos -->
 @if (showExportModal() && notesService.currentNote(); as current) {
-  <app-export-modal
-    [note]="current"
-    (close)="showExportModal.set(false)"
-  ></app-export-modal>
+  @defer (on immediate) {
+    <app-export-modal
+      [note]="current"
+      (close)="showExportModal.set(false)"
+    ></app-export-modal>
+  } @loading (after 100ms) {
+    <app-lazy-load-state></app-lazy-load-state>
+  } @error {
+    <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+  }
 }

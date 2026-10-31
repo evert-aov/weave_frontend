@@ -5,10 +5,47 @@
       <div class="editor-bar">
         <div class="badge-tag">
           <span class="sigma-glyph">∑</span>
-          <span class="badge-text">LaTeX Formula</span>
+          <span class="badge-text">LaTeX</span>
         </div>
 
         <div class="bar-actions">
+          <label>Modo
+            <select [ngModel]="documentMode() ? 'document' : 'formula'" (ngModelChange)="changeMode($event)" aria-label="Modo LaTeX">
+              <option value="formula">Fórmula</option><option value="document">LaTeX avanzado</option>
+            </select>
+          </label>
+          @if (!documentMode()) {
+          <div class="alignment-control" role="group" aria-label="Alineación de la fórmula">
+            @for (option of alignmentOptions; track option.value) {
+              <button type="button" (click)="setAlignment(option.value)" [attr.aria-pressed]="alignment() === option.value"
+                [disabled]="notesService.isReadingMode()" [attr.aria-label]="i18n.currentLang() === 'es' ? option.es : option.en"
+                [title]="i18n.currentLang() === 'es' ? option.es : option.en">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path [attr.d]="option.path" /></svg>
+              </button>
+            }
+          </div>
+          <div class="font-size-control" role="group" [attr.aria-label]="i18n.currentLang() === 'es' ? 'Tamaño de la fórmula' : 'Formula size'">
+            <label [for]="'latex-size-' + block.id">{{ i18n.currentLang() === 'es' ? 'Tamaño' : 'Size' }}</label>
+            <button type="button" (click)="changeFontSize(-2)" [disabled]="fontSizePx() <= minFontSize"
+              [attr.aria-label]="i18n.currentLang() === 'es' ? 'Reducir tamaño de fórmula' : 'Decrease formula size'">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M5 12h14" /></svg>
+            </button>
+            <input type="number" [id]="'latex-size-' + block.id" [min]="minFontSize" [max]="maxFontSize" step="0.5"
+              [value]="fontSizePx()" (change)="onFontSizeChange($event)" (blur)="onBlurEditor($event)"
+              (keydown.enter)="onFontSizeChange($event); $event.preventDefault()"
+              (keydown.control.enter)="onFontSizeChange($event); saveAndPreview(); $event.preventDefault()"
+              [attr.list]="'latex-sizes-' + block.id"
+              [attr.aria-label]="i18n.currentLang() === 'es' ? 'Tamaño de fórmula en píxeles' : 'Formula size in pixels'" />
+            <datalist [id]="'latex-sizes-' + block.id">
+              @for (size of fontSizePresets; track size) { <option [value]="size"></option> }
+            </datalist>
+            <span>px</span>
+            <button type="button" (click)="changeFontSize(2)" [disabled]="fontSizePx() >= maxFontSize"
+              [attr.aria-label]="i18n.currentLang() === 'es' ? 'Aumentar tamaño de fórmula' : 'Increase formula size'">
+              <app-icon name="plus" [size]="13"></app-icon>
+            </button>
+          </div>
+          }
           <!-- Botón para alternar la visibilidad de la caja de herramientas -->
           <button
             type="button"
@@ -35,14 +72,14 @@
 
           <span class="hint-key">Ctrl + Enter</span>
 
-          <button type="button" class="done-btn" (mousedown)="finishEditing($event)">
+          <button type="button" class="done-btn" (click)="finishEditing($event)">
             {{ i18n.currentLang() === 'es' ? 'Listo' : 'Done' }}
           </button>
         </div>
       </div>
 
       <!-- Cuadro de Herramientas Interactivo -->
-      @if (showToolbox()) {
+      @if (showToolbox() && !documentMode()) {
         <div class="toolbox-panel">
           <!-- Pestañas de categorías -->
           <div class="category-tabs">
@@ -76,23 +113,34 @@
       }
 
       <!-- Textarea de edición directa -->
-      <textarea
-        #textareaEl
-        [(ngModel)]="rawFormula"
-        (input)="onFormulaInput()"
-        (keydown.control.enter)="saveAndPreview()"
-        (blur)="onBlurEditor($event)"
-        [placeholder]="'Ej: \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}'"
-        class="latex-textarea"
-      ></textarea>
+      <app-monaco-latex-editor [value]="rawFormula" (valueChange)="onSourceChange($event)"
+        [documentMode]="documentMode()" [readonly]="notesService.isReadingMode()" [height]="120" [compact]="true"
+        label="Código LaTeX del bloque" (submitEditor)="saveAndPreview()" />
 
+      <p class="latex-help">Tab completa comandos y recorre argumentos · ↑/↓ elige sugerencias · Esc cierra</p>
+      @if (!documentMode()) {
+      <div class="line-alignment-panel">
+        <label><input type="checkbox" [checked]="alignByLine()" (change)="setAlignByLine($any($event.target).checked)" [disabled]="notesService.isReadingMode()" /> Alineación por línea</label>
+        @if (alignByLine()) {
+          <p>Separa ecuaciones con Enter o \\. Los entornos como aligned y matrices se mantienen juntos.</p>
+          @for (row of formulaRows(); track $index) {
+            <label class="line-alignment-row">
+              <span>Línea {{ $index + 1 }}</span><code [title]="row">{{ row }}</code>
+              <select [value]="lineAlignments()[$index] || 'inherit'" (change)="setLineAlignment($index, $any($event.target).value)" [attr.aria-label]="'Alineación de línea ' + ($index + 1)" [disabled]="notesService.isReadingMode()">
+                <option value="inherit">Del bloque</option><option value="left">Izquierda</option><option value="center">Centro</option><option value="right">Derecha</option>
+              </select>
+            </label>
+          }
+        }
+      </div>
       <!-- Vista previa en vivo mientras escribe -->
       <div class="live-preview-box">
         <div class="live-preview-label">
           {{ i18n.currentLang() === 'es' ? 'Vista previa en vivo' : 'Live Preview' }}
         </div>
-        <div #liveTarget class="math-render-surface"></div>
+        <div #liveTarget class="math-render-surface" [style.font-size.px]="fontSizePx()" [style.text-align]="alignment()"></div>
       </div>
+      }
     </div>
   } @else {
     <!-- Modo Visualización: Fórmula integrada naturalmente al documento (sin scroll) -->
@@ -108,7 +156,9 @@
         </div>
       }
 
-      <div #displayTarget class="math-render-surface main-display"></div>
+      @if (!documentMode()) {
+      <div #displayTarget class="math-render-surface main-display" [style.font-size.px]="fontSizePx()" [style.text-align]="alignment()"></div>
+      }
 
       @if (!notesService.isReadingMode()) {
         <button type="button" class="quick-edit-btn" (click)="$event.stopPropagation(); enableEdit()">
@@ -116,5 +166,8 @@
         </button>
       }
     </div>
+  }
+  @if (documentMode()) {
+    <app-latex-preview [source]="rawFormula" mode="fragment" title="bloque-latex" />
   }
 </div>

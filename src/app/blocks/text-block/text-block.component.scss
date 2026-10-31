@@ -1,3 +1,13 @@
+@use '../../shared/styles/document-links' as links;
+
+:host ::ng-deep .tiptap-surface {
+  @include links.document-links;
+}
+
+:host-context(.dark) ::ng-deep .tiptap-surface {
+  @include links.document-links(#93c5fd, #bfdbfe, #1e3a8a);
+}
+
 .text-block-root {
   position: relative;
   width: 100%;
@@ -66,6 +76,9 @@
 }
 
 .tb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 6px;
   border-radius: 5px;
   font-size: 11.5px;
@@ -452,6 +465,32 @@
   padding: 2px 0;
 }
 
+:host ::ng-deep .tiptap-surface table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 12px 0;
+
+  td, th {
+    position: relative;
+    border: 1px solid var(--border-strong, var(--border));
+    padding: 7px 9px;
+    min-width: 0;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  th { background: var(--soft); font-weight: 600; }
+  p { margin: 0; }
+  .selectedCell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent-soft);
+    pointer-events: none;
+  }
+}
+
 ::ng-deep .tiptap-surface .ProseMirror {
   outline: none;
   min-height: 36px;
@@ -738,4 +777,15 @@
   color: var(--faint);
   pointer-events: none;
   height: 0;
+}
+
+.text-view-switch { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 6px; }
+.text-view-switch .tb-btn { padding: 6px 9px; cursor: pointer; }
+.text-view-switch .tb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.text-block-root.preview-mode { cursor: default; }
+.text-block-root.preview-mode ::ng-deep .tiptap-surface {
+  h1::before, h2::before, h3::before, h4::before, h5::before, h6::before { display: none !important; content: '' !important; }
+  .is-editor-empty::before { display: none !important; }
+  .selectedCell::after { display: none; }
+  .ProseMirror { cursor: default; }
 }

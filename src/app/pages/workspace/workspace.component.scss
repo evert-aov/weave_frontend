@@ -1,0 +1,41 @@
+:host { display: block; height: 100dvh; }
+.workspace-shell {
+  display: flex;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--canvas);
+  color: var(--text);
+}
+.workspace-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  container: workspace / inline-size;
+}
+.workspace-content {
+  display: flex;
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.editor-pane { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.navigation-backdrop { display: none; }
+@media (max-width: 760px) {
+  .navigation-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgb(15 23 42 / 30%);
+    backdrop-filter: blur(2px);
+  }
+}
+.document-navigation-error {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 9px 16px; color: var(--text); background: var(--soft); border-bottom: 1px solid var(--border); font-size: 12px;
+  button { color: var(--accent); flex-shrink: 0; }
+}

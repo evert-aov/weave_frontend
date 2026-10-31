@@ -73,6 +73,7 @@ export class MarkdownExportStrategy implements ExportStrategy {
     const content = block.content || {};
     switch (block.type) {
       case 'text': {
+        if (content['format'] === 'markdown' && typeof content['markdown'] === 'string') return content['markdown'];
         const html = content['html'] || '';
         return this.simpleHtmlToMarkdown(html);
       }

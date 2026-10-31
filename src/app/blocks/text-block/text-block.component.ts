@@ -1,3 +1,7 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { domTextFields, applyHtmlText } from '../../core/utils/ai-edit-text';
+import type { SelectionBookmark } from '@tiptap/pm/state';
+import { markdownHtml } from '../../shared/markdown/markdown-document';
 import {
   Component,
   Input,
@@ -16,11 +20,17 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import { DOMParser as ProseMirrorDOMParser } from '@tiptap/pm/model';
+import { handlePaste as pasteTableCells } from '@tiptap/pm/tables';
 import { NotesService } from '../../core/services/notes.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Block } from '../../core/models/block.model';
 import { I18nService } from '../../core/services/i18n.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { clipboardTableHtml } from '../../shared/utils/clipboard-table';
+import { tableActions, TableAction, textTableExtensions } from './table.extensions';
+import { DocumentReferenceService } from '../../core/services/document-reference.service';
+import { documentHref, documentIdFromHref } from '../../core/utils/document-link';
 
 export type StyleTargetElement = 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 
@@ -110,11 +120,19 @@ export class TextBlockComponent implements OnInit, OnDestroy {
 
   private readonly notesService = inject(NotesService);
   private readonly authService = inject(AuthService);
+  private readonly references = inject(DocumentReferenceService);
   readonly i18n = inject(I18nService);
 
+  private readonly aiDocuments = inject(AiDocumentService);
+  private unregisterAi?: () => void;
   editor?: Editor;
   isFocused = false;
-  private updateDebounceTimer?: any;
+  private updateDebounceTimer?: ReturnType<typeof setTimeout>;
+  private readonly editorRevision = signal(0);
+  private ownerNoteId?: string;
+  readonly isPreview = signal(false);
+  private editingSelection?: SelectionBookmark;
+  private lastSavedHtml = '';
 
   readonly showStylePanel = signal<boolean>(false);
   readonly activeTab = signal<'customize' | 'templates'>('customize');
@@ -132,14 +150,42 @@ export class TextBlockComponent implements OnInit, OnDestroy {
     h6: {},
   };
 
+  setPreview(preview: boolean): void {
+    const editor = this.editor;
+    if (!editor || editor.isDestroyed || this.notesService.isReadingMode() || this.isPreview() === preview) return;
+    this.flushContent();
+    if (preview) {
+      this.editingSelection = editor.state.selection.getBookmark();
+      this.showStylePanel.set(false); this.isFocused = false;
+      editor.commands.blur();
+    }
+    this.isPreview.set(preview);
+    editor.setEditable(!preview, false);
+    if (!preview) {
+      if (this.editingSelection) editor.view.dispatch(editor.state.tr.setSelection(this.editingSelection.resolve(editor.state.doc)));
+      editor.commands.focus(undefined, { scrollIntoView: false });
+    }
+  }
+
+  private flushContent(force = false): void {
+    clearTimeout(this.updateDebounceTimer); this.updateDebounceTimer = undefined;
+    if (!this.editor || this.editor.isDestroyed) return;
+    const html = this.editor.getHTML();
+    if (!force && html === this.lastSavedHtml) return;
+    this.notesService.updateBlockContent(this.block.id, {
+      format: 'richtext', html, blockStyles: this.blockStyles,
+    }, this.ownerNoteId);
+    this.lastSavedHtml = html;
+  }
+
   newTemplateName = '';
   readonly allTemplates = signal<StyleTemplate[]>([]);
 
   constructor() {
     effect(() => {
-      const isReading = this.notesService.isReadingMode();
+      const isReading = this.notesService.isReadingMode() || this.isPreview();
       if (this.editor) {
-        this.editor.setEditable(!isReading);
+        if (this.editor.isEditable === isReading) this.editor.setEditable(!isReading, false);
         if (isReading) {
           this.showStylePanel.set(false);
           this.isFocused = false;
@@ -149,7 +195,20 @@ export class TextBlockComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    const initialContent = this.block.content?.['html'] || '<p></p>';
+    this.unregisterAi = this.aiDocuments.register({
+      owner: () => this.ownerNoteId,
+      fields: () => this.editor ? domTextFields(this.editor.view.dom, `block:${this.block.id}`) : [],
+      apply: values => {
+        if (!this.editor) return;
+        const html = applyHtmlText(this.editor.getHTML(), `block:${this.block.id}`, values);
+        this.editor.commands.setContent(html); this.flushContent(true);
+      },
+    });
+    this.ownerNoteId = this.notesService.currentNote()?._id;
+    // Older Markdown documents keep their canonical content; migrate only after a real edit.
+    const content = this.block.content || {};
+    const initialContent = content['format'] === 'markdown' && typeof content['markdown'] === 'string'
+      ? markdownHtml(content['markdown']) || '<p></p>' : content['html'] || '<p></p>';
 
     // Cargar estilos personalizados del bloque persistidos en MongoDB
     if (this.block.content?.['blockStyles']) {
@@ -168,6 +227,7 @@ export class TextBlockComponent implements OnInit, OnDestroy {
 
     this.editor = new Editor({
       element: this.editorElement.nativeElement,
+      editable: !this.notesService.isReadingMode(),
       extensions: [
         StarterKit.configure({
           heading: {
@@ -184,39 +244,53 @@ export class TextBlockComponent implements OnInit, OnDestroy {
         TaskItem.configure({
           nested: true,
         }),
+        ...textTableExtensions,
       ],
       content: initialContent,
-      onUpdate: ({ editor }) => {
+      onTransaction: () => this.editorRevision.update((revision) => revision + 1),
+      editorProps: {
+        handleClick: (_view, _position, event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          const link = target?.closest('a[href]');
+          // ProseMirror procesa handleClick durante mouseup, antes del clic delegado del workspace.
+          return !!link && !!documentIdFromHref(link.getAttribute('href') ?? '', window.location.origin);
+        },
+        transformPastedHTML: (html) => clipboardTableHtml(html, '') ?? html,
+        handlePaste: (view, event) => {
+          if (!view.editable || this.editor?.isActive('codeBlock') || this.editor?.isActive('code')) return false;
+          const html = event.clipboardData?.getData('text/html') ?? '';
+          // Las tablas HTML ya pasan por el parser y el plugin de selección de celdas.
+          if (/<table[\s>]/i.test(html)) return false;
+          const table = clipboardTableHtml(html, event.clipboardData?.getData('text/plain') ?? '');
+          if (!table) return false;
+          const container = document.createElement('div');
+          container.innerHTML = table;
+          const slice = ProseMirrorDOMParser.fromSchema(view.state.schema).parseSlice(container);
+          if (!pasteTableCells(view, event, slice)) view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+          return true;
+        },
+      },
+      onUpdate: () => {
         clearTimeout(this.updateDebounceTimer);
-        this.updateDebounceTimer = setTimeout(() => {
-          const html = editor.getHTML();
-          this.notesService.updateBlockContent(this.block.id, {
-            html,
-            blockStyles: this.blockStyles,
-          });
-        }, 500);
+        this.updateDebounceTimer = setTimeout(() => this.flushContent(), 500);
       },
       onFocus: () => {
         this.isFocused = true;
       },
       onBlur: () => {
         this.isFocused = false;
-        if (this.editor) {
-          clearTimeout(this.updateDebounceTimer);
-          const html = this.editor.getHTML();
-          if (html !== this.block.content?.['html']) {
-            this.notesService.updateBlockContent(this.block.id, {
-              html,
-              blockStyles: this.blockStyles,
-            });
-          }
-        }
+        this.flushContent();
       },
     });
+    // Settle schema normalization (e.g. the trailing paragraph after a table) before
+    // recording the baseline. Merely previewing a legacy note must not save it.
+    this.editor.view.dispatch(this.editor.state.tr.setMeta('addToHistory', false));
+    clearTimeout(this.updateDebounceTimer); this.updateDebounceTimer = undefined;
+    this.lastSavedHtml = this.editor.getHTML();
   }
 
   onRootClick(event: MouseEvent): void {
-    if (this.notesService.isReadingMode()) return;
+    if (!this.editor?.isEditable) return;
     // Si el clic ocurrió fuera del panel de estilos, enfocar el editor
     if (!this.showStylePanel()) {
       this.focusEditor();
@@ -224,17 +298,60 @@ export class TextBlockComponent implements OnInit, OnDestroy {
   }
 
   focusEditor(): void {
-    if (this.editor && !this.editor.isFocused && !this.showStylePanel()) {
+    if (this.editor?.isEditable && !this.editor.isFocused && !this.showStylePanel()) {
       this.editor.commands.focus();
     }
   }
 
   setParagraph(): void {
-    this.editor?.chain().focus().setParagraph().run();
+    if (this.editor?.isEditable) this.editor.chain().focus().setParagraph().run();
   }
 
   toggleHeading(level: 1 | 2 | 3 | 4 | 5 | 6): void {
-    this.editor?.chain().focus().toggleHeading({ level }).run();
+    if (this.editor?.isEditable) this.editor.chain().focus().toggleHeading({ level }).run();
+  }
+
+  insertTable(): void {
+    if (!this.editor?.isEditable || this.editor.isActive('table')) return;
+    const cells = (type: string) => Array.from({ length: 3 }, () => ({ type, content: [{ type: 'paragraph' }] }));
+    this.editor.chain().focus().insertContent([
+      { type: 'table', content: Array.from({ length: 3 }, (_, row) => ({
+        type: 'table_row', content: cells(row === 0 ? 'table_header' : 'table_cell'),
+      })) },
+      { type: 'paragraph' },
+    ]).run();
+  }
+
+  tableAction(action: TableAction): void {
+    if (!this.editor?.isEditable) return;
+    this.editor.chain().focus().command(({ state, dispatch }) => tableActions[action](state, dispatch)).run();
+  }
+
+  canTableAction(action: TableAction): boolean {
+    this.editorRevision();
+    return !!this.editor?.isEditable && tableActions[action](this.editor.state);
+  }
+
+  isTableActive(): boolean {
+    this.editorRevision();
+    return !!this.editor?.isActive('table');
+  }
+
+  insertDocumentReference(): void {
+    const editor = this.editor;
+    if (!editor?.isEditable) return;
+    const noteId = this.notesService.currentNote()?._id;
+    if (!noteId) return;
+    const { from, to } = editor.state.selection;
+    this.references.open(noteId, (note) => {
+      if (editor.isDestroyed || !editor.isEditable || this.notesService.currentNote()?._id !== noteId) return;
+      const href = documentHref(note._id);
+      if (from === to) {
+        editor.chain().focus().setTextSelection(from).insertContent({
+          type: 'text', text: note.title || 'Sin título', marks: [{ type: 'link', attrs: { href, target: null } }],
+        }).unsetMark('link', { extendEmptyMarkRange: false }).run();
+      } else editor.chain().focus().setTextSelection({ from, to }).setLink({ href, target: null }).run();
+    }, () => { if (!editor.isDestroyed) editor.commands.focus(); });
   }
 
   /* Control del Panel de Estilos Personalizados */
@@ -374,16 +491,14 @@ export class TextBlockComponent implements OnInit, OnDestroy {
   }
 
   private saveBlockStyles(): void {
+    if (!this.editor?.isEditable) return;
     this.blockStyles = { ...this.blockStyles };
-    const html = this.editor?.getHTML() || this.block.content?.['html'] || '';
-    this.notesService.updateBlockContent(this.block.id, {
-      html,
-      blockStyles: this.blockStyles,
-    });
+    this.flushContent(true);
   }
 
   ngOnDestroy(): void {
-    clearTimeout(this.updateDebounceTimer);
+    this.unregisterAi?.();
+    this.flushContent();
     this.editor?.destroy();
   }
 }

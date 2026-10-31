@@ -1,0 +1,59 @@
+<div class="dialog-backdrop" (click)="dialogs.close()">
+  <section #dialog class="app-dialog" tabindex="-1" [attr.role]="request.destructive ? 'alertdialog' : 'dialog'" aria-modal="true"
+    aria-labelledby="app-dialog-title" [attr.aria-describedby]="request.message ? 'app-dialog-description' : null"
+    [attr.aria-busy]="dialogs.busy()" (click)="$event.stopPropagation()" (keydown)="onKeyDown($event)">
+    <header>
+      <div class="dialog-heading"><app-icon [name]="request.icon || (request.destructive ? 'trash' : 'file')" [size]="20" />
+        <div>@if (request.step) { <small>{{ request.step }}</small> }<h2 id="app-dialog-title">{{ request.title }}</h2></div>
+      </div>
+      <button type="button" class="dialog-close" [disabled]="dialogs.busy()" (click)="dialogs.close()" aria-label="Cerrar">
+        <app-icon name="close" [size]="18" />
+      </button>
+    </header>
+    <form novalidate (submit)="submit($event)">
+      <div class="dialog-body">
+        @if (request.message) { <p id="app-dialog-description">{{ request.message }}</p> }
+        @if (request.kind === 'choice') {
+          <div class="dialog-choices">
+            @for (choice of request.choices; track choice.value; let first = $first) {
+              <button type="button" class="dialog-choice" [attr.data-dialog-autofocus]="first ? '' : null"
+                [disabled]="dialogs.busy()" (click)="dialogs.submit(choice.value)">
+                <app-icon [name]="choice.icon" [size]="23" />
+                <span><strong>{{ choice.label }}</strong>@if (choice.description) { <small>{{ choice.description }}</small> }</span>
+                <app-icon name="arrow-right" [size]="15" />
+              </button>
+            }
+          </div>
+        }
+        @if (request.kind === 'input') {
+          <label for="app-dialog-input">{{ request.label || (i18n.currentLang() === 'es' ? 'Nombre' : 'Name') }}</label>
+          <input id="app-dialog-input" name="value" data-dialog-autofocus type="text" autocomplete="off" required
+            [ngModel]="value()" (ngModelChange)="onInput($event)" [placeholder]="request.placeholder || ''"
+            [maxlength]="request.maxLength || 160" [disabled]="dialogs.busy()"
+            [attr.aria-invalid]="dialogs.error() ? 'true' : null" [attr.aria-describedby]="dialogs.error() ? 'app-dialog-error' : null" />
+        }
+        @if (dialogs.error()) { <p id="app-dialog-error" class="dialog-error" role="alert">{{ dialogs.error() }}</p> }
+      </div>
+      <footer>
+        @if (request.back) {
+          <button type="button" class="dialog-back" [disabled]="dialogs.busy()" (click)="dialogs.back()">
+            <app-icon name="arrow-left" [size]="14" />{{ i18n.currentLang() === 'es' ? 'Volver' : 'Back' }}
+          </button>
+        }
+        <div class="dialog-actions">
+          @if (request.kind !== 'notice') {
+            <button type="button" data-dialog-cancel class="dialog-secondary" [disabled]="dialogs.busy()" (click)="dialogs.close()">
+              {{ i18n.currentLang() === 'es' ? 'Cancelar' : 'Cancel' }}
+            </button>
+          }
+          @if (request.kind !== 'choice') {
+            <button type="submit" class="dialog-primary" [class.destructive]="request.destructive"
+              [attr.data-dialog-autofocus]="request.kind === 'notice' ? '' : null" [disabled]="dialogs.busy()">
+              {{ dialogs.busy() ? (i18n.currentLang() === 'es' ? 'Procesando…' : 'Processing…') : (request.submitLabel || (i18n.currentLang() === 'es' ? 'Aceptar' : 'OK')) }}
+            </button>
+          }
+        </div>
+      </footer>
+    </form>
+  </section>
+</div>

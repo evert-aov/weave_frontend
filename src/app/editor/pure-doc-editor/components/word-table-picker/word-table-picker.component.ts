@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 const MAX_ROWS = 8;
@@ -12,6 +12,7 @@ const MAX_COLS = 8;
   styleUrls: ['./word-table-picker.component.scss'],
 })
 export class WordTablePickerComponent {
+  @Input() darkMode = false;
   @Output() selectTable = new EventEmitter<{ rows: number; cols: number }>();
   @Output() close = new EventEmitter<void>();
 

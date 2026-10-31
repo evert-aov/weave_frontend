@@ -1,3 +1,7 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { slideAiAdapter } from '../../shared/utils/ai-slide-adapter';
+import { Injector } from '@angular/core';
+import { EditorStateService } from 'pptx-angular-viewer';
 import {
   Component,
   Input,
@@ -27,6 +31,7 @@ import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { EditorStylesService } from '../../core/services/editor-styles.service';
 import { DEFAULT_BLANK_PPTX_BASE64 } from './default-pptx.base64';
 
 /**
@@ -46,11 +51,13 @@ export class PureSlideEditorComponent implements OnInit, OnChanges, AfterViewIni
   @ViewChild('slideWrapper', { static: false })
   slideWrapper?: ElementRef<HTMLDivElement>;
   @ViewChild('viewer') viewer?: PowerPointViewerComponent;
+  @ViewChild('viewer', { read: Injector }) viewerInjector?: Injector;
 
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
   readonly themeService = inject(ThemeService);
   private readonly translate = inject(TranslateService);
+  private readonly editorStyles = inject(EditorStylesService);
 
   readonly pptxBytes = signal<Uint8Array | null>(null);
   readonly isDarkTheme = computed<boolean>(() => this.themeService.isDark());
@@ -72,7 +79,22 @@ export class PureSlideEditorComponent implements OnInit, OnChanges, AfterViewIni
   private escapeCaptureHandler = (event: KeyboardEvent) => this.handleKeydownCapture(event);
   private nativeSaveCaptureHandler = (event: Event) => this.handleNativeSaveClick(event);
 
+  private readonly aiDocuments = inject(AiDocumentService);
+  private readonly unregisterAi = this.aiDocuments.register(slideAiAdapter(
+    () => (this.pptxBytes() ? this.loadedNoteId ?? undefined : undefined), () => this.viewer,
+    (slide, text) => {
+      const editor = this.viewerInjector?.get(EditorStateService);
+      if (!editor) throw new Error('El editor de diapositivas todavía no está listo.');
+      editor.addElement(slide, { type: 'text', id: '', x: 60, y: 80, width: 600, height: 250,
+        text, textStyle: { fontSize: 24, color: '#172033' } });
+    },
+    () => { void this.savePptxToDb(); },
+  ));
+
   ngOnInit(): void {
+    void this.editorStyles.load('pptx-angular-viewer.css').catch(() => {
+      console.warn('[PureSlideEditor] Presentation styles are unavailable');
+    });
     this.setupTranslations();
     this.loadedNoteId = this.note._id;
     this.loadPptxData();
@@ -117,6 +139,7 @@ export class PureSlideEditorComponent implements OnInit, OnChanges, AfterViewIni
   }
 
   ngOnDestroy(): void {
+    this.unregisterAi();
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }

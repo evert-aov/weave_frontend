@@ -1,20 +1,55 @@
-@if (notesService.currentNote(); as note) {
+@if (!notesService.currentNote() && (notesService.isLoadingList() || notesService.isLoadingNote())) {
+  <app-lazy-load-state></app-lazy-load-state>
+} @else if (!notesService.currentNote() && notesService.noteLoadFailed()) {
+  <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+} @else if (notesService.currentNote(); as note) {
   @switch (note.docType) {
+    @case ('latex') {
+      @defer (on immediate) {
+        @for (id of [note._id]; track id) { <app-pure-latex-editor [note]="note" /> }
+      } @placeholder { <app-lazy-load-state /> }
+      @error { <app-lazy-load-state [failed]="true" /> }
+    }
     @case ('sheet') {
-      <app-pure-sheet-editor [note]="note"></app-pure-sheet-editor>
+      @defer (on immediate) {
+        <app-pure-sheet-editor [note]="note"></app-pure-sheet-editor>
+      } @placeholder {
+        <app-lazy-load-state></app-lazy-load-state>
+      } @error {
+        <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+      }
     }
     @case ('doc') {
-      <app-pure-doc-editor [note]="note"></app-pure-doc-editor>
+      @defer (on immediate) {
+        <app-pure-doc-editor [note]="note"></app-pure-doc-editor>
+      } @placeholder {
+        <app-lazy-load-state></app-lazy-load-state>
+      } @error {
+        <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+      }
     }
     @case ('canvas') {
-      <app-pure-canvas-editor [note]="note"></app-pure-canvas-editor>
+      @defer (on immediate) {
+        <app-pure-canvas-editor [note]="note"></app-pure-canvas-editor>
+      } @placeholder {
+        <app-lazy-load-state></app-lazy-load-state>
+      } @error {
+        <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+      }
     }
     @case ('slide') {
-      <app-pure-slide-editor [note]="note"></app-pure-slide-editor>
+      @defer (on immediate) {
+        <app-pure-slide-editor [note]="note"></app-pure-slide-editor>
+      } @placeholder {
+        <app-lazy-load-state></app-lazy-load-state>
+      } @error {
+        <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+      }
     }
     @default {
       <div
         class="document-scroll"
+        data-document-scroll
         #scrollContainer
         [class.is-dragging-active]="draggedBlockIndex() !== null"
         (dragover)="onContainerDragOver($event)"
@@ -80,22 +115,52 @@
                   <app-text-block [block]="block"></app-text-block>
                 }
                 @case ('canvas') {
-                  <app-canvas-block [block]="block"></app-canvas-block>
+                  @defer (on immediate) {
+                    <app-canvas-block [block]="block"></app-canvas-block>
+                  } @placeholder {
+                    <app-lazy-load-state></app-lazy-load-state>
+                  } @error {
+                    <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+                  }
                 }
                 @case ('latex') {
-                  <app-latex-block [block]="block"></app-latex-block>
+                  @defer (on immediate) {
+                    <app-latex-block [block]="block"></app-latex-block>
+                  } @placeholder {
+                    <app-lazy-load-state></app-lazy-load-state>
+                  } @error {
+                    <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+                  }
                 }
                 @case ('image') {
                   <app-image-block [block]="block"></app-image-block>
                 }
                 @case ('sheet') {
-                  <app-sheet-block [block]="block"></app-sheet-block>
+                  @defer (on immediate) {
+                    <app-sheet-block [block]="block"></app-sheet-block>
+                  } @placeholder {
+                    <app-lazy-load-state></app-lazy-load-state>
+                  } @error {
+                    <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+                  }
                 }
                 @case ('code') {
-                  <app-code-block [block]="block"></app-code-block>
+                  @defer (on immediate) {
+                    <app-code-block [block]="block"></app-code-block>
+                  } @placeholder {
+                    <app-lazy-load-state></app-lazy-load-state>
+                  } @error {
+                    <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+                  }
                 }
                 @case ('mermaid') {
-                  <app-mermaid-block [block]="block"></app-mermaid-block>
+                  @defer (on immediate) {
+                    <app-mermaid-block [block]="block"></app-mermaid-block>
+                  } @placeholder {
+                    <app-lazy-load-state></app-lazy-load-state>
+                  } @error {
+                    <app-lazy-load-state [failed]="true"></app-lazy-load-state>
+                  }
                 }
                 @case ('file') {
                   <app-file-block [block]="block"></app-file-block>
@@ -143,7 +208,7 @@
   }
 } @else {
   <div class="no-note-selected">
-    <p>{{ i18n.t('doc.empty_note') }}</p>
+    <p>{{ i18n.t('doc.select_document') }}</p>
     <button type="button" class="btn-create" (click)="createNewNote()">
       <app-icon name="plus" [size]="14"></app-icon>
       {{ i18n.t('topbar.new_note') }}

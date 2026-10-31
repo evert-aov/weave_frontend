@@ -4,9 +4,14 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build --stats-json",
+    "postbuild": "node scripts/check-startup-bundle.mjs",
+    "check:startup": "node scripts/check-startup-bundle.mjs",
+    "test:startup": "node --test scripts/check-startup-bundle.spec.mjs",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "vendor:vim": "node scripts/vendor-monaco-vim.mjs",
+    "vendor:codemirror": "node scripts/vendor-codemirror.mjs"
   },
   "private": true,
   "packageManager": "npm@11.19.0",
@@ -25,6 +30,7 @@
     "@tiptap/extension-placeholder": "^3.31.4",
     "@tiptap/extension-task-item": "^3.31.4",
     "@tiptap/extension-task-list": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
     "@types/katex": "^0.16.8",
     "@types/react": "^19.3.0",
@@ -56,7 +62,9 @@
     "tldraw": "^5.5.2",
     "tslib": "^2.3.0",
     "y-webrtc": "^10.3.0",
-    "y-websocket": "^3.1.0"
+    "y-websocket": "^3.1.0",
+    "marked": "16.4.2",
+    "dompurify": "3.4.16"
   },
   "devDependencies": {
     "@angular/build": "^22.1.6",

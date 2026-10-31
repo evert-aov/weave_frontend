@@ -7,17 +7,19 @@
 
 app-pure-sheet-editor,
 app-pure-doc-editor,
-app-pure-canvas-editor {
+app-pure-canvas-editor,
+app-pure-latex-editor,
+app-pure-slide-editor {
   display: block;
   width: 100%;
   height: 100%;
 }
 
 .document-scroll {
-  height: calc(100vh - 58px);
+  height: 100%;
   overflow-y: auto;
   background: var(--canvas);
-  padding: 20px 16px 80px;
+  padding: 20px clamp(12px, 2vw, 28px) 64px;
   box-sizing: border-box;
 
   &.is-dragging-active {
@@ -38,7 +40,7 @@ body.is-block-dragging * {
   cursor: grabbing !important;
 }
 .document {
-  width: min(860px, calc(100% - 32px));
+  width: min(860px, 100%);
   margin: 12px auto 60px;
   background: var(--bg);
   border: 1px solid var(--border);

@@ -1,19 +1,31 @@
-<aside class="sidebar" [class.collapsed]="notesService.isSidebarCollapsed()">
+<aside
+  class="sidebar"
+  [class.collapsed]="notesService.isSidebarCollapsed()"
+  [style.--sidebar-width]="layout.navigationWidth() + 'px'"
+  [attr.aria-label]="i18n.t('nav.navigation')"
+>
   <!-- Cabecera del espacio de trabajo -->
   <div class="workspace">
-    <div class="brand-mark">W</div>
+    <button
+      type="button"
+      class="brand-mark"
+      [title]="i18n.t('nav.expand_navigation')"
+      [attr.aria-label]="i18n.t('nav.expand_navigation')"
+      (click)="notesService.isSidebarCollapsed.set(false)"
+    >W</button>
     @if (!notesService.isSidebarCollapsed()) {
       <div class="workspace-copy">
         <strong>{{ i18n.t('app.name') }}</strong>
-        <span>{{ authService.currentUser()?.name || 'Workspace' }}</span>
+        <span>{{ i18n.t('nav.workspace') }}</span>
       </div>
       <button
         type="button"
         class="plain"
-        (click)="createNoteInActiveSpace()"
-        [title]="i18n.t('topbar.new_note')"
+        (click)="notesService.isSidebarCollapsed.set(true)"
+        [title]="i18n.t('nav.collapse_navigation')"
+        [attr.aria-label]="i18n.t('nav.collapse_navigation')"
       >
-        <app-icon name="plus" [size]="14"></app-icon>
+        <app-icon name="panel" [size]="16"></app-icon>
       </button>
     }
   </div>
@@ -32,6 +44,10 @@
         <button type="button" class="clear-search" (click)="searchQuery = ''">×</button>
       }
     </div>
+    <button type="button" class="new-document-btn" (click)="createNoteInActiveSpace()">
+      <app-icon name="plus" [size]="16"></app-icon>
+      <span>{{ i18n.t('nav.new_document') }}</span>
+    </button>
   }
 
   <!-- Navegación primaria: Todas las notas -->
@@ -40,6 +56,7 @@
       type="button"
       [class.active]="!notesService.activeSpace() || notesService.activeSpace() === 'all'"
       (click)="showAllNotes()"
+      [title]="i18n.t('nav.all_documents')"
     >
       <app-icon name="grid" [size]="15"></app-icon>
       @if (!notesService.isSidebarCollapsed()) {
@@ -51,13 +68,14 @@
 
   <!-- Sección de Espacios / Jerarquía de Directorios -->
   @if (!notesService.isSidebarCollapsed()) {
-    <div class="sidebar-section">
+    <section class="sidebar-section" aria-labelledby="spaces-heading">
       <div class="section-label">
-        <span>{{ i18n.t('nav.spaces') }}</span>
+        <span id="spaces-heading">{{ i18n.t('nav.spaces') }}</span>
         <button
           type="button"
-          (click)="promptCreateSpace()"
-          [title]="i18n.currentLang() === 'es' ? 'Crear directorio raíz' : 'Create root directory'"
+          (click)="createDirectory()"
+          [title]="i18n.t('nav.create_space')"
+          [attr.aria-label]="i18n.t('nav.create_space')"
         >
           <app-icon name="plus" [size]="13"></app-icon>
         </button>
@@ -87,7 +105,7 @@
           </div>
         }
       </div>
-    </div>
+    </section>
   }
 
   <!-- Plantilla recursiva para renderizar cada carpeta y sus subdirectorios/notas -->
@@ -107,19 +125,20 @@
       >
         <button
           type="button"
+          class="chevron-toggle"
+          [class.expanded]="isSpaceExpanded(space._id)"
+          [attr.aria-expanded]="isSpaceExpanded(space._id)"
+          [attr.aria-label]="(isSpaceExpanded(space._id) ? i18n.t('nav.collapse') : i18n.t('nav.expand')) + ' ' + space.name"
+          (click)="toggleSpace(space._id, $event)"
+        >
+          <app-icon name="chevron" [size]="11"></app-icon>
+        </button>
+        <button
+          type="button"
           class="tree-row"
           (click)="selectSpace(space, $event)"
           [title]="space.path || space.name"
         >
-          <!-- Botón de colapsar / expandir -->
-          <span
-            class="chevron-toggle"
-            [class.expanded]="isSpaceExpanded(space._id)"
-            (click)="toggleSpace(space._id, $event)"
-          >
-            <app-icon name="chevron" [size]="10"></app-icon>
-          </span>
-
           <!-- Icono de carpeta vectorial (sin emojis) -->
           <span class="folder-icon" [ngClass]="space.color || 'indigo'">
             <app-icon name="folder" [size]="14"></app-icon>
@@ -128,60 +147,22 @@
           <span
             class="space-title"
             (dblclick)="renameSpace(space, $event)"
-            [title]="i18n.currentLang() === 'es' ? 'Doble clic para renombrar' : 'Double click to rename'"
+            [title]="space.path || space.name"
           >
             {{ space.name }}
           </span>
 
-          <span class="notes-count">
-            {{ getNotesForSpace(space).length }}
-          </span>
+          @if (getNotesForSpace(space).length > 0) {
+            <span class="notes-count">{{ getNotesForSpace(space).length }}</span>
+          }
         </button>
 
-        <!-- Acciones sobre el directorio: crear subdirectorio, crear nota, mover, renombrar, eliminar -->
-        <div class="space-actions">
-          <button
-            type="button"
-            class="space-action-btn"
-            (click)="promptCreateSubspace(space, $event)"
-            [title]="i18n.currentLang() === 'es' ? 'Crear subcarpeta dentro de ' + space.name : 'Create subfolder inside ' + space.name"
-          >
-            <app-icon name="folder" [size]="11"></app-icon>
-            <span class="action-sub-plus">+</span>
-          </button>
-          <button
-            type="button"
-            class="space-action-btn"
-            (click)="createNoteInSpace(space, $event)"
-            [title]="i18n.currentLang() === 'es' ? 'Nueva nota en ' + space.name : 'New note in ' + space.name"
-          >
-            <app-icon name="file" [size]="11"></app-icon>
-          </button>
-          <button
-            type="button"
-            class="space-action-btn"
-            (click)="openMoveSpaceModal(space, $event)"
-            [title]="i18n.currentLang() === 'es' ? 'Mover este directorio a otro lugar' : 'Move this directory'"
-          >
-            <app-icon name="folder-input" [size]="11"></app-icon>
-          </button>
-          <button
-            type="button"
-            class="space-action-btn"
-            (click)="renameSpace(space, $event)"
-            [title]="i18n.currentLang() === 'es' ? 'Renombrar directorio' : 'Rename directory'"
-          >
-            <app-icon name="pen" [size]="11"></app-icon>
-          </button>
-          <button
-            type="button"
-            class="space-action-btn delete-space"
-            (click)="deleteSpace(space, $event)"
-            [title]="i18n.currentLang() === 'es' ? 'Eliminar directorio' : 'Delete directory'"
-          >
-            <app-icon name="trash" [size]="11"></app-icon>
-          </button>
-        </div>
+        <app-sidebar-item-actions
+          [label]="space.name"
+          [triggerLabel]="i18n.t('nav.actions') + ': ' + space.name"
+          [actions]="spaceActions()"
+          (actionSelected)="onSpaceAction(space, $event)"
+        ></app-sidebar-item-actions>
       </div>
 
       <!-- Contenido dentro de la carpeta cuando está expandida -->
@@ -206,16 +187,12 @@
                 <span class="note-tree-title">{{ note.title || 'Untitled' }}</span>
               </button>
 
-              <div class="note-actions">
-                <button
-                  type="button"
-                  class="note-action-btn"
-                  (click)="openMoveNoteModal(note, $event)"
-                  [title]="i18n.currentLang() === 'es' ? 'Mover nota a otro directorio' : 'Move note to another directory'"
-                >
-                  <app-icon name="folder-input" [size]="11"></app-icon>
-                </button>
-              </div>
+              <app-sidebar-item-actions
+                [label]="note.title || 'Untitled'"
+                [triggerLabel]="i18n.t('nav.actions') + ': ' + (note.title || 'Untitled')"
+                [actions]="noteActions()"
+                (actionSelected)="onNoteAction(note, $event)"
+              ></app-sidebar-item-actions>
             </div>
           }
 
@@ -229,6 +206,19 @@
       }
     </div>
   </ng-template>
+
+  @if (!notesService.isSidebarCollapsed()) {
+    <div
+      class="panel-resize-handle"
+      [appResizePanel]="layout.navigationWidth()"
+      [resizeMin]="layout.navigationMinWidth"
+      [resizeMax]="layout.navigationMaxWidth"
+      [resizeDefault]="288"
+      [resizeLabel]="i18n.t('nav.resize_navigation')"
+      [title]="i18n.t('nav.resize_hint')"
+      (panelWidthChange)="layout.setNavigationWidth($event)"
+    ></div>
+  }
 
   <!-- Modal interactivo "Mover a..." para notas o directorios -->
   @if (showMoveModal()) {
@@ -294,109 +284,6 @@
           <button type="button" class="btn-confirm" (click)="confirmModalMove()">
             {{ i18n.currentLang() === 'es' ? 'Mover aquí' : 'Move here' }}
           </button>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- Modal interactivo para seleccionar tipo de documento especializado -->
-  @if (showCreateDocModal()) {
-    <div class="create-doc-modal-backdrop" (click)="closeCreateDocModal()">
-      <div class="create-doc-modal-dialog" (click)="$event.stopPropagation()">
-        <div class="create-doc-modal-header">
-          <div class="header-left">
-            <app-icon name="plus" [size]="16" class="text-accent"></app-icon>
-            <strong>{{ i18n.t('doc_type.create_title') }}</strong>
-          </div>
-          <button type="button" class="close-btn" (click)="closeCreateDocModal()">
-            <app-icon name="close" [size]="14"></app-icon>
-          </button>
-        </div>
-
-        <div class="create-doc-modal-body">
-          <!-- Paso 1: Nombre del documento -->
-          <div class="doc-name-field">
-            <label for="new-doc-title-input">
-              {{ i18n.currentLang() === 'es' ? 'Nombre del documento' : 'Document name' }}
-            </label>
-            <input
-              id="new-doc-title-input"
-              type="text"
-              class="doc-name-input"
-              [ngModel]="newDocTitle()"
-              (ngModelChange)="newDocTitle.set($event)"
-              (keydown.enter)="$event.preventDefault()"
-              [placeholder]="i18n.currentLang() === 'es' ? 'Escribe un nombre...' : 'Type a name...'"
-              autofocus
-            />
-            <small class="doc-name-hint">
-              {{ i18n.currentLang() === 'es' ? 'Elige el tipo de documento para continuar' : 'Choose a document type to continue' }}
-            </small>
-          </div>
-
-          @if (targetSpaceForNewDoc(); as targetSpace) {
-            <p class="target-space-info">
-              <span>{{ i18n.currentLang() === 'es' ? 'Ubicación:' : 'Location:' }}</span>
-              <span class="space-badge">{{ targetSpace.path || targetSpace.name }}</span>
-            </p>
-          }
-
-          <div class="doc-types-grid">
-            <!-- 1. Documento Estándar -->
-            <button type="button" class="type-card" (click)="createSpecializedDoc('block')">
-              <span class="card-icon block">
-                <app-icon name="file-text" [size]="20"></app-icon>
-              </span>
-              <div class="card-info">
-                <strong>{{ i18n.t('doc_type.block_title') }}</strong>
-                <p>{{ i18n.t('doc_type.block_desc') }}</p>
-              </div>
-            </button>
-
-            <!-- 2. Hoja de Cálculo (Univer Sheets) -->
-            <button type="button" class="type-card" (click)="createSpecializedDoc('sheet')">
-              <span class="card-icon sheet">
-                <app-icon name="sheet" [size]="20"></app-icon>
-              </span>
-              <div class="card-info">
-                <strong>{{ i18n.t('doc_type.sheet_title') }}</strong>
-                <p>{{ i18n.t('doc_type.sheet_desc') }}</p>
-              </div>
-            </button>
-
-            <!-- 3. Documento de Texto (Univer Docs) -->
-            <button type="button" class="type-card" (click)="createSpecializedDoc('doc')">
-              <span class="card-icon doc">
-                <app-icon name="file-text" [size]="20"></app-icon>
-              </span>
-              <div class="card-info">
-                <strong>{{ i18n.t('doc_type.doc_title') }}</strong>
-                <p>{{ i18n.t('doc_type.doc_desc') }}</p>
-              </div>
-            </button>
-
-            <!-- 4. Lienzo de Dibujo (Canvas) -->
-            <button type="button" class="type-card" (click)="createSpecializedDoc('canvas')">
-              <span class="card-icon canvas">
-                <app-icon name="canvas" [size]="20"></app-icon>
-              </span>
-              <div class="card-info">
-                <strong>{{ i18n.t('doc_type.canvas_title') }}</strong>
-                <p>{{ i18n.t('doc_type.canvas_desc') }}</p>
-              </div>
-            </button>
-
-            <!-- 5. Diapositivas (PowerPoint) -->
-            <button type="button" class="type-card" (click)="createSpecializedDoc('slide')">
-              <span class="card-icon slide">
-                <app-icon name="presentation" [size]="20"></app-icon>
-              </span>
-              <div class="card-info">
-                <strong>{{ i18n.t('doc_type.slide_title') }}</strong>
-                <p>{{ i18n.t('doc_type.slide_desc') }}</p>
-              </div>
-            </button>
-          </div>
         </div>
       </div>
     </div>

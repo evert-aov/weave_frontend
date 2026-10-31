@@ -52,7 +52,7 @@
 
     <div class="mt-6 flex justify-center gap-1.5 text-xs text-[var(--muted)]">
       <span>{{ i18n.t('auth.no_account') }}</span>
-      <a routerLink="/register" class="text-[var(--accent)] font-semibold hover:underline no-underline">{{ i18n.t('auth.register_button') }}</a>
+      <a routerLink="/register" queryParamsHandling="preserve" class="text-[var(--accent)] font-semibold hover:underline no-underline">{{ i18n.t('auth.register_button') }}</a>
     </div>
   </div>
 </div>

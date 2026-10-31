@@ -53,7 +53,10 @@ export type IconName =
   | 'presentation'
   | 'maximize'
   | 'minimize'
-  | 'brush';
+  | 'brush'
+  | 'sparkles'
+  | 'bot'
+  | 'send';
 
 /**
  * Componente de Iconos vectoriales de Weave.

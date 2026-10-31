@@ -1,3 +1,5 @@
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { unwrapCodeFence } from '../../core/utils/ai-edit-text';
 import {
   Component,
   Input,
@@ -11,7 +13,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import loader from '@monaco-editor/loader';
+import { MonacoRuntimeService } from '../../shared/monaco/monaco-runtime.service';
 import { Block } from '../../core/models/block.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -33,6 +35,7 @@ export class CodeBlockComponent implements OnInit, OnDestroy {
   @ViewChild('monacoContainer', { static: true })
   monacoContainer!: ElementRef<HTMLDivElement>;
 
+  private readonly runtime = inject(MonacoRuntimeService);
   private readonly notesService = inject(NotesService);
   private readonly themeService = inject(ThemeService);
   readonly i18n = inject(I18nService);
@@ -58,12 +61,26 @@ export class CodeBlockComponent implements OnInit, OnDestroy {
     });
   }
 
+  private aiOwner?: string;
+  private readonly aiDocuments = inject(AiDocumentService);
+  private readonly unregisterAi = this.aiDocuments.register({
+    owner: () => this.aiOwner,
+    fields: () => [{ id: `code:${this.block.id}`, text: this.monacoEditor?.getValue() ?? this.block.content?.['code'] ?? '' }],
+    apply: values => {
+      const raw = values.get(`code:${this.block.id}`);
+      if (raw !== undefined) { const value = unwrapCodeFence(raw); clearTimeout(this.syncTimeout); this.monacoEditor?.setValue(value);
+        this.notesService.updateBlockContent(this.block.id, { code: value }, this.aiOwner); }
+    },
+  });
+
   ngOnInit(): void {
+    this.aiOwner = this.notesService.currentNote()?._id;
     this.currentLanguage = this.block.content?.['language'] || 'python';
     this.initMonaco();
   }
 
   ngOnDestroy(): void {
+    this.unregisterAi();
     clearTimeout(this.syncTimeout);
     if (this.monacoEditor) {
       this.monacoEditor.dispose();
@@ -71,7 +88,7 @@ export class CodeBlockComponent implements OnInit, OnDestroy {
   }
 
   private initMonaco(): void {
-    loader.init().then((monaco) => {
+    this.runtime.load().then((monaco) => {
       const initialCode =
         this.block.content?.['code'] ||
         'def attention(query, key, value):\n    scores = query @ key.transpose(-2, -1)\n    weights = scores.softmax(dim=-1)\n    return weights @ value';

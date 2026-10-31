@@ -5,7 +5,9 @@ import { Observable, tap, catchError, of } from 'rxjs';
 import { User, AuthResponse } from '../models/user.model';
 import { NotesService } from './notes.service';
 import { SpacesService } from './spaces.service';
+import { AiService } from './ai.service';
 import { environment } from '../../../environments/environment';
+import { isDocumentId } from '../utils/document-link';
 
 /**
  * Servicio de Autenticación para el frontend.
@@ -19,6 +21,7 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly notesService = inject(NotesService);
   private readonly spacesService = inject(SpacesService);
+  private readonly aiService = inject(AiService);
   private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   readonly currentUser = signal<User | null>(null);
@@ -78,6 +81,7 @@ export class AuthService {
     this.currentUser.set(null);
     this.isAuthenticated.set(false);
     this.notesService.clearState();
+    this.aiService.resetSession();
     this.spacesService.clearState();
     this.router.navigate(['/login']);
   }
@@ -91,7 +95,9 @@ export class AuthService {
     this.currentUser.set(response.user);
     this.isAuthenticated.set(true);
     this.notesService.clearState();
+    this.aiService.resetSession();
     this.spacesService.clearState();
-    this.router.navigate(['/'], { replaceUrl: true });
+    const documentId = this.router.parseUrl(this.router.url).queryParams['document'];
+    this.router.navigate(['/'], { replaceUrl: true, queryParams: isDocumentId(documentId) ? { document: documentId } : undefined });
   }
 }

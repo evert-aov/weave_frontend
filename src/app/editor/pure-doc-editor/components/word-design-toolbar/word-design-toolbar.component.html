@@ -1,0 +1,320 @@
+<div class="design-ribbon" [class.dark-mode]="darkMode" (keydown.escape)="openMenu.set(null)">
+  <!-- 1. THEMES GROUP -->
+  <section class="design-group" [attr.aria-label]="t('word.design.themes', 'Temas')">
+    <div class="control-row relative">
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="toggle('themes')"
+        [title]="t('word.design.themes_tooltip', 'Cambiar el tema general del documento (colores, fuentes y efectos)')"
+      >
+        <div class="theme-icon-wrap">
+          <svg lucideIcon="layout-template" [size]="20" class="icon-blue"></svg>
+        </div>
+        <span class="btn-label flex items-center gap-0.5">
+          {{ t('word.design.themes', 'Temas') }}
+          <svg lucideIcon="chevron-down" [size]="10"></svg>
+        </span>
+      </button>
+
+      @if (openMenu() === 'themes') {
+        <div class="design-dropdown-menu themes-menu">
+          <div class="dropdown-header">{{ t('word.design.themes_gallery', 'Temas de Office') }}</div>
+          <div class="themes-grid">
+            @for (th of themePresets; track th.id) {
+              <button type="button" class="theme-card-btn" (click)="selectTheme(th)">
+                <div class="theme-swatch-bar">
+                  <span [style.backgroundColor]="th.primaryColor"></span>
+                  <span [style.backgroundColor]="th.secondaryColor"></span>
+                </div>
+                <div class="theme-name">{{ t(th.nameKey, th.id) }}</div>
+                <div class="theme-font">{{ th.font }}</div>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+    <span class="group-label">{{ t('word.design.themes', 'Temas') }}</span>
+  </section>
+
+  <!-- 2. DOCUMENT FORMATTING GROUP (Matching Image 0) -->
+  <section class="design-group doc-formatting-group" [attr.aria-label]="t('word.design.doc_formatting', 'Formato del documento')">
+    <div class="control-row items-center gap-2">
+      <!-- Horizontal Template Gallery Cards -->
+      <div class="doc-styles-gallery">
+        @for (tpl of styleTemplates; track tpl.id) {
+          @let isSelected = tpl.id === activeTemplateId;
+          @let h1 = tpl.rules['H1'];
+          <button
+            type="button"
+            class="doc-sheet-card"
+            [class.selected]="isSelected"
+            (click)="selectTemplate(tpl)"
+            [title]="tpl.name + ' - ' + tpl.description"
+          >
+            <!-- Miniature Document Sheet Preview (Matching Image 0) -->
+            <div class="mini-sheet">
+              <div class="mini-title" [style.fontFamily]="h1?.fontFamily" [style.color]="h1?.color">
+                {{ t('word.design.mini_title', 'TÍTULO') }}
+              </div>
+              <div class="mini-divider" [style.backgroundColor]="h1?.color"></div>
+              <div class="mini-heading" [style.color]="tpl.rules['H2']?.color">
+                {{ t('word.design.mini_heading', 'Título 1') }}
+              </div>
+              <div class="mini-body-lines">
+                <span class="line-1"></span>
+                <span class="line-2"></span>
+              </div>
+            </div>
+            <div class="doc-sheet-name">{{ tpl.name.split(' ')[0] }}</div>
+          </button>
+        }
+      </div>
+
+      <div class="v-divider"></div>
+
+      <!-- Action Buttons Next to Gallery (Image 0) -->
+      <!-- Colors -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('colors')"
+          [title]="t('word.design.colors', 'Colores')"
+        >
+          <div class="colors-preview-icon">
+            <span class="c-sq bg-blue-600"></span>
+            <span class="c-sq bg-amber-500"></span>
+            <span class="c-sq bg-emerald-600"></span>
+            <span class="c-sq bg-slate-700"></span>
+          </div>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.design.colors', 'Colores') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'colors') {
+          <div class="design-dropdown-menu colors-menu">
+            <div class="dropdown-header">{{ t('word.design.color_palettes', 'Paletas de colores de tema') }}</div>
+            @for (th of themePresets; track th.id) {
+              <button type="button" class="palette-row-btn" (click)="selectTheme(th)">
+                <div class="palette-swatches">
+                  <span [style.backgroundColor]="th.primaryColor"></span>
+                  <span [style.backgroundColor]="th.secondaryColor"></span>
+                  <span style="background-color: #64748b;"></span>
+                  <span style="background-color: #94a3b8;"></span>
+                </div>
+                <span>{{ t(th.nameKey, th.id) }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Fonts -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('fonts')"
+          [title]="t('word.design.fonts', 'Fuentes')"
+        >
+          <svg lucideIcon="type" [size]="20" class="icon-blue"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.design.fonts', 'Fuentes') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'fonts') {
+          <div class="design-dropdown-menu fonts-menu">
+            <div class="dropdown-header">{{ t('word.design.fonts_pairing', 'Combinaciones de fuentes') }}</div>
+            @for (fp of fontPairPresets; track fp.name) {
+              <button type="button" class="font-row-btn" (click)="selectFontPair(fp.font)">
+                <div class="font-pair-name" [style.fontFamily]="fp.font">{{ fp.name }}</div>
+                <div class="font-pair-sample" [style.fontFamily]="fp.font">Aa Bb Cc 1 2 3</div>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Stacked Options beside Fonts (Image 0) -->
+      <div class="stacked-formatting-actions">
+        <!-- Paragraph Spacing -->
+        <div class="relative">
+          <button
+            type="button"
+            class="btn-compact-text"
+            (click)="toggle('spacing')"
+            [title]="t('word.design.paragraph_spacing', 'Espaciado entre párrafos')"
+          >
+            <svg lucideIcon="arrow-up-down" [size]="13" class="text-blue-600"></svg>
+            <span>{{ t('word.design.paragraph_spacing', 'Espaciado entre párrafos') }}</span>
+            <svg lucideIcon="chevron-down" [size]="9"></svg>
+          </button>
+
+          @if (openMenu() === 'spacing') {
+            <div class="design-dropdown-menu spacing-menu">
+              <div class="dropdown-header">{{ t('word.design.paragraph_spacing', 'Espaciado entre párrafos') }}</div>
+              <button type="button" class="menu-choice-btn" (click)="selectSpacing(0)">{{ t('word.design.spacing_compact', 'Compacto (0 pt)') }}</button>
+              <button type="button" class="menu-choice-btn" (click)="selectSpacing(4)">{{ t('word.design.spacing_tight', 'Estrecho (4 pt)') }}</button>
+              <button type="button" class="menu-choice-btn" (click)="selectSpacing(8)">{{ t('word.design.spacing_moderate', 'Moderado (8 pt)') }}</button>
+              <button type="button" class="menu-choice-btn" (click)="selectSpacing(12)">{{ t('word.design.spacing_open', 'Abierto (12 pt)') }}</button>
+              <button type="button" class="menu-choice-btn" (click)="selectSpacing(18)">{{ t('word.design.spacing_relaxed', 'Relajado (18 pt)') }}</button>
+            </div>
+          }
+        </div>
+
+        <!-- Effects -->
+        <button
+          type="button"
+          class="btn-compact-text"
+          (click)="openDesigner.emit()"
+          [title]="t('word.design.effects', 'Efectos')"
+        >
+          <svg lucideIcon="sparkles" [size]="13" class="text-indigo-600"></svg>
+          <span>{{ t('word.design.effects', 'Efectos') }}</span>
+          <svg lucideIcon="chevron-down" [size]="9"></svg>
+        </button>
+
+        <!-- Set as Default -->
+        <button
+          type="button"
+          class="btn-compact-text text-emerald-700"
+          (click)="openDesigner.emit()"
+          [title]="t('word.design.set_default', 'Establecer como predeterminada')"
+        >
+          <svg lucideIcon="check-circle-2" [size]="13" class="text-emerald-600"></svg>
+          <span>{{ t('word.design.set_default', 'Establecer como predeterminada') }}</span>
+        </button>
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.design.doc_formatting', 'Formato del documento') }}</span>
+  </section>
+
+  <!-- 3. PAGE BACKGROUND GROUP (Matching Image 0) -->
+  <section class="design-group" [attr.aria-label]="t('word.design.page_background', 'Fondo de página')">
+    <div class="control-row">
+      <!-- Watermark (Marca de Agua) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('watermark')"
+          [title]="t('word.design.watermark', 'Marca de agua')"
+        >
+          <div class="watermark-icon-wrap">
+            <svg lucideIcon="file-text" [size]="20" class="text-rose-500"></svg>
+            <span class="watermark-badge-a">A</span>
+          </div>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.design.watermark', 'Marca de agua') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'watermark') {
+          <div class="design-dropdown-menu watermark-menu">
+            <div class="dropdown-header">{{ t('word.design.watermarks_header', 'Marcas de agua predefinidas') }}</div>
+            @for (wm of watermarkPresets; track wm.key) {
+              <button type="button" class="menu-choice-btn" (click)="setWatermark(t(wm.key))">
+                <span class="font-bold tracking-wider text-slate-700">{{ t(wm.key) }}</span>
+              </button>
+            }
+            <div class="menu-divider"></div>
+            <button type="button" class="menu-choice-btn text-blue-600 font-medium" (click)="setCustomWatermark()">
+              {{ t('word.design.custom_watermark', 'Personalizada…') }}
+            </button>
+            @if (layoutConfig.watermarkText) {
+              <button type="button" class="menu-choice-btn text-rose-600 font-medium" (click)="setWatermark('')">
+                {{ t('word.design.remove_watermark', 'Quitar marca de agua') }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Page Color (Color de Página) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('pageColor')"
+          [title]="t('word.design.page_color', 'Color de página')"
+        >
+          <svg lucideIcon="paint-bucket" [size]="20" class="icon-blue"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.design.page_color', 'Color de página') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'pageColor') {
+          <div class="design-dropdown-menu color-swatch-menu">
+            <div class="dropdown-header">{{ t('word.design.page_color_theme', 'Color de la hoja') }}</div>
+            <div class="swatches-grid">
+              @for (c of pageColors; track c.labelKey) {
+                <button
+                  type="button"
+                  class="color-circle-btn"
+                  [style.backgroundColor]="c.value || '#ffffff'"
+                  [title]="t(c.labelKey)"
+                  (click)="setPageColor(c.value)"
+                >
+                  @if (!c.value) {
+                    <span class="no-color-slash">/</span>
+                  }
+                </button>
+              }
+            </div>
+            @if (layoutConfig.pageColor) {
+              <div class="menu-divider"></div>
+              <button type="button" class="menu-choice-btn text-slate-600 text-xs" (click)="setPageColor('')">
+                {{ t('word.design.no_color', 'Sin color (Blanco estándar)') }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Page Borders (Bordes de Página) -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggle('pageBorders')"
+          [title]="t('word.design.page_borders', 'Bordes de página')"
+        >
+          <div class="border-icon-wrap">
+            <svg lucideIcon="frame" [size]="20" class="text-amber-500"></svg>
+          </div>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.design.page_borders', 'Bordes de página') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'pageBorders') {
+          <div class="design-dropdown-menu borders-menu">
+            <div class="dropdown-header">{{ t('word.design.borders_style', 'Estilo de borde de hoja') }}</div>
+            @for (b of borderStylesList; track b.id) {
+              <button
+                type="button"
+                class="border-option-row"
+                [class.selected]="layoutConfig.pageBorder.style === b.id"
+                (click)="setPageBorder(b.id)"
+              >
+                <span>{{ t(b.labelKey) }}</span>
+                <span class="border-preview-sample font-mono text-xs">{{ b.previewKey ? t(b.previewKey) : b.preview }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.design.page_background', 'Fondo de página') }}</span>
+  </section>
+</div>

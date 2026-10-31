@@ -1,0 +1,95 @@
+@if (isOpen) {
+  <div class="modal-backdrop" (click)="close.emit()" (keydown.escape)="close.emit()">
+    <div class="smartart-dialog" [class.dark-mode]="darkMode" (click)="$event.stopPropagation()">
+      <!-- Header -->
+      <div class="dialog-header">
+        <div class="title-group">
+          <svg lucideIcon="shapes" [size]="18" class="dialog-icon"></svg>
+          <span class="dialog-title">{{ t('word.smartart.title', 'Elegir un elemento gráfico SmartArt') }}</span>
+        </div>
+        <div class="actions-group">
+          <button type="button" class="btn-icon" [title]="t('common.help', 'Ayuda')">
+            <svg lucideIcon="help-circle" [size]="16"></svg>
+          </button>
+          <button type="button" class="btn-icon" (click)="close.emit()" [title]="t('common.close', 'Cerrar')">
+            <svg lucideIcon="x" [size]="16"></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Body: 3 Columns -->
+      <div class="dialog-body">
+        <!-- Col 1: Categories -->
+        <nav class="categories-panel" aria-label="SmartArt Categories">
+          @for (cat of categories; track cat.id) {
+            <button
+              type="button"
+              class="cat-button"
+              [class.active]="selectedCategory() === cat.id"
+              (click)="setCategory(cat.id)"
+            >
+              <svg [lucideIcon]="cat.icon" [size]="15"></svg>
+              <span>{{ t(cat.labelKey, cat.fallback) }}</span>
+            </button>
+          }
+        </nav>
+
+        <!-- Col 2: Gallery Grid -->
+        <div class="gallery-panel">
+          <div class="gallery-category-title">
+            {{ selectedCategory().toUpperCase() }}
+          </div>
+          <div class="gallery-grid">
+            @for (item of filteredItems; track item.id) {
+              <button
+                type="button"
+                class="item-card"
+                [class.selected]="selectedItem()?.id === item.id"
+                (click)="chooseItem(item)"
+                (dblclick)="confirm()"
+                [title]="item.name"
+              >
+                <div class="item-card-preview">
+                  <svg [lucideIcon]="item.iconName" [size]="28" class="text-blue-600"></svg>
+                </div>
+                <span class="item-card-name">{{ item.name }}</span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Col 3: Details & Preview (matching Image 2) -->
+        <div class="preview-panel">
+          @if (selectedItem(); as current) {
+            <!-- Mock visual preview card with colored blocks matching Image 2 -->
+            <div class="visual-mockup">
+              <div class="mockup-blocks">
+                @for (block of current.previewBlocks; track block.label) {
+                  <div class="mockup-block" [style.backgroundColor]="block.color">
+                    <div class="mockup-line"></div>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- Title & Description -->
+            <div class="item-info">
+              <h4 class="item-name">{{ current.name }}</h4>
+              <p class="item-desc">{{ current.description }}</p>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="dialog-footer">
+        <button type="button" class="btn-primary" (click)="confirm()">
+          {{ t('word.smartart.ok', 'Aceptar') }}
+        </button>
+        <button type="button" class="btn-secondary" (click)="close.emit()">
+          {{ t('word.smartart.cancel', 'Cancelar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,45 +1,42 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { environment } from '../../../../environments/environment';
+import { AI_REQUEST_LIMITS, htmlToAiExcerpt } from '../../../core/utils/ai-request';
+
+interface AiChatResponse {
+  reply: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AiWriterService {
+  private readonly http = inject(HttpClient);
+
   async generateDocumentContentWithAI(
     prompt: string,
     selectedOrCurrentHtml: string
   ): Promise<string> {
-    const apiKey =
-      (globalThis as any)['WEAVE_GEMINI_API_KEY'] ||
-      (globalThis as any)['WEAVE_AI_CONFIG']?.['apiKey'];
-
-    if (!apiKey) {
-      throw new Error('Falta configurar WEAVE_GEMINI_API_KEY para usar el asistente de IA.');
-    }
-
-    const systemPrompt = `Eres un asistente experto en redacción ejecutiva y edición de documentos en Microsoft Word.
+    const message = `Eres un asistente experto en redacción ejecutiva y edición de documentos en Microsoft Word.
 Devuelve ÚNICAMENTE código HTML limpio y semántico listo para insertarse dentro de un editor rico (sin bloques \`\`\`html ni etiquetas <html> o <body>).
-Usa adecuadamente etiquetas <h1>, <h2>, <h3>, <h4>, <p>, <ul>, <ol>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td> y <blockquote> cuando corresponda.`;
+Usa adecuadamente etiquetas <h1>, <h2>, <h3>, <h4>, <p>, <ul>, <ol>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td> y <blockquote> cuando corresponda.
 
-    const userText = `Solicitud del usuario: "${prompt}"\n\nContexto actual del documento (opcional):\n${selectedOrCurrentHtml.slice(0, 3000)}`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: userText }] }],
-          generationConfig: { temperature: 0.7 },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(response.statusText);
+Solicitud del usuario: "${prompt}"`;
+    if (message.length > AI_REQUEST_LIMITS.message) {
+      throw new Error('La solicitud de redacción es demasiado larga. Divide las instrucciones en partes.');
     }
-
-    const data = await response.json();
-    const output: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    return output
+    const response = await firstValueFrom(
+      this.http.post<AiChatResponse>(`${environment.apiUrl}/ai/chat`, {
+        message,
+        persistHistory: false,
+        documentContext: {
+          title: 'Documento activo',
+          docType: 'word',
+          content: htmlToAiExcerpt(selectedOrCurrentHtml, AI_REQUEST_LIMITS.document).text,
+        },
+        includeDocumentContext: true,
+      })
+    );
+    return response.reply
       .replace(/^```html\s*/i, '')
       .replace(/^```\s*/i, '')
       .replace(/```$/i, '')

@@ -1,43 +1,44 @@
 @if (isOpen) {
   <div class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="templates-dialog bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden flex flex-col max-h-[90vh]" [class.dark-mode]="darkMode">
       <!-- Header -->
-      <div class="px-6 py-4 bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white flex items-center justify-between">
+      <div class="dialog-header px-6 py-4 bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <svg lucideIcon="palette" [size]="20" class="w-5 h-5 text-blue-400"></svg>
           <div>
             <h3 class="font-semibold text-sm sm:text-base">
-              Diseñador de Plantillas de Estilos (H1–H6 y Párrafos)
+              {{ t('word.style.designer_title', 'Diseñador de Plantillas de Estilos (H1–H6 y Párrafos)') }}
             </h3>
             <p class="text-[11px] text-blue-200">
-              Configura fuente, tamaño en pt, alineación, sangría y espaciado para cada nivel (ej. Encabezado 1 Times New Roman 12pt Centrado)
+              {{ t('word.style.designer_subtitle', 'Configura fuente, tamaño en pt, alineación, sangría y espaciado para cada nivel') }}
             </p>
           </div>
         </div>
         <button
           type="button"
           (click)="close.emit()"
-          class="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
+          class="btn-close text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
+          [title]="t('word.style.cancel', 'Cancelar')"
         >
           <svg lucideIcon="x" [size]="16" class="w-4 h-4"></svg>
         </button>
       </div>
 
       <!-- Body -->
-      <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+      <div class="dialog-body flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-slate-200">
         <!-- Left Column: Template Presets -->
-        <div class="md:col-span-4 p-4 bg-slate-50/70 space-y-3">
+        <div class="templates-sidebar md:col-span-4 p-4 bg-slate-50/70 space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Plantillas Disponibles
+            <span class="sidebar-title text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {{ t('word.style.available_templates', 'Plantillas Disponibles') }}
             </span>
             <button
               type="button"
               (click)="handleCreateNewCustomTemplate()"
-              class="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-md"
+              class="btn-duplicate flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-md"
             >
               <svg lucideIcon="plus" [size]="14" class="w-3.5 h-3.5"></svg>
-              <span>Duplicar</span>
+              <span>{{ t('word.style.duplicate', 'Duplicar') }}</span>
             </button>
           </div>
 
@@ -45,11 +46,11 @@
             @for (tpl of templates; track tpl.id) {
               <div
                 (click)="handleSelectTemplate(tpl)"
-                [ngClass]="tpl.id === selectedTemplateId() ? 'bg-blue-50/90 border-blue-400 shadow-xs' : 'bg-white border-slate-200 hover:border-slate-300'"
-                class="p-3 rounded-xl border cursor-pointer transition-all"
+                [ngClass]="tpl.id === selectedTemplateId() ? 'preset-active bg-blue-50/90 border-blue-400 shadow-xs' : 'bg-white border-slate-200 hover:border-slate-300'"
+                class="preset-card p-3 rounded-xl border cursor-pointer transition-all"
               >
                 <div class="flex items-start justify-between gap-2">
-                  <div class="font-semibold text-xs text-slate-900">
+                  <div class="preset-name font-semibold text-xs text-slate-900">
                     {{ tpl.name }}
                   </div>
                   @if (tpl.isCustom) {
@@ -57,20 +58,20 @@
                       type="button"
                       (click)="deleteCustomTemplate.emit(tpl.id); $event.stopPropagation()"
                       class="text-slate-400 hover:text-red-600 p-0.5"
-                      title="Eliminar plantilla personalizada"
+                      [title]="t('word.style.delete_custom', 'Eliminar plantilla personalizada')"
                     >
                       <svg lucideIcon="trash-2" [size]="14" class="w-3.5 h-3.5"></svg>
                     </button>
                   }
                 </div>
-                <p class="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                <p class="preset-desc text-[11px] text-slate-500 mt-1 line-clamp-2">
                   {{ tpl.description }}
                 </p>
                 <div class="mt-2 flex items-center gap-1.5 flex-wrap text-[10px] font-mono text-blue-700">
-                  <span class="bg-white px-1.5 py-0.5 rounded border border-blue-100">
+                  <span class="preset-badge bg-white px-1.5 py-0.5 rounded border border-blue-100">
                     H1: {{ tpl.rules.H1.fontFamily }} {{ tpl.rules.H1.fontSizePt }}pt ({{ tpl.rules.H1.align }})
                   </span>
-                  <span class="bg-white px-1.5 py-0.5 rounded border border-blue-100">
+                  <span class="preset-badge bg-white px-1.5 py-0.5 rounded border border-blue-100">
                     P: {{ tpl.rules.P.fontSizePt }}pt
                   </span>
                 </div>
@@ -80,57 +81,57 @@
         </div>
 
         <!-- Right Column: Rule Customizer for H1..H6 & P -->
-        <div class="md:col-span-8 p-5 space-y-4">
+        <div class="rules-editor md:col-span-8 p-5 space-y-4">
           <!-- Template Name -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">
-                Nombre de la Plantilla
+              <label class="form-label block text-[11px] font-semibold text-slate-600 mb-1">
+                {{ t('word.style.template_name', 'Nombre de la Plantilla') }}
               </label>
               <input
                 type="text"
                 [value]="draftName()"
                 (input)="draftName.set($any($event.target).value)"
-                class="w-full px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                class="form-input w-full px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
               />
             </div>
             <div>
-              <label class="block text-[11px] font-semibold text-slate-600 mb-1">
-                Descripción corta
+              <label class="form-label block text-[11px] font-semibold text-slate-600 mb-1">
+                {{ t('word.style.short_description', 'Descripción corta') }}
               </label>
               <input
                 type="text"
                 [value]="draftDescription()"
                 (input)="draftDescription.set($any($event.target).value)"
-                class="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                class="form-input w-full px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
 
           <!-- Level Selector Tabs: H1, H2, H3, H4, H5, H6, P -->
           <div>
-            <label class="block text-[11px] font-semibold text-slate-600 mb-1.5">
-              Selecciona el Elemento a Configurar:
+            <label class="form-label block text-[11px] font-semibold text-slate-600 mb-1.5">
+              {{ t('word.style.select_element', 'Selecciona el Elemento a Configurar:') }}
             </label>
-            <div class="flex items-center gap-1.5 flex-wrap bg-slate-100 p-1 rounded-xl">
+            <div class="tags-selector flex items-center gap-1.5 flex-wrap bg-slate-100 p-1 rounded-xl">
               @for (tag of targetTags; track tag) {
                 <button
                   type="button"
                   (click)="editingTarget.set(tag)"
-                  [ngClass]="editingTarget() === tag ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white'"
-                  class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  [ngClass]="editingTarget() === tag ? 'tag-active bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:bg-white'"
+                  class="tag-btn px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                 >
-                  {{ tag === 'P' ? 'Párrafo (P)' : 'Encabezado ' + tag }}
+                  {{ tag === 'P' ? t('word.style.paragraph_element', 'Párrafo (P)') : (t('word.style.heading_element', 'Encabezado') + ' ' + tag) }}
                 </button>
               }
             </div>
           </div>
 
           <!-- Rule Properties Form -->
-          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200/80 space-y-4">
+          <div class="rule-card bg-slate-50 rounded-xl p-4 border border-slate-200/80 space-y-4">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-800">
-                Propiedades de {{ currentRule().label }}
+              <span class="rule-title text-xs font-bold text-slate-800">
+                {{ t('word.style.properties_of', 'Propiedades de') }} {{ currentRule().label }}
               </span>
               <button
                 type="button"
@@ -138,20 +139,20 @@
                 class="text-[11px] text-blue-600 hover:underline font-medium flex items-center gap-1"
               >
                 <svg lucideIcon="sparkles" [size]="12" class="w-3 h-3"></svg>
-                <span>Ajuste rápido: Times New Roman 12pt Centrado</span>
+                <span>{{ t('word.style.quick_preset_apa', 'Ajuste rápido: Times New Roman 12pt Centrado') }}</span>
               </button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <!-- Font Family -->
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Familia Tipográfica
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.font_family', 'Familia Tipográfica') }}
                 </label>
                 <select
                   [value]="currentRule().fontFamily"
                   (change)="updateCurrentRule({ fontFamily: $any($event.target).value })"
-                  class="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  class="form-select w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
                 >
                   @for (f of fontFamilies; track f.label) {
                     <option [value]="cleanFontName(f.value)">
@@ -163,8 +164,8 @@
 
               <!-- Font Size (pt) -->
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Tamaño (pt)
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.font_size', 'Tamaño (pt)') }}
                 </label>
                 <input
                   type="number"
@@ -173,14 +174,14 @@
                   step="0.5"
                   [value]="currentRule().fontSizePt"
                   (input)="updateCurrentRule({ fontSizePt: Number($any($event.target).value) || 12 })"
-                  class="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  class="form-input w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <!-- Text Color -->
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Color del Texto
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.text_color', 'Color del Texto') }}
                 </label>
                 <div class="flex items-center gap-2">
                   <input
@@ -189,7 +190,7 @@
                     (input)="updateCurrentRule({ color: $any($event.target).value })"
                     class="w-8 h-8 rounded border border-slate-200 cursor-pointer"
                   />
-                  <span class="text-xs font-mono text-slate-600">
+                  <span class="color-hex text-xs font-mono text-slate-600">
                     {{ currentRule().color }}
                   </span>
                 </div>
@@ -199,54 +200,54 @@
             <!-- Alignment & Text Style Toggles -->
             <div class="flex items-center justify-between flex-wrap gap-3 pt-1">
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Alineación
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.alignment', 'Alineación') }}
                 </label>
-                <div class="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200">
+                <div class="toggle-group flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200">
                   @for (a of alignOptions; track a.id) {
                     <button
                       type="button"
                       (click)="updateCurrentRule({ align: a.id })"
-                      [ngClass]="currentRule().align === a.id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
-                      class="px-2.5 py-1 rounded text-xs flex items-center gap-1"
-                      [title]="a.label"
+                      [ngClass]="currentRule().align === a.id ? 'btn-active bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                      class="toggle-btn px-2.5 py-1 rounded text-xs flex items-center gap-1"
+                      [title]="t(a.labelKey, a.fallback)"
                     >
                       <svg [lucideIcon]="a.icon" [size]="14" class="w-3.5 h-3.5"></svg>
-                      <span>{{ a.label }}</span>
+                      <span>{{ t(a.labelKey, a.fallback) }}</span>
                     </button>
                   }
                 </div>
               </div>
 
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Estilos de Fuente
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.font_styles', 'Estilos de Fuente') }}
                 </label>
-                <div class="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200">
+                <div class="toggle-group flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200">
                   <button
                     type="button"
                     (click)="updateCurrentRule({ bold: !currentRule().bold })"
-                    [ngClass]="currentRule().bold ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
-                    class="p-1.5 rounded"
-                    title="Negrita"
+                    [ngClass]="currentRule().bold ? 'btn-active bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                    class="toggle-btn p-1.5 rounded"
+                    [title]="t('word.style.bold', 'Negrita')"
                   >
                     <svg lucideIcon="bold" [size]="14" class="w-3.5 h-3.5"></svg>
                   </button>
                   <button
                     type="button"
                     (click)="updateCurrentRule({ italic: !currentRule().italic })"
-                    [ngClass]="currentRule().italic ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
-                    class="p-1.5 rounded"
-                    title="Cursiva"
+                    [ngClass]="currentRule().italic ? 'btn-active bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                    class="toggle-btn p-1.5 rounded"
+                    [title]="t('word.style.italic', 'Cursiva')"
                   >
                     <svg lucideIcon="italic" [size]="14" class="w-3.5 h-3.5"></svg>
                   </button>
                   <button
                     type="button"
                     (click)="updateCurrentRule({ underline: !currentRule().underline })"
-                    [ngClass]="currentRule().underline ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
-                    class="p-1.5 rounded"
-                    title="Subrayado"
+                    [ngClass]="currentRule().underline ? 'btn-active bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                    class="toggle-btn p-1.5 rounded"
+                    [title]="t('word.style.underline', 'Subrayado')"
                   >
                     <svg lucideIcon="underline" [size]="14" class="w-3.5 h-3.5"></svg>
                   </button>
@@ -257,25 +258,25 @@
             <!-- Spacing & Indentation -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200/70">
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Interlineado
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.line_spacing', 'Interlineado') }}
                 </label>
                 <select
                   [value]="currentRule().lineHeight"
                   (change)="updateCurrentRule({ lineHeight: Number($any($event.target).value) })"
-                  class="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
+                  class="form-select w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
                 >
-                  <option value="1">1.0 (Sencillo)</option>
-                  <option value="1.15">1.15</option>
-                  <option value="1.3">1.3</option>
-                  <option value="1.5">1.5 líneas</option>
-                  <option value="2">2.0 (Doble APA)</option>
+                  <option value="1">{{ t('word.style.line_single', '1.0 (Sencillo)') }}</option>
+                  <option value="1.15">{{ t('word.style.line_1_15', '1.15') }}</option>
+                  <option value="1.3">{{ t('word.style.line_1_3', '1.3') }}</option>
+                  <option value="1.5">{{ t('word.style.line_1_5', '1.5 líneas') }}</option>
+                  <option value="2">{{ t('word.style.line_double', '2.0 (Doble APA)') }}</option>
                 </select>
               </div>
 
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Espacio Antes (pt)
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.space_before', 'Espacio Antes (pt)') }}
                 </label>
                 <input
                   type="number"
@@ -283,13 +284,13 @@
                   max="72"
                   [value]="currentRule().spaceBeforePt"
                   (input)="updateCurrentRule({ spaceBeforePt: Number($any($event.target).value) || 0 })"
-                  class="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
+                  class="form-input w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
                 />
               </div>
 
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Espacio Después (pt)
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.space_after', 'Espacio Después (pt)') }}
                 </label>
                 <input
                   type="number"
@@ -297,13 +298,13 @@
                   max="72"
                   [value]="currentRule().spaceAfterPt"
                   (input)="updateCurrentRule({ spaceAfterPt: Number($any($event.target).value) || 0 })"
-                  class="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
+                  class="form-input w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
                 />
               </div>
 
               <div>
-                <label class="block text-[11px] font-medium text-slate-600 mb-1">
-                  Sangría 1ª Línea (pt)
+                <label class="form-label block text-[11px] font-medium text-slate-600 mb-1">
+                  {{ t('word.style.first_line_indent', 'Sangría 1ª Línea (pt)') }}
                 </label>
                 <input
                   type="number"
@@ -312,21 +313,21 @@
                   step="6"
                   [value]="currentRule().firstLineIndentPt"
                   (input)="updateCurrentRule({ firstLineIndentPt: Number($any($event.target).value) || 0 })"
-                  class="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
+                  class="form-input w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg"
                 />
               </div>
             </div>
 
             <!-- Live Visual Preview Box -->
-            <div class="bg-white rounded-lg border border-slate-200 p-4 mt-2">
-              <div class="text-[10px] font-mono uppercase text-slate-400 mb-2">
-                Vista previa en vivo ({{ currentRule().target }}):
+            <div class="preview-box bg-white rounded-lg border border-slate-200 p-4 mt-2">
+              <div class="preview-title text-[10px] font-mono uppercase text-slate-400 mb-2">
+                {{ t('word.style.live_preview', 'Vista previa en vivo') }} ({{ currentRule().target }}):
               </div>
-              <div [ngStyle]="previewStyle">
+              <div [ngStyle]="previewStyle" class="preview-content">
                 @if (currentRule().target === 'P') {
-                  Ejemplo de párrafo con la fuente, tamaño, sangría de primera línea e interlineado configurados en esta plantilla.
+                  {{ t('word.style.preview_paragraph', 'Ejemplo de párrafo con la fuente, tamaño, sangría de primera línea e interlineado configurados en esta plantilla.') }}
                 } @else {
-                  Ejemplo de {{ currentRule().label }} — {{ currentRule().fontFamily }} {{ currentRule().fontSizePt }}pt
+                  {{ t('word.style.preview_heading', 'Ejemplo de') }} {{ currentRule().label }} — {{ currentRule().fontFamily }} {{ currentRule().fontSizePt }}pt
                 }
               </div>
             </div>
@@ -335,30 +336,30 @@
       </div>
 
       <!-- Footer Actions -->
-      <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
+      <div class="dialog-footer px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
         <button
           type="button"
           (click)="applySingleRuleToSelection.emit(currentRule()); close.emit()"
-          class="px-3.5 py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors"
+          class="btn-apply-single px-3.5 py-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors"
         >
-          Aplicar solo {{ currentRule().target }} al texto seleccionado
+          {{ t('word.style.apply_single', { target: currentRule().target }, 'Aplicar solo ' + currentRule().target + ' al texto seleccionado') }}
         </button>
 
         <div class="flex items-center gap-2">
           <button
             type="button"
             (click)="close.emit()"
-            class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-200/60 rounded-lg"
+            class="btn-cancel px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-200/60 rounded-lg"
           >
-            Cancelar
+            {{ t('word.style.cancel', 'Cancelar') }}
           </button>
           <button
             type="button"
             (click)="handleSaveAndApplyAll()"
-            class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+            class="btn-save flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
           >
             <svg lucideIcon="check" [size]="16" class="w-4 h-4"></svg>
-            <span>Guardar y Aplicar Plantilla a Todo el Documento</span>
+            <span>{{ t('word.style.save_and_apply_all', 'Guardar y Aplicar Plantilla a Todo el Documento') }}</span>
           </button>
         </div>
       </div>

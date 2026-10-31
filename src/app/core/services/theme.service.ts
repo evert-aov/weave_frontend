@@ -35,4 +35,11 @@ export class ThemeService {
   toggleTheme(): void {
     this.isDark.update((v) => !v);
   }
+
+  /**
+   * Establece explícitamente el modo oscuro o claro.
+   */
+  setDark(dark: boolean): void {
+    this.isDark.set(dark);
+  }
 }

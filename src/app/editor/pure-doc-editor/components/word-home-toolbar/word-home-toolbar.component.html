@@ -1,0 +1,129 @@
+<div class="home-ribbon" [class.dark-mode]="darkMode" (mousedown)="keepSelection($event)" (keydown.escape)="menu.set(null)">
+  <section class="home-group history-group" [attr.aria-label]="t('word.group.format')">
+    <div class="control-row">
+      <button type="button" [title]="t('word.action.undo')" [attr.aria-label]="t('word.action.undo')" (click)="run('undo')"><svg lucideIcon="undo-2" [size]="16"></svg></button>
+      <button type="button" [title]="t('word.action.redo')" [attr.aria-label]="t('word.action.redo')" (click)="run('redo')"><svg lucideIcon="redo-2" [size]="16"></svg></button>
+    </div>
+    <div class="control-row">
+      <button type="button" [title]="t('word.action.copy_format')" [attr.aria-label]="t('word.action.copy_format')" [class.active]="formatPainterActive" (click)="copyFormat.emit()"><svg lucideIcon="paintbrush" [size]="16"></svg></button>
+      <button type="button" [title]="t('word.action.clear_format')" [attr.aria-label]="t('word.action.clear_format')" (click)="run('removeFormat')"><svg lucideIcon="eraser" [size]="16"></svg></button>
+    </div>
+    <span class="group-label">{{ t('word.group.format') }}</span>
+  </section>
+  <section class="home-group font-group" [attr.aria-label]="t('word.group.font')">
+    <div class="control-row">
+      <select [attr.aria-label]="t('word.font.family')" [ngModel]="fontValue()" (ngModelChange)="run('fontName', $event)">
+        @if (!hasKnownFont()) { <option [value]="formats.fontName">{{ formats.fontName }}</option> }
+        @for (font of fonts; track font.value) { <option [value]="font.value">{{ font.label }}</option> }
+      </select>
+      <input class="font-size" type="number" min="1" max="400" step="0.5" [attr.aria-label]="t('word.font.size')" [value]="formats.fontSize" (change)="setSize($any($event.target).value)" (keydown.enter)="setSize($any($event.target).value); $event.preventDefault()" />
+      <button type="button" [title]="t('word.font.grow')" [attr.aria-label]="t('word.font.grow')" (click)="run('growFont')"><span class="large-a">A</span><span class="size-arrow">+</span></button>
+      <button type="button" [title]="t('word.font.shrink')" [attr.aria-label]="t('word.font.shrink')" (click)="run('shrinkFont')"><span>A</span><span class="size-arrow">−</span></button>
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.font.case')" [attr.aria-label]="t('word.font.case')" [attr.aria-expanded]="menu() === 'case'" (click)="toggle('case')"><svg lucideIcon="case-sensitive" [size]="17"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        @if (menu() === 'case') { <div class="home-menu">@for (item of cases; track item.value) { <button type="button" (click)="run('changeCase', item.value)">{{ label(item) }}</button> }</div> }
+      </div>
+    </div>
+    <div class="control-row">
+      @for (item of inlineButtons; track item.command) {
+        <button type="button" [title]="label(item)" [attr.aria-label]="label(item)" [attr.aria-pressed]="formats[item.command]" [class.active]="formats[item.command]" (click)="run(item.command)"><svg [lucideIcon]="item.icon" [size]="16"></svg></button>
+      }
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.font.effects')" [attr.aria-label]="t('word.font.effects')" [attr.aria-expanded]="menu() === 'effects'" (click)="toggle('effects')"><svg lucideIcon="type" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        @if (menu() === 'effects') { <div class="home-menu">@for (item of effects; track item.value) { <button type="button" (click)="run('textEffect', item.value)">{{ label(item) }}</button> }</div> }
+      </div>
+      @for (palette of [{id:'hiliteColor',labelKey:'word.font.highlight',fallback:'Resaltado',icon:'paint-bucket',colors:highlights},{id:'foreColor',labelKey:'word.font.color',fallback:'Color de fuente',icon:'type',colors:colors}]; track palette.id) {
+        <div class="menu-anchor">
+          <button type="button" [title]="t(palette.labelKey)" [attr.aria-label]="t(palette.labelKey)" [attr.aria-expanded]="menu() === palette.id" (click)="toggle(palette.id)"><svg [lucideIcon]="palette.icon" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+          @if (menu() === palette.id) { <div class="home-menu color-menu"><span>{{ t(palette.labelKey) }}</span><div class="swatches">@for (color of palette.colors; track color) { <button type="button" class="swatch" [style.backgroundColor]="color" [title]="color === 'transparent' ? t('word.font.no_color') : color" [attr.aria-label]="color === 'transparent' ? t('word.font.no_color') : color" (click)="run(palette.id, color)"></button> }</div></div> }
+        </div>
+      }
+    </div>
+    <span class="group-label">{{ t('word.group.font') }}</span>
+  </section>
+  <section class="home-group paragraph-group" [attr.aria-label]="t('word.group.paragraph')">
+    <div class="control-row">
+      <button type="button" [title]="t('word.paragraph.bullets')" [attr.aria-label]="t('word.paragraph.bullets')" [class.active]="formats.insertUnorderedList" (click)="run('insertUnorderedList')"><svg lucideIcon="list" [size]="16"></svg></button>
+      <button type="button" [title]="t('word.paragraph.numbering')" [attr.aria-label]="t('word.paragraph.numbering')" [class.active]="formats.insertOrderedList" (click)="run('insertOrderedList')"><svg lucideIcon="list-ordered" [size]="16"></svg></button>
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.paragraph.list_style')" [attr.aria-label]="t('word.paragraph.list_style')" [attr.aria-expanded]="menu() === 'list'" (click)="toggle('list')"><svg lucideIcon="chevron-down" [size]="12"></svg></button>
+        @if (menu() === 'list') { <div class="home-menu">@for (item of listStyles; track item.value) { <button type="button" (click)="run('listStyle', item.value)">{{ item.label }}</button> }</div> }
+      </div>
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.paragraph.multilevel')" [attr.aria-label]="t('word.paragraph.multilevel')" [attr.aria-expanded]="menu() === 'outline'" [class.active]="headingNumbering" (click)="toggle('outline')"><svg lucideIcon="list-tree" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        @if (menu() === 'outline') { <div class="home-menu">
+          <button type="button" (click)="run('headingNumbering','on')">{{ t('word.paragraph.h_numbered') }}</button>
+          <button type="button" (click)="run('headingNumbering','off')">{{ t('word.paragraph.h_unnumbered') }}</button>
+          <button type="button" (click)="run('multilevelList')">{{ t('word.paragraph.multilevel_paragraphs') }}</button>
+        </div> }
+      </div>
+      <button type="button" [title]="t('word.paragraph.outdent')" [attr.aria-label]="t('word.paragraph.outdent')" (click)="run('outdent')"><svg lucideIcon="indent-decrease" [size]="16"></svg></button>
+      <button type="button" [title]="t('word.paragraph.indent')" [attr.aria-label]="t('word.paragraph.indent')" (click)="run('indent')"><svg lucideIcon="indent-increase" [size]="16"></svg></button>
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.paragraph.sort')" [attr.aria-label]="t('word.paragraph.sort')" [attr.aria-expanded]="menu() === 'sort'" (click)="toggle('sort')"><svg lucideIcon="arrow-down-a-z" [size]="16"></svg></button>
+        @if (menu() === 'sort') { <div class="home-menu"><button type="button" (click)="run('sortParagraphs','asc')">{{ t('word.paragraph.sort_asc') }}</button><button type="button" (click)="run('sortParagraphs','desc')">{{ t('word.paragraph.sort_desc') }}</button></div> }
+      </div>
+      <button type="button" [title]="t('word.paragraph.marks')" [attr.aria-label]="t('word.paragraph.marks')" [attr.aria-pressed]="showFormattingMarks" [class.active]="showFormattingMarks" (click)="run('toggleMarks')"><svg lucideIcon="pilcrow" [size]="16"></svg></button>
+    </div>
+    <div class="control-row">
+      @for (item of alignButtons; track item.command) { <button type="button" [title]="label(item)" [attr.aria-label]="label(item)" [class.active]="formats[item.command]" [attr.aria-pressed]="formats[item.command]" (click)="run(item.command)"><svg [lucideIcon]="item.icon" [size]="16"></svg></button> }
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.paragraph.spacing')" [attr.aria-label]="t('word.paragraph.spacing')" [attr.aria-expanded]="menu() === 'spacing'" (click)="toggle('spacing')"><svg lucideIcon="arrow-up-down" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        @if (menu() === 'spacing') { <div class="home-menu">
+          @for (height of ['1','1.15','1.5','2','2.5','3']; track height) { <button type="button" (click)="run('lineHeight',height)">{{ t('word.paragraph.line_height') }} {{ height }}</button> }
+          <button type="button" (click)="run('spaceBefore',formats.spaceBeforePt ? '0' : '12')">{{ formats.spaceBeforePt ? t('word.paragraph.space_before_remove') : t('word.paragraph.space_before_add') }}</button>
+          <button type="button" (click)="run('spaceAfter',formats.spaceAfterPt ? '0' : '12')">{{ formats.spaceAfterPt ? t('word.paragraph.space_after_remove') : t('word.paragraph.space_after_add') }}</button>
+        </div> }
+      </div>
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.paragraph.shading')" [attr.aria-label]="t('word.paragraph.shading')" [attr.aria-expanded]="menu() === 'shading'" (click)="toggle('shading')"><svg lucideIcon="paint-bucket" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        @if (menu() === 'shading') { <div class="home-menu color-menu"><span>{{ t('word.paragraph.shading') }}</span><div class="swatches">@for (color of highlights; track color) { <button type="button" class="swatch" [style.backgroundColor]="color" [attr.aria-label]="color === 'transparent' ? t('word.paragraph.no_shading') : color" [title]="color === 'transparent' ? t('word.paragraph.no_shading') : color" (click)="run('paragraphShading',color)"></button> }</div></div> }
+      </div>
+      <div class="menu-anchor">
+        <button type="button" [title]="t('word.paragraph.borders')" [attr.aria-label]="t('word.paragraph.borders')" [attr.aria-expanded]="menu() === 'borders'" (click)="toggle('borders')"><svg lucideIcon="frame" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        @if (menu() === 'borders') { <div class="home-menu">@for (item of borders; track item.value) { <button type="button" (click)="run('paragraphBorder',item.value)">{{ label(item) }}</button> }</div> }
+      </div>
+    </div>
+    <span class="group-label">{{ t('word.group.paragraph') }}</span>
+  </section>
+  <section class="home-group styles-group" [attr.aria-label]="t('word.group.styles')">
+    <div class="style-gallery" (wheel)="onGalleryWheel($event)">
+      @for (tag of tags; track tag) {
+        @let rule = template.rules[tag];
+        <div class="style-tile" [class.selected]="formats.heading === tag" (contextmenu)="$event.preventDefault(); toggleStyleMenu(tag, $event)">
+          <button type="button" class="style-apply" [attr.aria-label]="t('word.style.apply') + ' ' + (tag === 'P' ? t('word.style.normal') : tag)" [title]="t('word.style.apply') + ' ' + rule.label + ': ' + rule.fontFamily + ' ' + rule.fontSizePt + ' pt'" (click)="selectStyle(tag)" [style.fontFamily]="rule.fontFamily" [style.fontSize]="previewSize(rule)" [style.fontWeight]="rule.bold ? '700' : '400'" [style.fontStyle]="rule.italic ? 'italic' : 'normal'" [style.textDecoration]="rule.underline ? 'underline' : 'none'" [style.color]="rule.color">
+            <span class="style-label">{{ tag === 'P' ? t('word.style.normal') : t('word.style.heading') + ' ' + tag.slice(1) }}</span>
+          </button>
+          <button type="button" class="style-options" [attr.aria-label]="t('word.style.options') + ' ' + (tag === 'P' ? t('word.style.normal') : tag)" [attr.aria-expanded]="menu() === 'style-' + tag" (click)="toggleStyleMenu(tag, $event)"><svg lucideIcon="chevron-down" [size]="12"></svg></button>
+        </div>
+      }
+    </div>
+    @if (activeStyleTag(); as activeTag) {
+      <div class="home-menu style-menu floating-style-menu" [style.top.px]="styleMenuPosition()?.top" [style.left.px]="styleMenuPosition()?.left">
+        <button type="button" class="style-menu-item" (click)="update(activeTag)">
+          <svg lucideIcon="check" [size]="14" class="menu-item-icon text-blue-600"></svg>
+          <span class="menu-item-text">{{ t('word.style.update_match', { tag: activeTag === 'P' ? t('word.style.normal') : activeTag }) }}</span>
+        </button>
+        <button type="button" class="style-menu-item" (click)="menu.set(null); openDesigner.emit()">
+          <svg lucideIcon="type" [size]="14" class="menu-item-icon text-slate-500"></svg>
+          <span class="menu-item-text">{{ t('word.style.modify') }}</span>
+        </button>
+        <div class="style-menu-divider"></div>
+        <button type="button" class="style-menu-item" (click)="selectStyle(activeTag)">
+          <span class="menu-item-bullet text-blue-600">•</span>
+          <span class="menu-item-text">{{ t('word.style.apply') }} {{ activeTag === 'P' ? t('word.style.normal') : activeTag }}</span>
+        </button>
+      </div>
+    }
+    <button type="button" class="group-label designer-link" (click)="openDesigner.emit()">{{ t('word.group.styles') }} <svg lucideIcon="chevron-down" [size]="10"></svg></button>
+  </section>
+  <section class="home-group editing-group" [attr.aria-label]="t('word.group.editing')">
+    <button type="button" (click)="run('find')"><svg lucideIcon="search" [size]="14"></svg>{{ t('word.edit.find') }}</button>
+    <button type="button" (click)="run('replace')"><svg lucideIcon="replace" [size]="14"></svg>{{ t('word.edit.replace') }}</button>
+    <div class="menu-anchor">
+      <button type="button" [attr.aria-expanded]="menu() === 'select'" (click)="toggle('select')"><svg lucideIcon="mouse-pointer" [size]="14"></svg>{{ t('word.edit.select') }}<svg lucideIcon="chevron-down" [size]="10"></svg></button>
+      @if (menu() === 'select') { <div class="home-menu select-menu"><button type="button" (click)="run('selectAllDocument')">{{ t('word.edit.select_all') }}</button><button type="button" (click)="run('selectCurrentParagraph')">{{ t('word.edit.select_paragraph') }}</button><button type="button" (click)="run('selectPage')">{{ t('word.edit.select_page') }}</button></div> }
+    </div>
+    <span class="group-label">{{ t('word.group.editing') }}</span>
+  </section>
+</div>

@@ -26,7 +26,7 @@
         class="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-semibold shadow-lg border border-white/15 transition-all"
       >
         <svg lucideIcon="minimize-2" [size]="14" class="w-3.5 h-3.5 text-blue-400"></svg>
-        <span>Salir de {{ focusMode() ? 'Modo Enfoque' : 'Modo Lectura' }}</span>
+        <span>{{ focusMode() ? i18n.t('word.canvas.exit_focus') : i18n.t('word.canvas.exit_read') }}</span>
       </button>
     </div>
   }
@@ -57,6 +57,7 @@
       (insertChecklist)="handleInsertChecklist()"
       (insertImage)="handleInsertImage()"
       (insertLink)="handleInsertLink()"
+      (insertDocumentReference)="handleInsertDocumentReference()"
       (insertBlockquote)="handleInsertBlockquote()"
       (insertCodeBlock)="handleInsertCodeBlock($event)"
       (insertHorizontalRule)="executeCommand('insertHorizontalRule')"
@@ -64,11 +65,30 @@
       (insertChartTable)="handleInsertChartTable()"
       (insertAudioPlaceholder)="handleInsertAudioPlaceholder()"
       (insertVideoPlaceholder)="handleInsertVideoPlaceholder()"
+      (openIconsModal)="iconsModalOpen.set(true)"
+      (openSmartArtModal)="smartArtModalOpen.set(true)"
+      (insertShapeHtml)="handleInsertShapeHtml($event)"
+      (insert3dModel)="handleInsert3dModel()"
+      (insertScreenshot)="handleInsertScreenshot()"
+      (insertComment)="handleInsertComment()"
+      (focusFooterArea)="handleFocusFooterArea()"
+      (insertPageNumber)="handleInsertPageNumber()"
+      (insertTextBox)="handleInsertTextBox()"
+      (insertWordArt)="handleInsertWordArt($event)"
+      (insertDropCap)="handleInsertDropCap()"
+      (insertSignatureLine)="handleInsertSignatureLine()"
+      (insertDateTime)="handleInsertDateTime()"
+      (insertSymbol)="handleInsertSymbol($event)"
+      (insertDrawingCanvas)="handleInsertDrawingCanvas()"
       (applyLineHeight)="handleApplyLineHeight($event)"
       (applySectionColumns)="handleApplySectionColumns($event)"
       (applyParagraphSpacingAndIndent)="handleApplyParagraphSpacingAndIndent($event)"
       (copyFormat)="handleCopyFormat()"
       [formatPainterActive]="formatPainterActive()"
+      [showFormattingMarks]="showFormattingMarks()"
+      [headingNumbering]="headingNumbering()"
+      (captureSelection)="rememberRibbonSelection()"
+      (updateStyleFromSelection)="handleUpdateStyleFromSelection($event)"
       (importClick)="openFilePicker()"
       (exportWord)="exportWord()"
       (exportHtml)="exportHtml()"
@@ -81,7 +101,9 @@
       (setFocusMode)="focusMode.set($event)"
       (readAloud)="handleReadAloud()"
       [darkMode]="darkMode()"
-      (setDarkMode)="darkMode.set($event)"
+      (setDarkMode)="handleSetDarkMode($event)"
+      [darkCanvas]="darkCanvas()"
+      (setDarkCanvas)="darkCanvas.set($event)"
       [pageMovement]="pageMovement()"
       (setPageMovement)="pageMovement.set($event)"
       [showRuler]="showRuler()"
@@ -92,7 +114,6 @@
       (setShowTocSidebar)="showTocSidebar.set($event)"
       [zoom]="zoom()"
       (setZoom)="zoom.set($event)"
-      (openAiModal)="aiModalOpen.set(true)"
     ></app-word-ribbon>
   }
 
@@ -107,60 +128,77 @@
 
   <!-- Contextual Table Floating Bar -->
   @if (activeTableCell() !== null && !isReadMode()) {
-    <div class="bg-blue-50/90 border-b border-blue-200 px-4 py-1.5 flex items-center justify-center gap-2 text-xs text-blue-900 shrink-0 no-print">
-      <span class="font-semibold mr-2">Herramientas de Tabla (Pág. {{ activePageIndex() + 1 }}):</span>
+    <div
+      class="border-b px-4 py-1.5 flex items-center justify-center gap-2 text-xs shrink-0 no-print transition-colors"
+      [ngClass]="darkMode() ? 'bg-[#18181b]/95 border-[#27272a] text-[#f4f4f5]' : 'bg-blue-50/90 border-blue-200 text-blue-900'"
+    >
+      <span class="font-semibold mr-2">{{ i18n.t('word.table.tools') }} ({{ i18n.t('word.status.page') }} {{ activePageIndex() + 1 }}):</span>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
         (click)="modifyActiveTable('addRow')"
-        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-blue-200 hover:bg-blue-100 transition-colors"
+        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900'"
+        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
       >
         <svg lucideIcon="rows" [size]="14" class="w-3.5 h-3.5"></svg>
         <svg lucideIcon="plus" [size]="12" class="w-3 h-3"></svg>
-        <span>Fila debajo</span>
+        <span>{{ i18n.t('word.table.add_row') }}</span>
       </button>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
         (click)="modifyActiveTable('addCol')"
-        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-blue-200 hover:bg-blue-100 transition-colors"
+        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900'"
+        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
       >
         <svg lucideIcon="columns" [size]="14" class="w-3.5 h-3.5"></svg>
         <svg lucideIcon="plus" [size]="12" class="w-3 h-3"></svg>
-        <span>Columna derecha</span>
+        <span>{{ i18n.t('word.table.add_col') }}</span>
       </button>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
         (click)="modifyActiveTable('delRow')"
-        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-slate-300 hover:bg-red-950/40 hover:text-red-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600'"
+        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
       >
-        <span>Eliminar fila</span>
+        <span>{{ i18n.t('word.table.del_row') }}</span>
       </button>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
         (click)="modifyActiveTable('delCol')"
-        class="flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-slate-300 hover:bg-red-950/40 hover:text-red-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600'"
+        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
       >
-        <span>Eliminar columna</span>
+        <span>{{ i18n.t('word.table.del_col') }}</span>
       </button>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
         (click)="modifyActiveTable('delTable')"
-        class="flex items-center gap-1 px-2.5 py-1 rounded bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-colors"
+        [ngClass]="darkMode() ? 'bg-red-950/40 border-red-800 text-red-400 hover:bg-red-900/60' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'"
+        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
       >
         <svg lucideIcon="trash-2" [size]="14" class="w-3.5 h-3.5"></svg>
-        <span>Borrar tabla</span>
+        <span>{{ i18n.t('word.table.del_table') }}</span>
       </button>
     </div>
+  }
+
+  @if (searchMode(); as mode) {
+    <app-word-search-panel class="shrink-0 no-print"
+      [darkMode]="darkMode()"
+      [mode]="mode" [query]="searchQuery()" [replacement]="replacementText()"
+      [matchCase]="searchCase()" [wholeWord]="searchWholeWord()" [status]="searchStatus()"
+      (mousedown)="rememberRibbonSelection()" (change)="updateSearchConfig($event)" (action)="handleSearchAction($event)" />
   }
 
   <!-- Workspace Body: Fixed Left TOC Sidebar + Continuous Multi-Page Desk -->
   <div class="flex-1 min-h-0 flex overflow-hidden">
     @if (!focusMode()) {
       <app-word-toc-sidebar
+        [darkMode]="darkMode()"
         [headings]="headings()"
         [tables]="tables()"
         [hasDetectedDocxToc]="docxProperties()?.hasTableOfContents"
@@ -178,19 +216,25 @@
     <!-- Continuous Scrollable Multi-Page Desk -->
     <main
       #mainScroll
-      class="flex-1 min-h-0 overflow-y-auto p-6 sm:p-10 flex flex-col items-center"
-      [ngClass]="darkMode() ? 'bg-slate-900' : 'bg-slate-200/75'"
+      data-document-scroll
+      [attr.data-word-ready]="documentReady()"
+      class="flex-1 min-h-0 overflow-y-auto p-6 sm:p-10 flex flex-col items-center transition-colors"
+      [ngClass]="darkMode() ? 'bg-slate-950' : 'bg-slate-200/75'"
     >
       <!-- Optional Visual Horizontal Ruler -->
       @if (showRuler() && viewMode() === 'print') {
         <div
           [style.width.px]="sheetWidthPx() * (zoom() / 100)"
-          class="mb-3 h-6 bg-white/95 border border-slate-300 rounded-xs shadow-2xs flex items-end px-2 select-none overflow-hidden shrink-0 no-print"
+          [ngClass]="darkMode() ? 'bg-[#202024]/95 border-[#323238] text-slate-400' : 'bg-white/95 border-slate-300 text-slate-500'"
+          class="mb-3 h-6 border rounded-xs shadow-2xs flex items-end px-2 select-none overflow-hidden shrink-0 no-print transition-colors"
         >
           @for (cmIdx of rulerTicks; track cmIdx) {
-            <div class="flex-1 border-l border-slate-300 h-2.5 relative flex items-start justify-start pl-0.5">
+            <div
+              [ngClass]="darkMode() ? 'border-[#323238]' : 'border-slate-300'"
+              class="flex-1 border-l h-2.5 relative flex items-start justify-start pl-0.5"
+            >
               @if (cmIdx > 0) {
-                <span class="text-[8px] font-mono text-slate-400 -mt-2.5">{{ cmIdx }}</span>
+                <span class="text-[8px] font-mono -mt-2.5" [ngClass]="darkMode() ? 'text-slate-500' : 'text-slate-400'">{{ cmIdx }}</span>
               }
             </div>
           }
@@ -199,14 +243,17 @@
 
       <!-- Outline View Mode vs Document Sheets -->
       @if (viewMode() === 'outline') {
-        <div class="max-w-4xl w-full bg-white rounded-xl shadow-md border border-slate-200 p-8 space-y-4">
-          <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div
+          class="max-w-4xl w-full rounded-xl shadow-md border p-8 space-y-4 transition-colors"
+          [ngClass]="darkMode() ? 'bg-[#18181b] border-[#27272a] text-[#f4f4f5]' : 'bg-white border-slate-200 text-slate-800'"
+        >
+          <div class="flex items-center justify-between border-b pb-3" [ngClass]="darkMode() ? 'border-[#27272a]' : 'border-slate-200'">
             <div>
-              <h2 class="text-base font-bold text-slate-900">
-                Vista de Esquema del Documento ({{ headings().length }} Secciones)
+              <h2 class="text-base font-bold" [ngClass]="darkMode() ? 'text-[#f4f4f5]' : 'text-slate-900'">
+                {{ i18n.t('word.canvas.outline_title', { count: headings().length }) }}
               </h2>
-              <p class="text-xs text-slate-500">
-                Haz clic en cualquier encabezado o tabla para volver a Diseño de Impresión en esa página.
+              <p class="text-xs" [ngClass]="darkMode() ? 'text-slate-400' : 'text-slate-500'">
+                {{ i18n.t('word.canvas.outline_desc') }}
               </p>
             </div>
             <button
@@ -214,7 +261,7 @@
               (click)="viewMode.set('print')"
               class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold"
             >
-              Volver a Diseño de Impresión
+              {{ i18n.t('word.canvas.outline_back') }}
             </button>
           </div>
           <div class="space-y-1.5">
@@ -222,12 +269,13 @@
               <div
                 (click)="handleOutlineClick(h)"
                 [style.paddingLeft.px]="(h.level - 1) * 20"
-                class="py-1.5 px-3 rounded-lg hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs"
+                [ngClass]="darkMode() ? 'hover:bg-[#27272a]' : 'hover:bg-blue-50'"
+                class="py-1.5 px-3 rounded-lg cursor-pointer flex items-center justify-between text-xs transition-colors"
               >
-                <span [ngClass]="h.level === 1 ? 'font-bold text-slate-900' : 'text-slate-700'">
+                <span [ngClass]="h.level === 1 ? (darkMode() ? 'font-bold text-white' : 'font-bold text-slate-900') : (darkMode() ? 'text-slate-300' : 'text-slate-700')">
                   • {{ h.text }}
                 </span>
-                <span class="font-mono text-slate-400">Página {{ h.pageIndex + 1 }}</span>
+                <span class="font-mono" [ngClass]="darkMode() ? 'text-slate-500' : 'text-slate-400'">Página {{ h.pageIndex + 1 }}</span>
               </div>
             }
           </div>
@@ -254,16 +302,19 @@
               (click)="activePageIndex.set(pageIndex)"
               [style.width.px]="sheetWidthPx()"
               [style.minHeight.px]="sheetHeightPx()"
+              [style.height.px]="viewMode() === 'print' || viewMode() === 'read' ? sheetHeightPx() : null"
               [style.paddingTop.px]="pagePaddingTop()"
               [style.paddingRight.px]="pagePaddingRight()"
               [style.paddingBottom.px]="pagePaddingBottom()"
               [style.paddingLeft.px]="pagePaddingLeft()"
+              [style.backgroundColor]="layoutConfig().pageColor || null"
               class="word-page-sheet group/page relative bg-white rounded-xs shadow-lg transition-all flex flex-col justify-between box-border"
               [ngClass]="{
-                'word-dark-sheet': darkMode(),
+                'word-dark-sheet': darkMode() && darkCanvas(),
                 'word-gridlines-bg': showGridlines(),
-                'ring-2 ring-blue-500/60 border border-blue-300': isCurrentPage,
-                'border border-slate-300/90 hover:border-slate-400': !isCurrentPage,
+                'ring-2 ring-blue-500/60 border border-blue-400': isCurrentPage,
+                'border border-slate-700/80 hover:border-slate-600': !isCurrentPage && darkMode(),
+                'border border-slate-300/90 hover:border-slate-400': !isCurrentPage && !darkMode(),
               }"
             >
               <!-- Optional Line Numbers Gutter on Left Margin -->
@@ -295,6 +346,15 @@
                 ></div>
               }
 
+              <!-- Document Watermark (Marca de Agua) -->
+              @if (layoutConfig().watermarkText) {
+                <div class="word-watermark-overlay absolute inset-0 flex items-center justify-center pointer-events-none select-none z-10 overflow-hidden">
+                  <span class="font-bold uppercase tracking-widest text-6xl md:text-7xl -rotate-45 font-sans whitespace-nowrap">
+                    {{ layoutConfig().watermarkText }}
+                  </span>
+                </div>
+              }
+
               <!-- Clean Word-like Top Margin Indicator -->
               <div
                 [style.left.px]="layoutConfig().margins.leftPx"
@@ -312,7 +372,7 @@
                       type="button"
                       (click)="onDeletePageClick($event, pageIndex)"
                       class="text-slate-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50 transition-colors"
-                      title="Eliminar esta página"
+                      [title]="i18n.t('word.canvas.page_delete')"
                     >
                       <svg lucideIcon="trash-2" [size]="14" class="w-3.5 h-3.5"></svg>
                     </button>
@@ -322,14 +382,14 @@
 
               <!-- Editable Document Header Region -->
               @if (layoutConfig().showHeaderFooter && viewMode() === 'print') {
-                <div class="mb-3 pb-1.5 border-b border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 group/header relative transition-colors">
+                <div class="shrink-0 mb-3 pb-1.5 border-b border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 group/header relative transition-colors">
                   <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/header:opacity-100 focus-within:opacity-100 transition-opacity no-print">
-                    Encabezado de página (Editable)
+                    {{ i18n.t('word.canvas.header_title') }}
                   </span>
                   <div
                     #headerEl
                     [attr.data-page-header-id]="page.id"
-                    [attr.contenteditable]="!isReadMode()"
+                    [attr.contenteditable]="documentReady() && !isReadMode()"
                     (input)="onHeaderInput($event)"
                     class="text-xs text-slate-500 focus:outline-none min-h-[16px]"
                     aria-label="Encabezado del documento"
@@ -341,38 +401,41 @@
               <div
                 #pageBody
                 [attr.data-page-body-id]="page.id"
-                [attr.contenteditable]="!isReadMode()"
+                [attr.contenteditable]="documentReady() && !isReadMode()"
                 (focus)="activePageIndex.set(pageIndex)"
                 (blur)="commitPageDomToState(pageIndex)"
                 (keydown)="onPageKeyDown($event, pageIndex)"
+                (beforeinput)="onPageBeforeInput($event, pageIndex)"
+                (compositionstart)="onPageCompositionStart()"
+                (compositionend)="onPageCompositionEnd(pageIndex)"
                 (input)="onPageInput($event, pageIndex)"
                 (keyup)="updateSelectionFormats()"
                 (mouseup)="handleEditorMouseUp($event)"
                 (paste)="onPagePaste($event, pageIndex)"
                 (dragover)="onPageDragOver($event)"
                 (drop)="onPageDrop($event, pageIndex)"
-                [style.minHeight.px]="maxBodyContentHeightPx() - 10"
                 [style.hyphens]="layoutConfig().hyphenation ? 'auto' : 'manual'"
-                class="word-editor-canvas flex-1 focus:outline-none"
+                class="word-editor-canvas flex-1 min-h-0 focus:outline-none"
+                [class.word-show-formatting-marks]="showFormattingMarks()"
                 [attr.aria-label]="'Área de edición Página ' + (pageIndex + 1)"
               ></div>
 
               <!-- Editable Document Footer Region -->
               @if (layoutConfig().showHeaderFooter && viewMode() === 'print') {
-                <div class="mt-4 pt-2 border-t border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 flex items-center justify-between gap-4 group/footer relative transition-colors">
+                <div class="shrink-0 mt-4 pt-2 border-t border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 flex items-center justify-between gap-4 group/footer relative transition-colors">
                   <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/footer:opacity-100 focus-within:opacity-100 transition-opacity no-print">
-                    Pie de página (Editable)
+                    {{ i18n.t('word.canvas.footer_title') }}
                   </span>
                   <div
                     #footerEl
                     [attr.data-page-footer-id]="page.id"
-                    [attr.contenteditable]="!isReadMode()"
+                    [attr.contenteditable]="documentReady() && !isReadMode()"
                     (input)="onFooterInput($event)"
                     class="text-xs text-slate-500 focus:outline-none flex-1 min-h-[16px]"
                     aria-label="Pie de página del documento"
                   ></div>
                   <span class="text-[11px] font-mono text-slate-400 shrink-0 select-none">
-                    Pág. {{ pageIndex + 1 }} de {{ pages().length }}
+                    {{ i18n.t('word.status.page') }} {{ pageIndex + 1 }} {{ i18n.t('word.status.of') }} {{ pages().length }}
                   </span>
                 </div>
               }
@@ -392,7 +455,7 @@
                 >
                   <svg lucideIcon="file-plus-2" [size]="12" class="w-3 h-3 text-blue-600"></svg>
                   <span>
-                    Insertar Página {{ pageIndex + 2 }} ({{ activePaperPreset().name.split(' ')[0] }}) aquí
+                    {{ i18n.t('word.canvas.insert_page_at', { num: pageIndex + 2, paper: activePaperPreset().name.split(' ')[0] }) }}
                   </span>
                 </button>
                 <div class="h-px flex-1 bg-slate-300/80 group-hover:bg-blue-300 transition-colors"></div>
@@ -416,7 +479,7 @@
           [disabled]="activePageIndex() <= 0"
           (click)="jumpToPage(0)"
           class="p-0.5 hover:bg-white rounded disabled:opacity-40"
-          title="Primera página"
+          [title]="i18n.t('word.status.first_page')"
         >
           <svg lucideIcon="chevrons-left" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
@@ -425,12 +488,12 @@
           [disabled]="activePageIndex() <= 0"
           (click)="jumpToPage(activePageIndex() - 1)"
           class="p-0.5 hover:bg-white rounded disabled:opacity-40"
-          title="Página anterior"
+          [title]="i18n.t('word.status.prev_page')"
         >
           <svg lucideIcon="chevron-up" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
         <span class="font-semibold text-slate-800 px-1 flex items-center gap-1">
-          <span>Pág.</span>
+          <span>{{ i18n.t('word.status.page') }}</span>
           <input
             type="number"
             min="1"
@@ -438,16 +501,16 @@
             [value]="activePageIndex() + 1"
             (change)="onPageNumberChange($event)"
             class="w-12 text-center bg-white border border-slate-300 rounded px-1 py-0.2 text-xs font-mono"
-            title="Escribe un número de página para saltar al instante"
+            [title]="i18n.t('word.status.page_jump')"
           />
-          <span>de {{ pages().length }}</span>
+          <span>{{ i18n.t('word.status.of') }} {{ pages().length }}</span>
         </span>
         <button
           type="button"
           [disabled]="activePageIndex() >= pages().length - 1"
           (click)="jumpToPage(activePageIndex() + 1)"
           class="p-0.5 hover:bg-white rounded disabled:opacity-40"
-          title="Página siguiente"
+          [title]="i18n.t('word.status.next_page')"
         >
           <svg lucideIcon="chevron-down" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
@@ -456,7 +519,7 @@
           [disabled]="activePageIndex() >= pages().length - 1"
           (click)="jumpToPage(pages().length - 1)"
           class="p-0.5 hover:bg-white rounded disabled:opacity-40"
-          title="Última página"
+          [title]="i18n.t('word.status.last_page')"
         >
           <svg lucideIcon="chevrons-right" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
@@ -466,29 +529,29 @@
         type="button"
         (click)="activeTab.set('layout')"
         class="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 hover:bg-blue-100 transition-colors"
-        title="Haz clic para configurar formato de hoja, márgenes o columnas"
+        [title]="i18n.t('word.status.sheet_tooltip')"
       >
-        Hoja: <strong>{{ activePaperPreset().name }}</strong>
+        {{ i18n.t('word.status.sheet_label') }} <strong>{{ activePaperPreset().name }}</strong>
       </button>
 
       <span>
-        Palabras:
+        {{ i18n.t('word.status.words') }}
         <strong [ngClass]="darkMode() ? 'text-slate-200' : 'text-slate-700'">{{ stats().words.toLocaleString() }}</strong>
       </span>
       <span class="hidden md:inline">
-        Secciones:
+        {{ i18n.t('word.status.sections') }}
         <strong [ngClass]="darkMode() ? 'text-slate-200' : 'text-slate-700'">{{ headings().length }}</strong>
       </span>
       <span class="hidden md:inline">
-        Tablas:
+        {{ i18n.t('word.status.tables') }}
         <strong [ngClass]="darkMode() ? 'text-slate-200' : 'text-slate-700'">{{ tables().length }}</strong>
       </span>
     </div>
 
     <div class="flex items-center gap-3">
       <span class="text-[11px]">
-        Vista: <strong class="text-blue-600 uppercase">{{ viewMode() }}</strong> · Fuente:
-        <strong>{{ formats().fontName }} ({{ formats().fontSize }}pt)</strong> · Elemento:
+        {{ i18n.t('word.status.view') }} <strong class="text-blue-600 uppercase">{{ viewMode() }}</strong> · {{ i18n.t('word.status.font') }}
+        <strong>{{ formats().fontName }} ({{ formats().fontSize }}pt)</strong> · {{ i18n.t('word.status.element') }}
         <strong class="text-blue-600">{{ formats().heading }}</strong>
       </span>
       <div class="flex items-center gap-1.5">
@@ -499,7 +562,7 @@
           step="10"
           [value]="zoom()"
           (input)="onZoomInput($event)"
-          aria-label="Control de zoom"
+          [attr.aria-label]="i18n.t('word.status.zoom_control')"
           class="w-20 accent-blue-600 cursor-pointer"
         />
         <span class="font-mono text-[11px] w-9">{{ zoom() }}%</span>
@@ -510,6 +573,7 @@
   <!-- LaTeX Formula Editor Modal with Delete Support -->
   <app-word-latex-modal
     [isOpen]="latexModalOpen()"
+    [darkMode]="darkMode()"
     (close)="onCloseLatexModal()"
     [initialLatex]="editingLatexCode()"
     [isEditingExisting]="editingLatexElement() !== null"
@@ -520,6 +584,7 @@
   <!-- Style Templates Designer Modal -->
   <app-word-style-templates-modal
     [isOpen]="styleModalOpen()"
+    [darkMode]="darkMode()"
     (close)="styleModalOpen.set(false)"
     [templates]="styleTemplates()"
     [activeTemplateId]="activeTemplateId()"
@@ -529,11 +594,21 @@
     (applySingleRuleToSelection)="handleApplyRuleToSelection($event)"
   ></app-word-style-templates-modal>
 
-  <!-- AI Writer Modal -->
-  <app-word-ai-writer-modal
-    [isOpen]="aiModalOpen()"
-    (close)="aiModalOpen.set(false)"
-    [currentHtml]="activePageHtml()"
-    (insertGeneratedHtml)="handleInsertGeneratedHtml($event)"
-  ></app-word-ai-writer-modal>
+  <!-- SmartArt Chooser Graphic Modal -->
+  <app-word-smartart-modal
+    [isOpen]="smartArtModalOpen()"
+    [darkMode]="darkMode()"
+    (selectItem)="handleInsertSmartArt($event)"
+    (close)="smartArtModalOpen.set(false)"
+  ></app-word-smartart-modal>
+
+  <!-- Icons Picker Modal -->
+  <app-word-icons-modal
+    [isOpen]="iconsModalOpen()"
+    [darkMode]="darkMode()"
+    (selectIcon)="handleInsertIcon($event)"
+    (close)="iconsModalOpen.set(false)"
+  ></app-word-icons-modal>
+
+
 </div>

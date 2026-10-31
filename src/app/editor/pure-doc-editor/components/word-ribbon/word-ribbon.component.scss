@@ -1,0 +1,195 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.ribbon-pill-container {
+  height: 82px;
+  min-height: 82px;
+  max-height: 82px;
+  overflow: visible !important;
+  position: relative;
+  z-index: 40;
+}
+
+.ribbon-tab-container {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  color: #334155;
+  font-size: 12px;
+  height: 68px;
+  min-height: 68px;
+  max-height: 68px;
+  width: 100%;
+  overflow: visible;
+}
+
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: relative;
+  gap: 2px;
+  padding: 0 10px;
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+  height: 100%;
+  overflow: visible;
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 48px;
+  height: 48px;
+}
+
+.stacked-rows {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 48px;
+}
+
+.group-label {
+  font-size: 10px;
+  color: #64748b;
+  text-align: center;
+  margin-top: auto;
+  padding-top: 2px;
+  min-height: 16px;
+  height: 16px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.btn-vertical {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 6px;
+  min-width: 48px;
+  min-height: 48px;
+  height: 48px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  transition: all 0.15s;
+
+  &:hover {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  &.active {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+
+  .btn-label {
+    font-size: 10.5px;
+    color: #475569;
+    text-align: center;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+}
+
+.btn-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+
+  &:hover {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  &.active {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+}
+
+// ==================== DARK MODE ENHANCEMENTS ====================
+.ribbon-pill-container.dark-mode {
+  .ribbon-tab-container {
+    color: #e4e4e7;
+  }
+
+  .ribbon-group {
+    border-right-color: #323238;
+  }
+
+  .group-label {
+    color: #a1a1aa;
+  }
+
+  .btn-vertical {
+    color: #e4e4e7;
+
+    &:hover {
+      background: #27272a;
+      border-color: #3f3f46;
+    }
+
+    &.active {
+      background: rgba(30, 58, 138, 0.5);
+      border-color: #3b82f6;
+      color: #93c5fd;
+    }
+
+    .btn-label {
+      color: #d4d4d8;
+    }
+  }
+
+  .btn-compact {
+    color: #e4e4e7;
+
+    &:hover {
+      background: #27272a;
+      border-color: #3f3f46;
+    }
+
+    &.active {
+      background: rgba(30, 58, 138, 0.5);
+      border-color: #3b82f6;
+      color: #93c5fd;
+    }
+  }
+
+  label {
+    color: #d4d4d8 !important;
+    &:hover {
+      color: #60a5fa !important;
+    }
+  }
+}

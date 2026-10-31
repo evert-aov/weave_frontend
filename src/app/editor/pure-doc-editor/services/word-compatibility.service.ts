@@ -303,7 +303,7 @@ export class WordCompatibilityService {
     for (let idx = 0; idx < pages.length; idx++) {
       const htmlWithEmbedded = await this.docxParser.convertBlobUrlsInHtmlToBase64(pages[idx].html);
       sections.push(
-        `<section class="page" data-page="${idx + 1}">
+        `<section class="page" data-page="${idx + 1}" data-break-before="${pages[idx].breakBefore ?? 'auto'}">
           ${layout.showHeaderFooter ? `<header class="page-header">${layout.headerHtml}</header>` : ''}
           <div class="page-body">${htmlWithEmbedded}</div>
           ${layout.showHeaderFooter ? `<footer class="page-footer">${layout.footerHtml}</footer>` : ''}
@@ -438,6 +438,7 @@ export class WordCompatibilityService {
           return {
             id: `imported-page-${idx + 1}-${Date.now()}`,
             html: (bodyEl ? bodyEl.innerHTML : sec.innerHTML).trim() || '<p><br/></p>',
+            ...(sec.getAttribute('data-break-before') === 'manual' ? { breakBefore: 'manual' as const } : {}),
           };
         });
         return { title: baseName, pages: extractedPages };
@@ -448,6 +449,7 @@ export class WordCompatibilityService {
       const pages: DocumentPage[] = rawChunks.map((chunk, i) => ({
         id: `imported-page-${i + 1}-${Date.now()}`,
         html: chunk.trim() || '<p><br/></p>',
+        ...(i > 0 ? { breakBefore: 'manual' as const } : {}),
       }));
 
       return {

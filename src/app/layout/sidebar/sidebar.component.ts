@@ -13,8 +13,14 @@ import { AuthService } from '../../core/services/auth.service';
 import { SpacesService } from '../../core/services/spaces.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { IconComponent, IconName } from '../../shared/components/icon/icon.component';
-import { Note, DocType } from '../../core/models/note.model';
+import { NoteSummary } from '../../core/models/note.model';
 import { Space } from '../../core/models/space.model';
+import { WorkspaceLayoutService } from '../../core/services/workspace-layout.service';
+import { ResizePanelDirective } from '../../shared/directives/resize-panel.directive';
+import { SidebarItemActionsComponent, SidebarItemAction } from './components/item-actions/item-actions.component';
+import { buildSpaceTree } from './space-tree';
+import { WorkspaceActionsService } from '../../core/services/workspace-actions.service';
+import { DialogService } from '../../core/services/dialog.service';
 
 export interface DraggedItem {
   type: 'note' | 'space';
@@ -38,7 +44,7 @@ export interface MovingTarget {
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, ResizePanelDirective, SidebarItemActionsComponent],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.scss',
 })
@@ -47,6 +53,9 @@ export class SidebarComponent implements OnInit {
   readonly authService = inject(AuthService);
   readonly spacesService = inject(SpacesService);
   readonly i18n = inject(I18nService);
+  readonly layout = inject(WorkspaceLayoutService);
+  private readonly actions = inject(WorkspaceActionsService);
+  private readonly dialogs = inject(DialogService);
 
   searchQuery = '';
   readonly showUserMenu = signal<boolean>(false);
@@ -65,37 +74,35 @@ export class SidebarComponent implements OnInit {
   /**
    * Árbol de espacios/directorios ordenado jerárquicamente a partir de la lista plana de MongoDB.
    */
-  readonly rootSpaces = computed<Space[]>(() => {
-    const list = this.spacesService.spacesList();
-    const map = new Map<string, Space>();
-    const roots: Space[] = [];
+  readonly rootSpaces = computed(() => buildSpaceTree(this.spacesService.spacesList()));
 
-    // Inicializar mapa de nodos clonados
-    for (const s of list) {
-      map.set(s._id, {
-        ...s,
-        children: [],
-        level: 0,
-      });
+  readonly spaceActions = computed<SidebarItemAction[]>(() => [
+    { id: 'create-note', icon: 'file', label: this.i18n.t('nav.new_document') },
+    { id: 'create-folder', icon: 'folder', label: this.i18n.t('nav.create_subspace') },
+    { id: 'rename', icon: 'pen', label: this.i18n.t('nav.rename') },
+    { id: 'move', icon: 'folder-input', label: this.i18n.t('nav.move') },
+    { id: 'delete', icon: 'trash', label: this.i18n.t('nav.delete_space'), destructive: true },
+  ]);
+
+  readonly noteActions = computed<SidebarItemAction[]>(() => [
+    { id: 'move', icon: 'folder-input', label: this.i18n.t('nav.move') },
+    { id: 'delete', icon: 'trash', label: this.i18n.currentLang() === 'es' ? 'Eliminar documento' : 'Delete document', destructive: true },
+  ]);
+
+  onNoteAction(note: NoteSummary, action: string): void {
+    if (action === 'delete') this.actions.deleteDocument(note);
+    else if (action === 'move') this.openMoveNoteModal(note);
+  }
+
+  onSpaceAction(space: Space, action: string): void {
+    switch (action) {
+      case 'create-note': this.createNoteInSpace(space); break;
+      case 'create-folder': this.createSubdirectory(space); break;
+      case 'rename': this.renameSpace(space); break;
+      case 'move': this.openMoveSpaceModal(space); break;
+      case 'delete': this.deleteSpace(space); break;
     }
-
-    // Enlazar hijos con padres
-    for (const s of list) {
-      const current = map.get(s._id)!;
-      const parentIdStr = s.parentId ? s.parentId.toString() : null;
-
-      if (parentIdStr && map.has(parentIdStr)) {
-        const parent = map.get(parentIdStr)!;
-        current.level = (parent.level || 0) + 1;
-        parent.children = parent.children || [];
-        parent.children.push(current);
-      } else {
-        roots.push(current);
-      }
-    }
-
-    return roots;
-  });
+  }
 
   /**
    * Lista de destinos válidos para el modal de mover, filtrando el nodo actual y sus descendientes si es carpeta.
@@ -160,7 +167,7 @@ export class SidebarComponent implements OnInit {
   /**
    * Obtiene las notas que pertenecen directamente a este espacio/directorio.
    */
-  getNotesForSpace(space: Space): Note[] {
+  getNotesForSpace(space: Space): NoteSummary[] {
     const allNotes = this.notesService.notesList();
     const query = this.searchQuery.trim().toLowerCase();
     const spacePath = (space.path || '').toLowerCase();
@@ -206,61 +213,21 @@ export class SidebarComponent implements OnInit {
     this.notesService.loadNotes().subscribe();
   }
 
-  openNote(note: Note): void {
+  openNote(note: NoteSummary): void {
     this.notesService.loadNoteById(note._id).subscribe();
   }
 
-  // Estados del modal interactivo de creación de documento especializado
-  readonly showCreateDocModal = signal<boolean>(false);
-  readonly targetSpaceForNewDoc = signal<Space | null>(null);
-  readonly newDocTitle = signal<string>('');
-
   openCreateDocModal(space?: Space, event?: MouseEvent): void {
-    if (event) {
-      event.stopPropagation();
-    }
-    this.targetSpaceForNewDoc.set(space || null);
-    this.newDocTitle.set('');
-    this.showCreateDocModal.set(true);
-  }
-
-  closeCreateDocModal(): void {
-    this.showCreateDocModal.set(false);
-    this.targetSpaceForNewDoc.set(null);
-    this.newDocTitle.set('');
-  }
-
-  createSpecializedDoc(docType: DocType): void {
-    const title = this.newDocTitle().trim();
-    if (!title) {
-      // El nombre es obligatorio: enfocar el campo para que el usuario lo ingrese.
-      document.getElementById('new-doc-title-input')?.focus();
-      return;
-    }
-
-    const space = this.targetSpaceForNewDoc();
-    const targetPath = space
-      ? space.path || space.name
-      : this.notesService.activeSpace() && this.notesService.activeSpace() !== 'all'
-      ? this.notesService.activeSpace()
-      : 'Research';
-
-    this.notesService.createNote(title, targetPath, docType).subscribe({
-      next: () => {
-        if (space) {
-          this.expandedSpaces.update((prev) => {
-            const next = new Set(prev);
-            next.add(space._id);
-            return next;
-          });
-        }
-        this.closeCreateDocModal();
-      },
+    event?.stopPropagation();
+    this.actions.createDocument(space, () => {
+      if (space) this.expandedSpaces.update((previous) => new Set(previous).add(space._id));
     });
   }
 
   getNoteIcon(docType?: string): IconName {
     switch (docType) {
+      case 'latex':
+        return 'sigma';
       case 'sheet':
         return 'sheet';
       case 'doc':
@@ -282,77 +249,28 @@ export class SidebarComponent implements OnInit {
     this.openCreateDocModal(space, event);
   }
 
-  promptCreateSpace(): void {
-    const promptMsg =
-      this.i18n.currentLang() === 'es'
-        ? 'Nombre del nuevo espacio/directorio principal:'
-        : 'Name of the new root directory:';
-    const name = prompt(promptMsg);
-    if (name && name.trim()) {
-      const colors = ['indigo', 'teal', 'violet', 'amber', 'rose'];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
-      this.spacesService.createSpace(name.trim(), randomColor, null).subscribe({
-        next: (created) => {
-          this.expandedSpaces.update((prev) => {
-            const next = new Set(prev);
-            next.add(created._id);
-            return next;
-          });
-          this.selectSpace(created);
-        },
-      });
-    }
+  createDirectory(): void {
+    this.actions.createDirectory(null, (created) => {
+      this.expandedSpaces.update((previous) => new Set(previous).add(created._id));
+      this.selectSpace(created);
+    });
   }
 
-  promptCreateSubspace(parentSpace: Space, event?: MouseEvent): void {
-    if (event) {
-      event.stopPropagation();
-    }
-    const promptMsg =
-      this.i18n.currentLang() === 'es'
-        ? `Nuevo subdirectorio dentro de "${parentSpace.name}":`
-        : `New subdirectory inside "${parentSpace.name}":`;
-    const name = prompt(promptMsg);
-    if (name && name.trim()) {
-      this.spacesService
-        .createSpace(name.trim(), parentSpace.color, parentSpace._id)
-        .subscribe({
-          next: (created) => {
-            this.expandedSpaces.update((prev) => {
-              const next = new Set(prev);
-              next.add(parentSpace._id);
-              next.add(created._id);
-              return next;
-            });
-            this.selectSpace(created);
-          },
-        });
-    }
+  createSubdirectory(parentSpace: Space, event?: MouseEvent): void {
+    event?.stopPropagation();
+    this.actions.createDirectory(parentSpace, (created) => {
+      this.expandedSpaces.update((previous) => new Set(previous).add(parentSpace._id).add(created._id));
+      this.selectSpace(created);
+    });
   }
 
   renameSpace(space: Space, event?: MouseEvent): void {
     if (event) {
       event.stopPropagation();
     }
-    const currentName = space.name;
-    const newName = prompt(
-      this.i18n.currentLang() === 'es'
-        ? `Renombrar directorio "${currentName}":`
-        : `Rename directory "${currentName}":`,
-      currentName,
-    );
-    if (!newName || !newName.trim() || newName.trim() === currentName) {
-      return;
-    }
-    const trimmed = newName.trim();
-    this.spacesService.updateSpace(space._id, trimmed).subscribe({
-      next: () => {
-        const oldTarget = space.path || space.name;
-        if (this.notesService.activeSpace() === oldTarget) {
-          this.notesService.activeSpace.set(trimmed);
-        }
-        this.notesService.loadNotes().subscribe();
-      },
+    this.actions.renameDirectory(space, (updated) => {
+      if (this.notesService.activeSpace() === (space.path || space.name)) this.notesService.activeSpace.set(updated.path || updated.name);
+      this.notesService.loadNotes().subscribe();
     });
   }
 
@@ -360,24 +278,14 @@ export class SidebarComponent implements OnInit {
     if (event) {
       event.stopPropagation();
     }
-    const confirmMsg =
-      this.i18n.currentLang() === 'es'
-        ? `¿Eliminar el directorio "${space.name}" y todos sus subdirectorios?`
-        : `Delete directory "${space.name}" and all its subdirectories?`;
-    if (confirm(confirmMsg)) {
-      this.spacesService.deleteSpace(space._id).subscribe({
-        next: () => {
-          this.showAllNotes();
-        },
-      });
-    }
+    this.actions.deleteDirectory(space, () => this.showAllNotes());
   }
 
   // ==========================================
   // ARRASTRAR Y SOLTAR (DRAG & DROP)
   // ==========================================
 
-  onDragStartNote(note: Note, event: DragEvent): void {
+  onDragStartNote(note: NoteSummary, event: DragEvent): void {
     event.stopPropagation();
     this.draggedItem.set({
       type: 'note',
@@ -454,7 +362,7 @@ export class SidebarComponent implements OnInit {
     } else if (dragged.type === 'space') {
       if (dragged.id === targetSpace._id) return;
       if (this.isDescendant(dragged.id, targetSpace._id)) {
-        alert(
+        this.dialogs.notice(this.i18n.t('nav.move'),
           this.i18n.currentLang() === 'es'
             ? 'No puedes mover una carpeta dentro de sí misma o de sus subcarpetas.'
             : 'Cannot move a folder into itself or its subfolders.',
@@ -502,7 +410,7 @@ export class SidebarComponent implements OnInit {
   // MODAL / DIÁLOGO "MOVER A..."
   // ==========================================
 
-  openMoveNoteModal(note: Note, event?: MouseEvent): void {
+  openMoveNoteModal(note: NoteSummary, event?: MouseEvent): void {
     if (event) event.stopPropagation();
     this.movingTarget.set({
       type: 'note',
@@ -556,7 +464,7 @@ export class SidebarComponent implements OnInit {
       });
     } else if (target.type === 'space') {
       if (destId === target.id) {
-        alert(
+        this.dialogs.notice(this.i18n.t('nav.move'),
           this.i18n.currentLang() === 'es'
             ? 'Una carpeta no puede ser su propio padre.'
             : 'A directory cannot be its own parent.',
@@ -564,7 +472,7 @@ export class SidebarComponent implements OnInit {
         return;
       }
       if (destId && this.isDescendant(target.id, destId)) {
-        alert(
+        this.dialogs.notice(this.i18n.t('nav.move'),
           this.i18n.currentLang() === 'es'
             ? 'No puedes mover una carpeta dentro de sí misma o de sus subcarpetas.'
             : 'Cannot move a folder into itself or its subfolders.',

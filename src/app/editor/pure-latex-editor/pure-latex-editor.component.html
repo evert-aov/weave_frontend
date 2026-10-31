@@ -1,0 +1,78 @@
+<section class="latex-document" data-document-scroll [class.is-resizing]="isResizing()">
+  <!-- Barra superior estilo Overleaf: pestaña de archivo y controles rápidos sin textos innecesarios -->
+  <header class="overleaf-header">
+    <div class="header-left">
+      <div class="file-tab" [title]="fileName()">
+        <app-icon name="file-text" [size]="14" />
+        <span class="file-name">{{ fileName() }}</span>
+      </div>
+      <div class="tab-tools">
+        @if (!notes.isReadingMode()) {
+          <button type="button" class="tool-btn" (click)="insertTemplate()" [disabled]="!!source.trim()" title="Insertar plantilla base (Física II y circuitos)">
+            <app-icon name="plus" [size]="13" />
+            <span class="btn-label">Plantilla</span>
+          </button>
+          <button type="button" class="tool-btn" (click)="file.click()" title="Importar archivo .tex local">
+            <app-icon name="folder-input" [size]="13" />
+            <span class="btn-label">Importar</span>
+          </button>
+          <input #file type="file" accept=".tex,text/x-tex,application/x-tex" hidden (change)="importSource($event)" />
+        }
+        <button type="button" class="tool-btn" (click)="downloadSource()" title="Descargar código .tex">
+          <app-icon name="download" [size]="13" />
+          <span class="btn-label">.tex</span>
+        </button>
+        <button type="button" class="tool-btn vim-pill" [class.active]="vimActive()" (click)="toggleVim()" title="Alternar atajos Vim">
+          Vim
+        </button>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="shortcut-tag" title="Usa Ctrl + Enter para compilar en cualquier momento">
+        <kbd>Ctrl+Enter</kbd>
+      </span>
+    </div>
+  </header>
+
+  @if (fileError()) {
+    <div class="file-error-alert" role="alert">
+      <span>{{ fileError() }}</span>
+    </div>
+  }
+
+  <!-- Área de trabajo dividida: Editor a la izquierda, Separador redimensionable, Vista previa a la derecha -->
+  <div class="latex-workspace">
+    <div class="pane-editor" [style.width.%]="splitPercent()" appFullscreenPanel #fullscreen="fullscreenPanel">
+      <app-monaco-latex-editor
+        [value]="source"
+        (valueChange)="change($event)"
+        [documentMode]="true"
+        [readonly]="notes.isReadingMode()"
+        [fill]="true"
+        [showToolbar]="false"
+        label="Código fuente LaTeX"
+        (submitEditor)="preview?.compile()"
+      />
+    </div>
+
+    <div
+      class="pane-divider"
+      (pointerdown)="startSplitResize($event)"
+      (dblclick)="resetSplit()"
+      title="Arrastra para ajustar el ancho. Doble clic para 50/50"
+      role="separator"
+      tabindex="0"
+      aria-orientation="vertical"
+      aria-label="Separador de editor y vista previa"
+    >
+      <div class="divider-grabber">
+        <span class="divider-arrow">‹</span>
+        <span class="divider-arrow">›</span>
+      </div>
+    </div>
+
+    <div class="pane-preview" [style.width.%]="100 - splitPercent()">
+      <app-latex-preview [source]="source" [title]="note.title" />
+    </div>
+  </div>
+</section>
