@@ -58,7 +58,7 @@ export class TopbarComponent {
   }
 
   toggleSidebar(): void {
-    this.notesService.isSidebarCollapsed.update((v) => !v);
+    this.notesService.toggleSidebar();
   }
 
   toggleFullscreen(): void {

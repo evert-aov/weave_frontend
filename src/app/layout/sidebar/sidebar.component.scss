@@ -14,11 +14,44 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sidebar.collapsed {
   width: 64px;
   align-items: center;
   padding: 14px 6px;
+
+  .workspace {
+    padding: 0 0 14px;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .nav-primary {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+
+    button {
+      justify-content: center;
+      padding: 0;
+      width: 36px;
+      height: 36px;
+      min-height: 36px;
+    }
+  }
+
+  .sidebar-bottom {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+
+    .user-card {
+      justify-content: center;
+      padding: 4px 0 2px;
+      width: 100%;
+    }
+  }
 }
 .new-document-btn {
   display: flex;

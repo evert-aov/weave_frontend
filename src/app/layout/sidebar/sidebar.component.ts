@@ -215,6 +215,9 @@ export class SidebarComponent implements OnInit {
 
   openNote(note: NoteSummary): void {
     this.notesService.loadNoteById(note._id).subscribe();
+    if (typeof window !== 'undefined' && window.innerWidth <= 760) {
+      this.notesService.isSidebarCollapsed.set(true);
+    }
   }
 
   openCreateDocModal(space?: Space, event?: MouseEvent): void {

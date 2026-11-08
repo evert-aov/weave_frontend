@@ -34,7 +34,7 @@ export class NotesService {
   private listLoadVersion = 0;
   readonly activeSpace = signal<string>('Research');
   readonly saveStatus = signal<'saved' | 'saving' | 'unsaved'>('saved');
-  readonly isSidebarCollapsed = signal<boolean>(false);
+  readonly isSidebarCollapsed = signal<boolean>(true);
   readonly isReadingMode = signal<boolean>(true);
   readonly documentZoom = signal<number>(1.0);
 
@@ -68,6 +68,13 @@ export class NotesService {
    */
   toggleReadingMode(): void {
     this.isReadingMode.update((v) => !v);
+  }
+
+  /**
+   * Alterna la visibilidad de la barra lateral de navegación.
+   */
+  toggleSidebar(): void {
+    this.isSidebarCollapsed.update((v) => !v);
   }
 
   zoomIn(): void {

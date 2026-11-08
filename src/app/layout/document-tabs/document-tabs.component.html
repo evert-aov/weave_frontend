@@ -1,6 +1,17 @@
 <div class="tabs-bar-root">
-  <!-- Flechas de navegación previa / siguiente pestaña -->
+  <!-- Control de barra lateral y navegación previa / siguiente pestaña -->
   <div class="tabs-nav-actions">
+    <button
+      type="button"
+      class="nav-arrow-btn sidebar-toggle-btn"
+      (click)="notesService.toggleSidebar()"
+      [title]="notesService.isSidebarCollapsed() ? i18n.t('nav.expand_navigation') : i18n.t('nav.collapse_navigation')"
+      [attr.aria-label]="notesService.isSidebarCollapsed() ? i18n.t('nav.expand_navigation') : i18n.t('nav.collapse_navigation')"
+      [attr.aria-expanded]="!notesService.isSidebarCollapsed()"
+    >
+      <app-icon name="panel" [size]="13"></app-icon>
+    </button>
+
     <button
       type="button"
       class="nav-arrow-btn"

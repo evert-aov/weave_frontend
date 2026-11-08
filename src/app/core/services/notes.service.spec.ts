@@ -190,4 +190,12 @@ describe('progressive note loading', () => {
     request.flush({ ...source, ...request.request.body });
     expect(service.currentNote()?._id).toBe('n2');
   });
+
+  it('initializes with the sidebar collapsed by default and allows toggling', () => {
+    expect(service.isSidebarCollapsed()).toBe(true);
+    service.toggleSidebar();
+    expect(service.isSidebarCollapsed()).toBe(false);
+    service.toggleSidebar();
+    expect(service.isSidebarCollapsed()).toBe(true);
+  });
 });
