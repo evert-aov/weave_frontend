@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, normalize } from 'node:path/posix';
 import { pathToFileURL } from 'node:url';
 
-const heavyPackages = /node_modules\/(?:@univerjs\/|@excalidraw\/|pptx-angular-viewer\/|pptx-viewer-core\/|@codemirror\/|@replit\/codemirror-vim\/|monaco-editor\/|mermaid\/|jspdf\/|html2canvas\/)/;
+const heavyPackages = /node_modules\/(?:@excalidraw\/|pptx-angular-viewer\/|pptx-viewer-core\/|@codemirror\/|@replit\/codemirror-vim\/|monaco-editor\/|exceljs\/|mermaid\/|jspdf\/|html2canvas\/)/;
 
 /** Recorre solo imports estáticos: los motores de edición deben quedar en chunks diferidos. */
 export function analyzeStartup(stats) {

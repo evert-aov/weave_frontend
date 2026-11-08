@@ -29,18 +29,23 @@
                 "input": "public"
               },
               {
-                "glob": "pptx-angular-viewer.css",
-                "input": "node_modules/pptx-angular-viewer",
-                "output": "."
-              },
-              {
                 "glob": "**/*",
                 "input": "node_modules/monaco-editor/min/vs",
                 "output": "assets/monaco/vs"
               }
             ],
             "styles": [
-              "src/styles.scss"
+              "src/styles.scss",
+              {
+                "input": "src/styles/canvas-vendor.scss",
+                "bundleName": "canvas-vendor",
+                "inject": false
+              },
+              {
+                "input": "src/styles/sheet-vendor.scss",
+                "bundleName": "sheet-vendor",
+                "inject": false
+              }
             ],
             "allowedCommonJsDependencies": [
               "@excalidraw/excalidraw",

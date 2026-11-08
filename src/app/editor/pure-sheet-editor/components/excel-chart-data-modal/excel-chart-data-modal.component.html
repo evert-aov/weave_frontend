@@ -1,0 +1,63 @@
+<div class="backdrop" (click)="close.emit()">
+  <section role="dialog" aria-modal="true" aria-labelledby="chart-data-heading" [class.dark]="theme.isDark()" (click)="$event.stopPropagation()">
+    <header><h2 id="chart-data-heading">Configurar gráfico</h2><button type="button" aria-label="Cerrar" (click)="close.emit()">×</button></header>
+    <div class="body">
+      <div class="controls">
+        <div class="tabs"><button type="button" [class.active]="tab === 'data'" (click)="tab = 'data'">Datos</button><button type="button" [class.active]="tab === 'appearance'" (click)="tab = 'appearance'">Diseño</button></div>
+        @if (tab === 'data') {
+        <label for="chart-source">Rango de la tabla</label>
+        <input id="chart-source" [value]="sourceText" placeholder="A1:Z100" (input)="setSource($any($event.target).value)" />
+        @if (sourceError) { <p class="error" role="alert">{{ sourceError }}</p> }
+        <label class="check"><input type="checkbox" [checked]="config.hasHeaders" (change)="setHeaders($any($event.target).checked)" />La primera fila contiene encabezados</label>
+        <label for="chart-x-column">Columna del eje X / etiquetas</label>
+        <select id="chart-x-column" [value]="config.xColumn === null ? '' : config.xColumn" (change)="setX($any($event.target).value)">
+          <option value="">Sin columna — usar números de fila</option>
+          @for (column of columns; track column.index) { <option [value]="column.index">{{ column.label }}</option> }
+        </select>
+        <div class="series-heading">Series de valores <span>{{ config.seriesColumns.length }} seleccionadas</span></div>
+        <p class="hint">Elige solo las columnas que necesitas, aunque no estén juntas.</p>
+        <div class="series">
+          @for (column of columns; track column.index) {
+            <label class="check" [class.disabled]="column.index === config.xColumn">
+              <input type="checkbox" [checked]="config.seriesColumns.includes(column.index)" [disabled]="column.index === config.xColumn" (change)="toggleSeries(column.index, $any($event.target).checked)" />
+              <span>{{ column.label }}</span>
+            </label>
+          }
+        </div>
+        @if (!config.seriesColumns.length) { <p class="error">Selecciona al menos una serie de valores.</p> }
+        @if (chart.category === 'pie' || chart.category === 'sunburst') { <p class="hint">Este tipo de gráfico representa la última serie seleccionada.</p> }
+        } @else {
+          <label for="chart-display-title">Título del gráfico</label>
+          <input id="chart-display-title" [value]="title" (input)="title = $any($event.target).value" placeholder="Título del gráfico" />
+          <label for="chart-title-position">Posición del título</label>
+          <select id="chart-title-position" [value]="appearance.titlePosition" (change)="setAppearance('titlePosition', $any($event.target).value)"><option value="top">Arriba</option><option value="bottom">Abajo</option><option value="none">Oculto</option></select>
+          <label for="chart-title-align">Alineación del título</label>
+          <select id="chart-title-align" [value]="appearance.titleAlign" (change)="setAppearance('titleAlign', $any($event.target).value)"><option value="left">Izquierda</option><option value="center">Centro</option><option value="right">Derecha</option></select>
+          <label for="chart-legend-position">Posición de la leyenda</label>
+          <select id="chart-legend-position" [value]="appearance.legendPosition" (change)="setAppearance('legendPosition', $any($event.target).value)"><option value="top">Arriba</option><option value="bottom">Abajo</option><option value="left">Izquierda</option><option value="right">Derecha</option><option value="none">Oculta</option></select>
+          @if (['line', 'area', 'column', 'bar'].includes(chart.category)) {
+            <label for="chart-series-mode">Modo de las series</label>
+            <select id="chart-series-mode" [value]="seriesMode" (change)="setSeriesMode($any($event.target).value)"><option value="normal">Independientes (valores originales)</option><option value="stacked">Apiladas (valores acumulados)</option><option value="percent">Apiladas al 100 %</option></select>
+            <p class="hint">Para comparar costos e ingresos, usa series independientes. Apiladas suma cada serie a la anterior.</p>
+          }
+          <div class="series-heading">Colores de las series</div>
+          <p class="hint">El mismo color identifica cada serie en el gráfico y en sus datos de origen.</p>
+          <div class="series-colors">
+            @for (item of colorItems; track item.key; let index = $index) {
+              <div class="series-color-row">
+                <input type="color" [value]="itemColor(item, index)" [attr.aria-label]="'Color de ' + item.label" (input)="setSeriesColor(item.key, $any($event.target).value)" />
+                <span [title]="item.label">{{ item.label }}</span>
+                @if (seriesColors[item.key]) { <button type="button" (click)="resetSeriesColor(item.key)" [attr.aria-label]="'Restablecer color de ' + item.label">Paleta</button> }
+              </div>
+            }
+          </div>
+        }
+      </div>
+      <div class="preview">
+        <div class="preview-label">Vista previa</div>
+        <div class="preview-chart"><app-excel-chart-renderer [dataRevision]="dataRevision" [grid]="grid" [range]="range" [dataConfig]="dataEdited ? config : chart.dataConfig" [seriesColors]="seriesColors" [appearance]="appearance" [category]="chart.category" [subType]="subType" [palette]="chart.colorPalette" [chartTitle]="title" /></div>
+      </div>
+    </div>
+    <footer><button type="button" (click)="close.emit()">Cancelar</button><button type="button" class="confirm" [disabled]="!!sourceError || !config.seriesColumns.length" (click)="confirm()">Aplicar</button></footer>
+  </section>
+</div>

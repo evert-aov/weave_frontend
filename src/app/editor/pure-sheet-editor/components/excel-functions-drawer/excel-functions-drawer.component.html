@@ -1,0 +1,124 @@
+<div class="fixed inset-0 z-50 flex justify-end bg-black/45 backdrop-blur-xs"
+     (click)="close.emit()">
+  <div class="w-full max-w-md h-full shadow-2xl border-l flex flex-col transition-colors"
+       [class.bg-slate-800]="themeService.isDark()"
+       [class.border-slate-700]="themeService.isDark()"
+       [class.text-white]="themeService.isDark()"
+       [class.bg-white]="!themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()"
+       [class.text-slate-800]="!themeService.isDark()"
+       (click)="$event.stopPropagation()">
+    
+    <!-- Header -->
+    <div class="p-4 border-b flex items-center justify-between"
+         [class.border-slate-700]="themeService.isDark()"
+         [class.border-slate-200]="!themeService.isDark()">
+      <div class="flex items-center gap-2">
+        <span class="text-base font-bold text-emerald-500 font-mono">fx</span>
+        <h3 class="text-sm font-semibold">
+          {{ i18n.currentLang() === 'es' ? 'Insertar Función de Excel' : 'Insert Excel Function' }}
+        </h3>
+      </div>
+      <button type="button" (click)="close.emit()" class="text-slate-400 hover:text-slate-200">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="p-4 border-b space-y-3"
+         [class.border-slate-700]="themeService.isDark()"
+         [class.border-slate-200]="!themeService.isDark()">
+      <!-- Search input -->
+      <div class="relative">
+        <input type="text"
+               [(ngModel)]="searchQuery"
+               [placeholder]="i18n.currentLang() === 'es' ? 'Buscar función (ej. SUMA, SI, BUSCARV)…' : 'Search function (e.g. SUM, IF, VLOOKUP)…'"
+               class="w-full text-xs rounded-lg pl-8 pr-3 py-2 border transition-colors outline-hidden focus:ring-2 focus:ring-emerald-500"
+               [class.bg-slate-700]="themeService.isDark()"
+               [class.border-slate-600]="themeService.isDark()"
+               [class.text-white]="themeService.isDark()"
+               [class.bg-slate-50]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()" />
+        <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+
+      <!-- Category chips -->
+      <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+        @for (cat of categories; track cat) {
+          <button type="button"
+                  (click)="selectedCategory = cat"
+                  class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+                  [class.bg-emerald-600]="selectedCategory === cat"
+                  [class.text-white]="selectedCategory === cat"
+                  [class.bg-slate-700]="selectedCategory !== cat && themeService.isDark()"
+                  [class.text-slate-300]="selectedCategory !== cat && themeService.isDark()"
+                  [class.bg-slate-100]="selectedCategory !== cat && !themeService.isDark()"
+                  [class.text-slate-600]="selectedCategory !== cat && !themeService.isDark()">
+            {{ cat }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Functions list -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-3">
+      @for (fn of filteredFunctions; track fn.nameEs) {
+        <div class="p-3 rounded-xl border transition-colors hover:border-emerald-500/50"
+             [class.bg-slate-700]="themeService.isDark()"
+             [class.border-slate-600]="themeService.isDark()"
+             [class.bg-slate-50]="!themeService.isDark()"
+             [class.border-slate-200]="!themeService.isDark()">
+          
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs font-bold text-emerald-500">
+                {{ i18n.currentLang() === 'es' ? fn.nameEs : fn.nameEn }}
+              </span>
+              @if (i18n.currentLang() === 'es' && fn.nameEs !== fn.nameEn) {
+                <span class="text-[10px] text-slate-400 font-mono">({{ fn.nameEn }})</span>
+              }
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                  [class.bg-slate-600]="themeService.isDark()"
+                  [class.text-slate-300]="themeService.isDark()"
+                  [class.bg-slate-200]="!themeService.isDark()"
+                  [class.text-slate-600]="!themeService.isDark()">
+              {{ fn.category }}
+            </span>
+          </div>
+
+          <div class="font-mono text-[11px] text-sky-400 mb-1.5 select-all">
+            {{ fn.syntax }}
+          </div>
+
+          <p class="text-xs text-slate-400 mb-2 leading-relaxed">
+            {{ i18n.currentLang() === 'en' ? fn.descriptionEn || fn.description : fn.description }}
+          </p>
+
+          <div class="flex items-center justify-between pt-2 border-t"
+               [class.border-slate-600]="themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()">
+            <span class="text-[10px] font-mono text-slate-400">
+              {{ i18n.currentLang() === 'es' ? 'Ejemplo' : 'Example' }}: {{ fn.example }}
+            </span>
+            <button type="button"
+                    (click)="insert(fn)"
+                    class="px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+              {{ i18n.currentLang() === 'es' ? 'Insertar' : 'Insert' }}
+            </button>
+          </div>
+        </div>
+      }
+
+      @if (filteredFunctions.length === 0) {
+        <div class="text-center py-10 text-xs text-slate-400">
+          {{ i18n.currentLang() === 'es' ? 'No se encontraron funciones coincidentes.' : 'No matching functions found.' }}
+        </div>
+      }
+    </div>
+  </div>
+</div>

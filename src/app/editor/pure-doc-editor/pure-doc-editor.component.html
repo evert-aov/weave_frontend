@@ -91,10 +91,11 @@
       (updateStyleFromSelection)="handleUpdateStyleFromSelection($event)"
       (importClick)="openFilePicker()"
       (exportWord)="exportWord()"
+      (exportLegacyDoc)="exportLegacyDoc()"
+      (exportPdf)="exportPdf()"
       (exportHtml)="exportHtml()"
       (exportMarkdown)="exportMarkdown()"
       (exportTxt)="exportTxt()"
-      (print)="printDoc()"
       [viewMode]="viewMode()"
       (setViewMode)="viewMode.set($event)"
       [focusMode]="focusMode()"
@@ -114,7 +115,15 @@
       (setShowTocSidebar)="showTocSidebar.set($event)"
       [zoom]="zoom()"
       (setZoom)="zoom.set($event)"
+      [pdfExporting]="pdfExporting()"
     ></app-word-ribbon>
+  }
+
+  @if (pdfExportMessage()) {
+    <div class="px-4 py-2 text-xs no-print shrink-0" role="status" aria-live="polite"
+      [class.text-red-600]="pdfExportFailed()" [class.text-emerald-600]="!pdfExportFailed()">
+      {{ pdfExportMessage() }}
+    </div>
   }
 
   <!-- Extracted .DOCX Properties Inspector Banner -->
@@ -133,6 +142,7 @@
       [ngClass]="darkMode() ? 'bg-[#18181b]/95 border-[#27272a] text-[#f4f4f5]' : 'bg-blue-50/90 border-blue-200 text-blue-900'"
     >
       <span class="font-semibold mr-2">{{ i18n.t('word.table.tools') }} ({{ i18n.t('word.status.page') }} {{ activePageIndex() + 1 }}):</span>
+      <span class="text-[10px] opacity-70">Arrastra los bordes de las celdas para cambiar filas y columnas</span>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
@@ -411,6 +421,8 @@
                 (input)="onPageInput($event, pageIndex)"
                 (keyup)="updateSelectionFormats()"
                 (mouseup)="handleEditorMouseUp($event)"
+                (pointerdown)="startTableResize($event, pageIndex)"
+                (pointermove)="updateTableResizeCursor($event)"
                 (paste)="onPagePaste($event, pageIndex)"
                 (dragover)="onPageDragOver($event)"
                 (drop)="onPageDrop($event, pageIndex)"

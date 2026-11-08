@@ -12,7 +12,7 @@ El diagnóstico y las mediciones del arranque están en
 
 - 🧩 **Arquitectura Modular por Bloques**:
   - **Texto Enriquecido**: Editor basado en [Tiptap](https://tiptap.dev/) con soporte de listas de tareas, encabezados tipográficos y estilos personalizados por bloque.
-  - **Hojas de Cálculo Avanzadas**: Integración completa de [Univer Sheets](https://univer.work/) con soporte de fórmulas matemáticas reales (`=SUM`, `=AVERAGE`, etc.), celdas combinadas y preservación en exportación.
+  - **Hojas de Cálculo Avanzadas**: Cuadrícula Angular con fórmulas financieras, búsquedas, matrices dinámicas y autocompletado; nombres, tablas y referencias entre hojas con rastreo. Importación/exportación XLSX, importación de gráficos compatibles, gráficos SVG configurables, dibujo flotante y pegado de tablas externas. Ver [la guía de hojas de cálculo](guia-desarrollador/18-HOJAS-DE-CALCULO.md).
   - **Lienzo Gráfico y Pizarra**: Suite vectorial interactiva de [Excalidraw](https://excalidraw.com/) (React bridge), con persistencia de trazos y formas geométricas.
   - **Fórmulas Matemáticas**: Renderizado instantáneo de expresiones LaTeX complejas mediante [KaTeX](https://katex.org/).
   - **Editor de Código Fuente**: Potenciado por [Monaco Editor](https://microsoft.github.io/monaco-editor/) (el motor de VS Code) con resaltado para múltiples lenguajes.
@@ -67,7 +67,7 @@ Las comprobaciones del frontend son `npm test -- --watch=false` y `npm run build
 src/app/
 ├── blocks/                    # Componentes de cada tipo de bloque
 │   ├── text-block/            # Editor de texto enriquecido (Tiptap)
-│   ├── sheet-block/           # Hoja de cálculo interactiva (Univer Sheets)
+│   ├── sheet-block/           # Cuadrícula Angular con modelo de celdas compartido
 │   ├── canvas-block/          # Pizarra y bocetos vectoriales (Excalidraw)
 │   ├── latex-block/           # Fórmulas matemáticas (KaTeX)
 │   ├── code-block/            # Editor de código fuente (Monaco Editor)
@@ -79,7 +79,7 @@ src/app/
 │   ├── block-rail/            # Canalón lateral de acciones por bloque
 │   ├── slash-menu/            # Menú emergente de inserción rápida de bloques (/)
 │   ├── pure-doc-editor/       # Editor Word y servicios de compatibilidad
-│   ├── pure-sheet-editor/     # Hojas completas con Univer
+│   ├── pure-sheet-editor/     # Libro Angular, fórmulas, gráficos SVG y objetos flotantes
 │   ├── pure-canvas-editor/    # Pizarra completa con Excalidraw
 │   └── pure-slide-editor/     # Presentaciones PPTX
 │
@@ -111,7 +111,7 @@ src/app/
 | **Integración React** | React 19 y ReactDOM Client (para Excalidraw) |
 | **Estilos** | SCSS con variables CSS semánticas y diseño adaptable |
 | **Texto Enriquecido** | Tiptap Core + Starter Kit + Task List |
-| **Hojas de Cálculo** | `@univerjs/preset-sheets-core` |
+| **Hojas de Cálculo** | Cuadrícula Angular, evaluador propio y gráficos SVG |
 | **Pizarra Vectorial** | `@excalidraw/excalidraw` |
 | **Resaltado de Código**| `monaco-editor` |
 | **Fórmulas Matemáticas** | `katex` |

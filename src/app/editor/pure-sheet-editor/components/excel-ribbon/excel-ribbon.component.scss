@@ -1,0 +1,371 @@
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 40;
+}
+
+.ribbon-tab-container {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  font-size: 12px;
+  height: var(--ribbon-content-height);
+  min-height: var(--ribbon-content-height);
+  width: 100%;
+  overflow: visible;
+  padding: 0;
+  position: relative;
+  z-index: 30;
+}
+
+.borders-dropdown-container {
+  position: relative;
+  z-index: 100;
+}
+
+.ribbon-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  position: relative;
+  gap: 2px;
+  padding: 0 6px;
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+  height: 100%;
+  flex-shrink: 0;
+  overflow: visible;
+
+  &:first-child {
+    padding-left: 0;
+  }
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.dark-mode .ribbon-group {
+  border-right-color: #323238;
+}
+
+.group-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 68px;
+  height: 68px;
+  overflow: visible;
+}
+
+.stacked-rows {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  height: 68px;
+}
+
+.group-label {
+  font-size: 10px;
+  color: #64748b;
+  text-align: center;
+  margin-top: auto;
+  padding-top: 1px;
+  min-height: 16px;
+  height: 16px;
+  line-height: 16px;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.dark-mode .group-label {
+  color: #94a3b8;
+}
+
+/* Button styles matching Word & Excel Ribbon */
+.ribbon-btn-lg {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 6px;
+  min-width: 44px;
+  height: 68px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  &.active {
+    background-color: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+}
+
+.dark-mode .ribbon-btn-lg {
+  &:hover {
+    background-color: #262626;
+    border-color: #404040;
+  }
+
+  &.active {
+    background-color: rgba(30, 58, 138, 0.5);
+    border-color: #3b82f6;
+    color: #93c5fd;
+  }
+}
+
+.ribbon-btn-stacked {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 6px;
+  height: 17px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  &.active {
+    background-color: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+}
+
+.dark-mode .ribbon-btn-stacked {
+  &:hover {
+    background-color: #262626;
+    border-color: #404040;
+  }
+
+  &.active {
+    background-color: rgba(30, 58, 138, 0.5);
+    border-color: #3b82f6;
+    color: #93c5fd;
+  }
+}
+
+.ribbon-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  &.active {
+    background-color: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+}
+
+.dark-mode .ribbon-btn-icon {
+  &:hover {
+    background-color: #262626;
+    border-color: #404040;
+  }
+
+  &.active {
+    background-color: rgba(30, 58, 138, 0.5);
+    border-color: #3b82f6;
+    color: #93c5fd;
+  }
+}
+
+.ribbon-select {
+  border-radius: 3px;
+  padding: 1px 4px;
+  height: 23px;
+  font-size: 11px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:focus {
+    border-color: #3b82f6;
+  }
+}
+
+.dark-mode .ribbon-select {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+
+  &:focus {
+    border-color: #3b82f6;
+  }
+}
+
+/* Style Preset Chips (Normal, Bad, Good, Neutral, Calculation, Check Cell) */
+.style-chip {
+  padding: 2px 7px;
+  font-size: 10px;
+  border-radius: 2px;
+  text-align: left;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+  transition: opacity 0.15s ease, transform 0.05s ease;
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &.style-normal {
+    background: #ffffff;
+    color: #0f172a;
+    border-color: #cbd5e1;
+  }
+
+  &.style-bad {
+    background: #ffc7ce;
+    color: #9c0006;
+  }
+
+  &.style-good {
+    background: #c6efce;
+    color: #006100;
+  }
+
+  &.style-neutral {
+    background: #ffeb9c;
+    color: #9c6500;
+  }
+
+  &.style-calculation {
+    background: #f2f2f2;
+    color: #fa7d00;
+    font-weight: 600;
+    border-color: #7f7f7f;
+  }
+
+  &.style-check {
+    background: #a5a5a5;
+    color: #ffffff;
+    font-weight: 600;
+    border-bottom: 2px double #ffffff;
+  }
+}
+
+.excel-ribbon {
+  --ribbon-content-height: 88px;
+  --ribbon-panel: #fff;
+  --ribbon-border: #e2e8f0;
+  --ribbon-text: #334155;
+  --ribbon-muted: #64748b;
+  --ribbon-hover: #eff6ff;
+  --ribbon-active: #dbeafe;
+  --ribbon-accent: #2563eb;
+  padding: 2px 16px;
+  background: rgb(241 245 249 / 95%);
+  color: var(--ribbon-text);
+  border-bottom: 1px solid var(--ribbon-border);
+}
+.excel-ribbon.dark-mode {
+  --ribbon-panel: #202024;
+  --ribbon-border: #323238;
+  --ribbon-text: #e4e4e7;
+  --ribbon-muted: #a1a1aa;
+  --ribbon-hover: #27272a;
+  --ribbon-active: #1e3a8a80;
+  --ribbon-accent: #93c5fd;
+  background: rgb(24 24 27 / 95%);
+}
+.ribbon-navigation { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 2px; padding: 0 8px; min-height: 26px; }
+.ribbon-tabs { display: flex; align-items: center; gap: 24px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.ribbon-tab { position: relative; flex-shrink: 0; padding: 0 0 6px; border: 0; background: transparent; color: var(--ribbon-muted); font-size: 14px; font-weight: 500; cursor: pointer; transition: color .15s; }
+.ribbon-tab:hover, .ribbon-tab.active { color: var(--ribbon-text); }
+.ribbon-tab.active { font-weight: 600; }
+.ribbon-tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: #3b82f6; border-radius: 99px; }
+.ribbon-pill-container { height: 98px; min-height: 98px; padding: 4px 6px; background: var(--ribbon-panel); border: 1px solid var(--ribbon-border); border-radius: 12px; box-shadow: 0 1px 2px #0000000d; position: relative; overflow: visible; }
+.ribbon-tab-container > app-excel-insert-toolbar,
+.ribbon-tab-container > app-excel-draw-toolbar,
+.ribbon-tab-container > app-excel-page-layout-toolbar,
+.ribbon-tab-container > app-excel-view-toolbar { flex: 1; min-width: 0; height: 100%; }
+.ribbon-btn-icon { width: 24px; height: 24px; }
+.ribbon-btn-lg svg, .ribbon-btn-icon svg, .ribbon-btn-stacked svg { color: var(--ribbon-muted); }
+.ribbon-btn-icon.active svg, .ribbon-btn-lg.active svg, .ribbon-btn-stacked.active svg { color: inherit; }
+.ribbon-select { height: 24px; background: var(--ribbon-panel); color: var(--ribbon-text); border-color: var(--ribbon-border); }
+.group-label { color: var(--ribbon-muted); }
+button:focus-visible, select:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+@media (max-width: 700px) { .excel-ribbon { padding-inline: 8px; } .ribbon-tabs { gap: 16px; } .ribbon-navigation { padding-inline: 0; gap: 8px; } }
+
+.ribbon-pill-container.scrollable-pill { height: 106px; min-height: 106px; }
+.ribbon-tab-container.toolbar-scroll {
+  height: calc(var(--ribbon-content-height) + 8px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+.toolbar-scroll::-webkit-scrollbar { height: 8px; }
+.toolbar-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 8px; }
+.toolbar-scroll > .ribbon-group { height: var(--ribbon-content-height); }
+.ribbon-tab-container.toolbar-scroll > app-excel-page-layout-toolbar,
+.ribbon-tab-container.toolbar-scroll > app-excel-formulas-toolbar {
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 100%;
+  height: var(--ribbon-content-height);
+}
+.borders-menu-anchor { position: fixed; z-index: 100; width: 0; height: 0; }
+
+.chart-palette { min-width: 66px; }
+.chart-palette svg, .chart-change-type svg { color: #38bdf8; }
+.chart-range-action { padding-inline: 18px; }
+.chart-range-action svg { color: #34d399; }
+.chart-change-type { border-color: var(--ribbon-border); }
+.chart-delete, .chart-delete svg { color: #fb7185; }
+
+.chart-style-group .chart-palette.active { background: #0596691a; border-color: #059669; color: #059669; }
+
+.chart-title-input { width: 190px; }

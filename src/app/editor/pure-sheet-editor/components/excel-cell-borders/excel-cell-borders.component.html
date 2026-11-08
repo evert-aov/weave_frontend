@@ -1,0 +1,8 @@
+@if (hasBorders) {
+  <div class="cell-borders-overlay"
+       [style.border-top]="getBorderStyle('top')"
+       [style.border-bottom]="getBorderStyle('bottom')"
+       [style.border-left]="getBorderStyle('left')"
+       [style.border-right]="getBorderStyle('right')">
+  </div>
+}

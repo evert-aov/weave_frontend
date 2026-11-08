@@ -1,0 +1,501 @@
+<div class="excel-ribbon" [class.dark-mode]="themeService.isDark()">
+
+  <!-- 1. RIBBON TABS BAR -->
+  <div class="ribbon-navigation" (dblclick)="toggleCollapse()">
+    <div class="ribbon-tabs">
+      @for (tab of ribbonTabs; track tab) {
+        <button type="button" (click)="selectTab(tab)" class="ribbon-tab" [class.active]="activeTab === tab"
+          [attr.aria-current]="activeTab === tab ? 'page' : null">
+          {{ getTabLabel(tab) }}
+        </button>
+      }
+    </div>
+
+  </div>
+
+  <!-- 2. RIBBON TOOLBAR CONTAINER -->
+  <div class="ribbon-pill-container" [class.scrollable-pill]="activeTab === 'Home' || activeTab === 'Page Layout' || activeTab === 'Formulas'" [style.display]="isCollapsed ? 'none' : null">
+  <div class="ribbon-tab-container" [class.toolbar-scroll]="activeTab === 'Home' || activeTab === 'Page Layout' || activeTab === 'Formulas'" (scroll)="bordersMenuOpen = false">
+
+    <!-- ==================== TAB: FILE ==================== -->
+    @if (activeTab === 'File') {
+      <!-- 1. Document / Save Group -->
+      <section class="ribbon-group" aria-label="Libro y Guardado">
+        <div class="group-controls">
+          <button type="button" (click)="save.emit()" title="Guardar libro (Ctrl+S)" class="ribbon-btn-lg">
+            <svg lucideIcon="save" [size]="18" class="text-emerald-500 mb-0.5"></svg>
+            <span>Guardar</span>
+          </button>
+          <button type="button" (click)="loadDemoData.emit()" title="Cargar datos de demostración" class="ribbon-btn-lg">
+            <svg lucideIcon="sparkles" [size]="18" class="text-amber-400 mb-0.5"></svg>
+            <span>Datos Demo</span>
+          </button>
+        </div>
+        <span class="group-label">Documento</span>
+      </section>
+
+      <section class="ribbon-group" [attr.aria-label]="t('excel.xlsx.group')">
+        <div class="group-controls">
+          <button type="button" class="ribbon-btn-lg" [disabled]="xlsxBusy" (click)="importXlsx.emit()" [title]="t('excel.xlsx.import_hint')">
+            <svg lucideIcon="file-spreadsheet" [size]="18" class="text-emerald-600"></svg><span>{{ t('excel.xlsx.import') }}</span>
+          </button>
+          <button type="button" class="ribbon-btn-lg" [disabled]="xlsxBusy" (click)="exportXlsx.emit()" [title]="t('excel.xlsx.export_hint')">
+            <svg lucideIcon="download" [size]="18" class="text-emerald-600"></svg><span>{{ t('excel.xlsx.export') }}</span>
+          </button>
+        </div>
+        <span class="group-label">{{ t('excel.xlsx.scope') }}</span>
+      </section>
+      <!-- 2. Export Group -->
+      <section class="ribbon-group" aria-label="Exportación">
+        <div class="group-controls">
+          <button type="button" (click)="exportCsv.emit()" title="Exportar hoja activa a CSV" class="ribbon-btn-lg">
+            <svg lucideIcon="file-spreadsheet" [size]="18" class="text-emerald-600 mb-0.5"></svg>
+            <span>Exportar CSV</span>
+          </button>
+          <button type="button" (click)="openExportModal.emit()" title="Exportar PDF, Markdown o HTML en Weave" class="ribbon-btn-lg">
+            <svg lucideIcon="download" [size]="18" class="text-sky-500 mb-0.5"></svg>
+            <span>Exportar PDF</span>
+          </button>
+        </div>
+        <span class="group-label">Exportar</span>
+      </section>
+
+      <!-- 3. Workspace Integration Group -->
+      <section class="ribbon-group" aria-label="Weave Workspace">
+        <div class="group-controls">
+          <button type="button" (click)="toggleAi.emit()" title="Abrir panel Asistente IA" class="ribbon-btn-lg">
+            <svg lucideIcon="sparkles" [size]="18" class="text-purple-500 mb-0.5"></svg>
+            <span>Asistente IA</span>
+          </button>
+          <button type="button" (click)="toggleSidebar.emit()" title="Alternar barra lateral de espacios" class="ribbon-btn-lg">
+            <svg lucideIcon="panel-left" [size]="18" class="text-slate-400 mb-0.5"></svg>
+            <span>Navegación</span>
+          </button>
+          <button type="button" (click)="openSettings.emit()" title="Ajustes de tema, idioma y opciones" class="ribbon-btn-lg">
+            <svg lucideIcon="sliders-horizontal" [size]="18" class="text-slate-400 mb-0.5"></svg>
+            <span>Ajustes</span>
+          </button>
+        </div>
+        <span class="group-label">Entorno</span>
+      </section>
+    }
+
+    <!-- ==================== TAB: HOME ==================== -->
+    @if (activeTab === 'Home') {
+      <!-- 1. Clipboard Group -->
+      <section class="ribbon-group" [attr.aria-label]="t('excel.group.clipboard')">
+        <div class="group-controls">
+          <button type="button" (click)="paste.emit()" title="Pegar (Ctrl+V)" class="ribbon-btn-lg">
+            <svg lucideIcon="clipboard" [size]="20" class="text-amber-300 mb-0.5"></svg>
+            <span>{{ t('excel.action.paste') }}</span>
+          </button>
+          <div class="stacked-rows">
+            <button type="button" (click)="cut.emit()" title="Cortar (Ctrl+X)" class="ribbon-btn-stacked">
+              <svg lucideIcon="scissors" [size]="13" class="text-gray-400"></svg>
+              <span>{{ t('excel.action.cut') }}</span>
+            </button>
+            <button type="button" (click)="copy.emit()" title="Copiar (Ctrl+C)" class="ribbon-btn-stacked">
+              <svg lucideIcon="copy" [size]="13" class="text-gray-400"></svg>
+              <span>{{ t('excel.action.copy') }}</span>
+            </button>
+            <button type="button" (click)="formatPainter.emit()" title="Copiar formato" class="ribbon-btn-stacked">
+              <svg lucideIcon="paintbrush" [size]="13" class="text-amber-400"></svg>
+              <span>{{ t('excel.action.format_painter') }}</span>
+            </button>
+          </div>
+        </div>
+        <span class="group-label">{{ t('excel.group.clipboard') }}</span>
+      </section>
+
+      <!-- 2. Font Group -->
+      <section class="ribbon-group" [attr.aria-label]="t('excel.group.font')">
+        <div class="stacked-rows">
+          <!-- Top Row: Font Family, Size, Grow, Shrink -->
+          <div class="flex items-center gap-1">
+            <select [value]="activeCellStyle.fontFamily || 'Segoe UI'"
+                    (change)="onFontFamilyChange($event)"
+                    class="ribbon-select w-28">
+              @for (f of fontFamilies; track f) {
+                <option [value]="f">{{ f }}</option>
+              }
+            </select>
+            <select [value]="activeCellStyle.fontSize || 11"
+                    (change)="onFontSizeChange($event)"
+                    class="ribbon-select w-12">
+              @for (s of fontSizes; track s) {
+                <option [value]="s">{{ s }}</option>
+              }
+            </select>
+            <button type="button" (click)="adjustFontSize(1)" title="Aumentar tamaño de fuente" class="ribbon-btn-icon text-xs font-semibold">
+              <span class="text-xs">A^</span>
+            </button>
+            <button type="button" (click)="adjustFontSize(-1)" title="Disminuir tamaño de fuente" class="ribbon-btn-icon text-[10px]">
+              <span class="text-[10px]">Aˇ</span>
+            </button>
+          </div>
+
+          <!-- Bottom Row: Bold, Italic, Underline, Borders, Fill Color, Text Color -->
+          <div class="flex items-center gap-0.5">
+            <button type="button" (click)="toggleBold()" title="Negrita (Ctrl+B)"
+                    class="ribbon-btn-icon" [class.active]="activeCellStyle.bold">
+              <svg lucideIcon="bold" [size]="14"></svg>
+            </button>
+            <button type="button" (click)="toggleItalic()" title="Cursiva (Ctrl+I)"
+                    class="ribbon-btn-icon" [class.active]="activeCellStyle.italic">
+              <svg lucideIcon="italic" [size]="14"></svg>
+            </button>
+            <button type="button" (click)="toggleUnderline()" title="Subrayado (Ctrl+U)"
+                    class="ribbon-btn-icon" [class.active]="activeCellStyle.underline">
+              <svg lucideIcon="underline" [size]="14"></svg>
+            </button>
+
+            <!-- Borders Dropdown Container -->
+            <div class="relative inline-flex items-center borders-dropdown-container">
+              <button type="button"
+                      (click)="toggleBordersMenu($event)"
+                      title="Bordes de celda"
+                      class="ribbon-btn-icon"
+                      [class.active]="bordersMenuOpen || drawBorderMode !== 'none'">
+                <svg lucideIcon="grid" [size]="14"></svg>
+              </button>
+              <button type="button"
+                      (click)="toggleBordersMenu($event)"
+                      class="h-6 px-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-r flex items-center justify-center text-slate-500 cursor-pointer"
+                      title="Desplegar opciones de bordes">
+                <svg lucideIcon="chevron-down" [size]="10"></svg>
+              </button>
+
+
+            </div>
+
+            <!-- Fill Color Picker -->
+            <label title="Color de relleno" class="ribbon-btn-icon relative cursor-pointer flex flex-col items-center">
+              <svg lucideIcon="paint-bucket" [size]="13" class="text-amber-400"></svg>
+              <span class="w-3.5 h-1 bg-yellow-400 rounded-xs -mt-0.5"></span>
+              <input type="color" [value]="activeCellStyle.bgColor || '#ffffff'"
+                     (change)="onColorChange($event, 'bgColor')"
+                     class="opacity-0 absolute inset-0 cursor-pointer w-full h-full" />
+            </label>
+
+            <!-- Text Color Picker -->
+            <label title="Color de fuente" class="ribbon-btn-icon relative cursor-pointer flex flex-col items-center">
+              <svg lucideIcon="type" [size]="14" class="text-rose-500"></svg>
+              <span class="w-3.5 h-1 bg-red-500 rounded-xs -mt-0.5"></span>
+              <input type="color" [value]="activeCellStyle.textColor || '#000000'"
+                     (change)="onColorChange($event, 'textColor')"
+                     class="opacity-0 absolute inset-0 cursor-pointer w-full h-full" />
+            </label>
+          </div>
+        </div>
+        <span class="group-label">{{ t('excel.group.font') }}</span>
+      </section>
+
+      <!-- 3. Alignment Group -->
+      <section class="ribbon-group" [attr.aria-label]="t('excel.group.alignment')">
+        <div class="group-controls gap-2">
+          <!-- Left/Center/Right align icons -->
+          <div class="flex items-center gap-0.5">
+            <button type="button" (click)="setAlign('left')" title="Alinear a la izquierda"
+                    class="ribbon-btn-icon" [class.active]="activeCellStyle.align === 'left' || !activeCellStyle.align">
+              <svg lucideIcon="align-left" [size]="14"></svg>
+            </button>
+            <button type="button" (click)="setAlign('center')" title="Centrar"
+                    class="ribbon-btn-icon" [class.active]="activeCellStyle.align === 'center'">
+              <svg lucideIcon="align-center" [size]="14"></svg>
+            </button>
+            <button type="button" (click)="setAlign('right')" title="Alinear a la derecha"
+                    class="ribbon-btn-icon" [class.active]="activeCellStyle.align === 'right'">
+              <svg lucideIcon="align-right" [size]="14"></svg>
+            </button>
+          </div>
+
+          <!-- Wrap Text & Merge & Center -->
+          <div class="stacked-rows">
+            <button type="button" (click)="toggleWrap()"
+                    class="ribbon-btn-stacked" [class.active]="activeCellStyle.wrapText"
+                    title="Ajustar texto">
+              <svg lucideIcon="wrap-text" [size]="13" class="text-sky-400"></svg>
+              <span>{{ t('excel.action.wrap_text') }}</span>
+            </button>
+            <button type="button" (click)="toggleMerge.emit()"
+                    class="ribbon-btn-stacked" [class.active]="selectionIsMerged" [attr.aria-pressed]="selectionIsMerged"
+                    [title]="selectionIsMerged ? t('excel.action.unmerge') : t('excel.action.merge_center')">
+              <svg lucideIcon="combine" [size]="13" class="text-sky-400"></svg>
+              <span>{{ selectionIsMerged ? t('excel.action.unmerge') : t('excel.action.merge_center') }}</span>
+            </button>
+          </div>
+        </div>
+        <span class="group-label">{{ t('excel.group.alignment') }}</span>
+      </section>
+
+      <!-- 4. Number Group -->
+      <section class="ribbon-group" [attr.aria-label]="t('excel.group.number')">
+        <div class="stacked-rows">
+          <select [value]="activeCellStyle.numberFormat || 'general'"
+                  (change)="setNumberFormat($any($event.target).value)"
+                  class="ribbon-select w-26">
+            <option value="general">General</option>
+            <option value="currency">Currency ($)</option>
+            <option value="percent">Percentage (%)</option>
+            <option value="comma">Number (1,000.00)</option>
+            <option value="date">{{ t('excel.format.date') }}</option>
+            <option value="datetime">{{ t('excel.format.datetime') }}</option>
+          </select>
+          <div class="flex items-center gap-0.5">
+            <button type="button" (click)="setNumberFormat('currency')" title="Formato Moneda ($)" class="ribbon-btn-icon">
+              <svg lucideIcon="dollar-sign" [size]="13" class="text-emerald-400"></svg>
+            </button>
+            <button type="button" (click)="setNumberFormat('percent')" title="Formato Porcentaje (%)" class="ribbon-btn-icon">
+              <svg lucideIcon="percent" [size]="13"></svg>
+            </button>
+            <button type="button" (click)="setNumberFormat('comma')" title="Estilo Millares (,)" class="ribbon-btn-icon font-bold text-xs">
+              <span>,</span>
+            </button>
+            <button type="button" (click)="adjustDecimals(1)" title="Aumentar decimales" class="ribbon-btn-icon text-[10px] text-sky-400 font-semibold">
+              <span>+.00</span>
+            </button>
+            <button type="button" (click)="adjustDecimals(-1)" title="Disminuir decimales" class="ribbon-btn-icon text-[10px] text-sky-400 font-semibold">
+              <span>-.0</span>
+            </button>
+          </div>
+        </div>
+        <span class="group-label">{{ t('excel.group.number') }}</span>
+      </section>
+
+      <!-- 5. Styles Group -->
+      <section class="ribbon-group" [attr.aria-label]="t('excel.group.styles')">
+        <div class="group-controls gap-2">
+          <!-- Conditional Formatting -->
+          <button type="button" (click)="openConditionalFormatting.emit()"
+                  class="ribbon-btn-lg text-center" title="Formato Condicional">
+            <svg lucideIcon="grid" [size]="16" class="text-rose-400 mb-0.5"></svg>
+            <span class="leading-tight">{{ t('excel.action.conditional') }}</span>
+          </button>
+
+          <!-- 2x3 Style Presets Grid -->
+          <div class="grid grid-cols-3 gap-1 p-1 rounded border"
+               [class.bg-[#141414]]="themeService.isDark()"
+               [class.border-[#333333]]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()">
+            <button type="button" (click)="applyPreset('normal')" class="style-chip style-normal">Normal</button>
+            <button type="button" (click)="applyPreset('bad')" class="style-chip style-bad">Bad</button>
+            <button type="button" (click)="applyPreset('good')" class="style-chip style-good">Good</button>
+            <button type="button" (click)="applyPreset('neutral')" class="style-chip style-neutral">Neutral</button>
+            <button type="button" (click)="applyPreset('calculation')" class="style-chip style-calculation">Calculation</button>
+            <button type="button" (click)="applyPreset('check')" class="style-chip style-check">Check Cell</button>
+          </div>
+        </div>
+        <span class="group-label">{{ t('excel.group.styles') }}</span>
+      </section>
+
+      <!-- 6. Cells Group -->
+      <section class="ribbon-group" [attr.aria-label]="t('excel.group.cells')">
+        <div class="group-controls gap-1">
+          <button type="button" (click)="insertTable.emit()" class="ribbon-btn-lg" title="Insertar">
+            <svg lucideIcon="plus" [size]="16" class="text-sky-400 mb-0.5"></svg>
+            <span>{{ t('excel.action.insert') }}</span>
+          </button>
+          <button type="button" (click)="clearContent.emit()" class="ribbon-btn-lg" title="Eliminar contenido">
+            <svg lucideIcon="trash-2" [size]="16" class="text-rose-400 mb-0.5"></svg>
+            <span>{{ t('excel.action.delete') }}</span>
+          </button>
+          <button type="button" (click)="clearContent.emit()" class="ribbon-btn-lg" title="Borrar">
+            <svg lucideIcon="eraser" [size]="16" class="text-amber-400 mb-0.5"></svg>
+            <span>{{ t('excel.action.clear') }}</span>
+          </button>
+        </div>
+        <span class="group-label">{{ t('excel.group.cells') }}</span>
+      </section>
+
+      <!-- 7. Editing Group -->
+      <section class="ribbon-group" [attr.aria-label]="t('excel.group.editing')">
+        <div class="group-controls gap-2">
+          <!-- AutoSum, Fill Down, Fill Right -->
+          <div class="stacked-rows">
+            <button type="button" (click)="autoSum.emit('SUMA')" class="ribbon-btn-stacked" title="Autosuma (Alt+=)">
+              <svg lucideIcon="sigma" [size]="13" class="text-amber-400"></svg>
+              <span>{{ t('excel.formula.autosum') }}</span>
+            </button>
+            <button type="button" (click)="fillDown.emit()" class="ribbon-btn-stacked text-emerald-400" title="Rellenar hacia abajo (Ctrl+D)">
+              <svg lucideIcon="arrow-down" [size]="12"></svg>
+              <span>{{ t('excel.action.fill_down') }}</span>
+            </button>
+            <button type="button" (click)="fillRight.emit()" class="ribbon-btn-stacked text-sky-400" title="Rellenar hacia la derecha (Ctrl+R)">
+              <svg lucideIcon="arrow-right" [size]="12"></svg>
+              <span>{{ t('excel.action.fill_right') }}</span>
+            </button>
+          </div>
+
+          <!-- Sort & Filter -->
+          <button type="button" (click)="openSortFilter.emit()" class="ribbon-btn-lg" title="Ordenar y Filtrar">
+            <svg lucideIcon="arrow-down-up" [size]="16" class="text-sky-400 mb-0.5"></svg>
+            <span>{{ t('excel.action.sort_filter') }}</span>
+          </button>
+
+          <!-- Find & Select / Functions -->
+          <button type="button" (click)="openFunctionsDrawer.emit()" class="ribbon-btn-lg" title="Buscar y Funciones">
+            <svg lucideIcon="search" [size]="16" class="text-sky-400 mb-0.5"></svg>
+            <span>{{ t('excel.action.find_select') }}</span>
+          </button>
+        </div>
+        <span class="group-label">{{ t('excel.group.editing') }}</span>
+      </section>
+    }
+
+    <!-- ==================== TAB: INSERT ==================== -->
+    @if (activeTab === 'Insert') {
+      <app-excel-insert-toolbar (openShapes)="openShapes.emit()" (openIcons)="openIcons.emit()"
+        (insertChart)="insertChartDirectly.emit($event)"
+        (openAllChartsModal)="openChartModal.emit($event)"
+        (insertCheckbox)="insertCheckbox.emit()"
+        (formatSelectionAsTable)="insertTable.emit()">
+      </app-excel-insert-toolbar>
+    }
+
+    <!-- ==================== TAB: DRAW ==================== -->
+    @if (activeTab === 'Draw') {
+      <app-excel-draw-toolbar
+        [activeTool]="activeDrawTool" [pens]="inkPens"
+        [inkToShape]="inkToShape"
+        [isReplaying]="isReplaying"
+        [hasStrokes]="hasStrokes"
+        (selectTool)="setDrawTool.emit($event)"
+        (addPen)="addPen.emit($event)"
+        (toggleInkToShape)="toggleInkToShape.emit()"
+        (openInkToMath)="openInkToMath.emit()"
+        (replayInk)="replayInk.emit()"
+        (undoInk)="undoInk.emit()"
+        (redoInk)="redoInk.emit()"
+        (clearAllInk)="clearAllInk.emit()">
+      </app-excel-draw-toolbar>
+    }
+
+    <!-- ==================== TAB: PAGE LAYOUT ==================== -->
+    @if (activeTab === 'Page Layout') {
+      <app-excel-page-layout-toolbar
+        [config]="pageLayout"
+        [showGridlines]="showGridlines"
+        [showHeadings]="showHeadings"
+        [zoom]="zoom"
+        [hasSelectedChart]="selectedChart !== null"
+        (updateConfig)="updatePageLayout.emit($event)"
+        (toggleGridlines)="toggleGridlines.emit()"
+        (toggleHeadings)="toggleHeadings.emit()"
+        (changeZoom)="changeZoom.emit($event)"
+        (setPrintArea)="setPrintArea.emit()"
+        (clearPrintArea)="clearPrintArea.emit()"
+        (bringChartForward)="bringChartForward.emit()"
+        (sendChartBackward)="sendChartBackward.emit()">
+      </app-excel-page-layout-toolbar>
+    }
+
+    <!-- ==================== TAB: FORMULAS ==================== -->
+    @if (activeTab === 'Formulas') {
+      <app-excel-formulas-toolbar [showFormulas]="showFormulasInCells"
+        (openFunctions)="openFunctionsDrawer.emit()" (openNames)="openNames.emit()" (insertFormula)="insertFormula.emit($event)"
+        (autoSum)="autoSum.emit($event)" (toggleFormulas)="toggleShowFormulas.emit()"
+        (traceReference)="traceReference.emit($event)" (clearTrace)="clearTrace.emit()" (editFormula)="editFormula.emit($event)" (recalculate)="recalculate.emit()" />
+    }
+
+    <!-- ==================== TAB: DATA ==================== -->
+    @if (activeTab === 'Data') {
+      <section class="ribbon-group" [attr.aria-label]="t('excel.tab.data')">
+        <div class="group-controls">
+          <button type="button" (click)="openSortFilter.emit()" class="ribbon-btn-lg" title="Ordenar y Filtrar">
+            <svg lucideIcon="arrow-down-up" [size]="18" class="text-sky-400 mb-0.5"></svg>
+            <span>Ordenar y Filtrar</span>
+          </button>
+        </div>
+        <span class="group-label">{{ t('excel.tab.data') }}</span>
+      </section>
+    }
+
+    <!-- ==================== TAB: VIEW ==================== -->
+    @if (activeTab === 'View') {
+      <app-excel-view-toolbar
+        [activeSheetType]="activeSheetType"
+        [showGridlines]="showGridlines"
+        [showFormulaBar]="showFormulaBar"
+        [showHeadings]="showHeadings"
+        [zoom]="zoom"
+        [freezePanes]="freezePanesConfig"
+        [activeCellId]="activeCellId"
+        [selectedRow]="selectedRow"
+        [selectedCol]="selectedCol"
+        (selectNormalView)="selectNormalView.emit()"
+        (selectChartView)="selectChartView.emit()"
+        (toggleGridlines)="toggleGridlines.emit()"
+        (toggleFormulaBar)="toggleFormulaBar.emit()"
+        (toggleHeadings)="toggleHeadings.emit()"
+        (changeZoom)="changeZoom.emit($event)"
+        (setFreezePanes)="freezePanes.emit($event)"
+        (unfreezePanes)="unfreezePanes.emit()">
+      </app-excel-view-toolbar>
+    }
+
+    <!-- ==================== TAB: CHART DESIGN (Contextual) ==================== -->
+    @if (activeTab === 'Chart Design' && selectedChart) {
+      <section class="ribbon-group">
+        <div class="group-controls"><button type="button" class="ribbon-btn-lg" (click)="configureChartAppearance.emit()"><svg lucideIcon="sliders-horizontal" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Formato' : 'Format' }}</span></button><input class="ribbon-select chart-title-input" type="text" [value]="selectedChart.chartTitle || ''"
+          [placeholder]="i18n.currentLang() === 'es' ? 'Añadir título al gráfico' : 'Add chart title'"
+          [attr.aria-label]="i18n.currentLang() === 'es' ? 'Título del gráfico' : 'Chart title'"
+          (input)="changeChartTitle.emit($any($event.target).value)" /></div>
+        <span class="group-label">{{ i18n.currentLang() === 'es' ? 'Título' : 'Title' }}</span>
+      </section>
+      <section class="ribbon-group chart-style-group">
+        <div class="group-controls">
+          @for (palette of chartPalettes; track palette.id) {
+            <button type="button" class="ribbon-btn-lg chart-palette" [class.active]="!hasCustomChartColors && (selectedChart.colorPalette || 'excel') === palette.id"
+              [attr.aria-pressed]="!hasCustomChartColors && (selectedChart.colorPalette || 'excel') === palette.id" (click)="changeSelectedChartPalette.emit(palette.id)">
+              <svg lucideIcon="palette" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? palette.es : palette.en }}</span>
+            </button>
+          }
+          <button type="button" class="ribbon-btn-lg chart-customize" [class.active]="hasCustomChartColors" [attr.aria-pressed]="hasCustomChartColors" (click)="configureChartAppearance.emit()">
+            <svg lucideIcon="sliders-horizontal" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Personalizar' : 'Customize' }}</span>
+          </button>
+        </div>
+        <span class="group-label">{{ i18n.currentLang() === 'es' ? 'Estilos de gráfico' : 'Chart Styles' }}</span>
+      </section>
+      <section class="ribbon-group">
+        <div class="group-controls">
+          <button type="button" class="ribbon-btn-lg chart-data-action" (click)="configureChartData.emit()">
+            <svg lucideIcon="table" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Seleccionar datos' : 'Select Data' }}</span>
+          </button>
+          <button type="button" class="ribbon-btn-lg chart-range-action" (click)="useSelectedChartRange.emit()">
+            <svg lucideIcon="table" [size]="18"></svg>
+            <span>{{ i18n.currentLang() === 'es' ? 'Usar rango seleccionado' : 'Use Selected Range' }} ({{ selectedRangeLabel || activeCellId }})</span>
+          </button>
+        </div>
+        <span class="group-label">{{ i18n.currentLang() === 'es' ? 'Datos' : 'Data' }}</span>
+      </section>
+      <section class="ribbon-group">
+        <div class="group-controls gap-2">
+          <button type="button" (click)="changeChartType.emit()" class="ribbon-btn-lg chart-change-type">
+            <svg lucideIcon="bar-chart-2" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Cambiar tipo de gráfico' : 'Change Chart Type' }}</span>
+          </button>
+          <button type="button" (click)="deleteSelectedChart.emit()" class="ribbon-btn-lg chart-delete">
+            <svg lucideIcon="trash-2" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Eliminar gráfico' : 'Delete Chart' }}</span>
+          </button>
+        </div>
+        <span class="group-label">{{ i18n.currentLang() === 'es' ? 'Tipo' : 'Type' }}</span>
+      </section>
+    }
+
+  </div>
+  <div class="borders-menu-anchor" [style.left.px]="borderMenuPosition.left" [style.top.px]="borderMenuPosition.top">
+              <app-excel-borders-menu
+                [isOpen]="bordersMenuOpen"
+                [lineColor]="effectiveBorderLineColor"
+                [lineStyle]="borderLineStyle"
+                [drawMode]="drawBorderMode"
+                (close)="bordersMenuOpen = false"
+                (applyPreset)="onApplyBorderPreset($event)"
+                (applyCustomBorders)="applyCustomBorders.emit($event)"
+                (selectLineColor)="onSelectLineColor($event)"
+                (selectLineStyle)="borderLineStyle = $event"
+                (selectDrawMode)="onSelectDrawMode($event)">
+              </app-excel-borders-menu>
+  </div>
+  </div>
+</div>

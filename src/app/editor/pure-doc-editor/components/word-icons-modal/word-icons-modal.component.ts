@@ -80,12 +80,7 @@ export interface IconItem {
   tags: string[];
 }
 
-@Component({
-  selector: 'app-word-icons-modal',
-  standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon],
-  providers: [
-    provideLucideIcons(
+export const WORD_ICON_DEFINITIONS = [
       LucideSearch,
       LucideX,
       LucideHome,
@@ -153,7 +148,14 @@ export interface IconItem {
       LucideSmile,
       LucideZap,
       LucideCheck,
-    ),
+];
+
+@Component({
+  selector: 'app-word-icons-modal',
+  standalone: true,
+  imports: [CommonModule, FormsModule, LucideDynamicIcon],
+  providers: [
+    provideLucideIcons(...WORD_ICON_DEFINITIONS),
   ],
   templateUrl: './word-icons-modal.component.html',
   styleUrl: './word-icons-modal.component.scss',

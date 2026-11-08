@@ -1,0 +1,91 @@
+<div class="flex-1 w-full h-full p-6 flex flex-col items-center justify-center overflow-auto transition-colors"
+     [class.bg-slate-900]="themeService.isDark()"
+     [class.bg-slate-100]="!themeService.isDark()">
+  
+  <div class="w-full max-w-5xl rounded-xl p-6 shadow-2xl border transition-colors flex flex-col"
+       [class.bg-slate-800]="themeService.isDark()"
+       [class.border-slate-700]="themeService.isDark()"
+       [class.text-white]="themeService.isDark()"
+       [class.bg-white]="!themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()"
+       [class.text-slate-800]="!themeService.isDark()">
+    
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6 pb-4 border-b"
+         [class.border-slate-700]="themeService.isDark()"
+         [class.border-slate-200]="!themeService.isDark()">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-emerald-600/15 flex items-center justify-center text-emerald-500">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+        </div>
+        <div>
+          <h2 class="text-base font-semibold">
+            {{ i18n.currentLang() === 'es' ? 'Gráfico Dinámico de Hoja' : 'Dynamic Sheet Chart' }}
+          </h2>
+          <p class="text-xs text-slate-400">
+            {{ i18n.currentLang() === 'es' ? 'Sincronizado en tiempo real con los datos de las hojas de cálculo' : 'Real-time synchronized with workbook data' }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <!-- Palette Selector -->
+        <select [(ngModel)]="palette"
+                class="rounded-lg px-3 py-1.5 text-xs border font-medium transition-colors cursor-pointer"
+                [class.bg-slate-700]="themeService.isDark()"
+                [class.border-slate-600]="themeService.isDark()"
+                [class.text-slate-100]="themeService.isDark()"
+                [class.bg-slate-50]="!themeService.isDark()"
+                [class.border-slate-200]="!themeService.isDark()"
+                [class.text-slate-700]="!themeService.isDark()">
+          <option value="excel">{{ i18n.currentLang() === 'es' ? 'Paleta: Office Excel' : 'Palette: Office Excel' }}</option>
+          <option value="monochrome">{{ i18n.currentLang() === 'es' ? 'Paleta: Azul Monocromático' : 'Palette: Blue Monochrome' }}</option>
+          <option value="warm">{{ i18n.currentLang() === 'es' ? 'Paleta: Cálida' : 'Palette: Warm' }}</option>
+          <option value="cool">{{ i18n.currentLang() === 'es' ? 'Paleta: Fría' : 'Palette: Cool' }}</option>
+        </select>
+
+        <button type="button"
+                (click)="openChangeChartType.emit()"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors shadow-sm cursor-pointer"
+                [class.bg-slate-700]="themeService.isDark()"
+                [class.hover:bg-slate-600]="themeService.isDark()"
+                [class.border-slate-600]="themeService.isDark()"
+                [class.bg-white]="!themeService.isDark()"
+                [class.hover:bg-slate-50]="!themeService.isDark()"
+                [class.border-slate-200]="!themeService.isDark()">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+          </svg>
+          <span>{{ i18n.currentLang() === 'es' ? 'Cambiar Tipo de Gráfico…' : 'Change Chart Type…' }}</span>
+        </button>
+
+        @if (!hasSheetData) {
+          <button type="button"
+                  (click)="loadSampleData.emit()"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+            </svg>
+            <span>{{ i18n.currentLang() === 'es' ? 'Cargar Datos de Ejemplo' : 'Load Sample Data' }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Chart Box -->
+    <div class="h-96 w-full rounded-lg p-4 border transition-colors"
+         [class.bg-slate-900]="themeService.isDark()"
+         [class.border-slate-700]="themeService.isDark()"
+         [class.bg-white]="!themeService.isDark()"
+         [class.border-slate-100]="!themeService.isDark()">
+      <app-excel-chart-renderer [dataRevision]="dataRevision"
+        [category]="category"
+        [subType]="subType"
+        [grid]="grid"
+        [palette]="palette">
+      </app-excel-chart-renderer>
+    </div>
+  </div>
+</div>

@@ -52,6 +52,30 @@ describe('Word editing across pages', () => {
     vi.unstubAllGlobals();
   });
 
+  it('prevents duplicate PDF exports and releases the busy state after download', async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const compatibility = TestBed.inject(WordCompatibilityService);
+    compatibility.exportToPdf = vi.fn(() => pending);
+    const exporting = editor.exportPdf();
+    expect(editor.pdfExporting()).toBe(true);
+    await editor.exportPdf();
+    expect(compatibility.exportToPdf).toHaveBeenCalledTimes(1);
+    finish();
+    await exporting;
+    expect(editor.pdfExporting()).toBe(false);
+    expect(editor.pdfExportMessage()).toContain('Descarga iniciada');
+  });
+
+  it('releases the PDF button and exposes failures to the visible status message', async () => {
+    const compatibility = TestBed.inject(WordCompatibilityService);
+    compatibility.exportToPdf = vi.fn().mockRejectedValue(new Error('Tiempo agotado: imagen'));
+    await editor.exportPdf();
+    expect(editor.pdfExporting()).toBe(false);
+    expect(editor.pdfExportFailed()).toBe(true);
+    expect(editor.pdfExportMessage()).toContain('Tiempo agotado: imagen');
+  });
+
   function render(pages: DocumentPage[]): void {
     editor.pages.set(pages);
     updateBodies();

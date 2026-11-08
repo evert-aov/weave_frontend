@@ -1,0 +1,52 @@
+<div class="formulas-toolbar">
+  <section class="formula-group">
+    <div class="formula-controls">
+      @for (tool of library; track tool.label) {
+        <button type="button" class="formula-button" (click)="run(tool)" [title]="label(tool)">
+          @if (tool.icon) { <svg [style.color]="color(tool)" [lucideIcon]="tool.icon" [size]="18"></svg> }
+          @else { <span class="formula-symbol" [style.color]="color(tool)">{{ tool.symbol }}</span> }
+          <span>{{ label(tool) }}</span>
+          @if (tool.dropdown) { <svg lucideIcon="chevron-down" [size]="9"></svg> }
+        </button>
+      }
+    </div>
+    <span class="formula-group-label">{{ i18n.currentLang() === 'es' ? 'Biblioteca de funciones' : 'Function Library' }}</span>
+  </section>
+  <section class="formula-group">
+    <div class="formula-controls">
+      <button type="button" class="formula-button" (click)="openFunctions.emit()"><svg style="color: #fbbf24" lucideIcon="tag" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Administrador de nombres' : 'Name Manager' }}</span></button>
+      <div class="formula-stack">
+        @for (tool of names; track tool.label) {
+          <button type="button" class="formula-compact" [disabled]="tool.disabled" (click)="run(tool)"><svg [style.color]="color(tool)" [lucideIcon]="tool.icon!" [size]="14"></svg><span>{{ label(tool) }}</span></button>
+        }
+      </div>
+    </div>
+    <span class="formula-group-label">{{ i18n.currentLang() === 'es' ? 'Nombres definidos' : 'Defined Names' }}</span>
+  </section>
+  <section class="formula-group">
+    <div class="formula-controls">
+      @for (tools of [tracing, auditing]; track $index) {
+        <div class="formula-stack">
+          @for (tool of tools; track tool.label) {
+            <button type="button" class="formula-compact" [class.active]="tool.action === 'show' && showFormulas" [attr.aria-pressed]="tool.action === 'show' ? showFormulas : null" (click)="run(tool)">
+              @if (tool.icon) { <svg [style.color]="color(tool)" [lucideIcon]="tool.icon" [size]="14"></svg> } @else { <span class="compact-symbol" [style.color]="color(tool)">{{ tool.symbol }}</span> }
+              <span>{{ label(tool) }}</span>
+            </button>
+          }
+        </div>
+      }
+      <button type="button" class="formula-button" (click)="openFunctions.emit()"><svg style="color: #38bdf8" lucideIcon="eye" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Ventana de inspección' : 'Watch Window' }}</span></button>
+    </div>
+    <span class="formula-group-label">{{ i18n.currentLang() === 'es' ? 'Auditoría de fórmulas' : 'Formula Auditing' }}</span>
+  </section>
+  <section class="formula-group">
+    <div class="formula-controls">
+      <button type="button" class="formula-button" (click)="recalculate.emit()"><svg style="color: #38bdf8" lucideIcon="calculator" [size]="18"></svg><span>{{ i18n.currentLang() === 'es' ? 'Opciones de cálculo' : 'Calculation Options' }}</span><svg lucideIcon="chevron-down" [size]="9"></svg></button>
+      <div class="formula-stack">
+        <button type="button" class="formula-compact" (click)="recalculate.emit()"><svg style="color: #38bdf8" lucideIcon="calculator" [size]="14"></svg>{{ i18n.currentLang() === 'es' ? 'Calcular ahora' : 'Calculate Now' }}</button>
+        <button type="button" class="formula-compact" (click)="recalculate.emit()"><svg style="color: #34d399" lucideIcon="table" [size]="14"></svg>{{ i18n.currentLang() === 'es' ? 'Calcular hoja' : 'Calculate Sheet' }}</button>
+      </div>
+    </div>
+    <span class="formula-group-label">{{ i18n.currentLang() === 'es' ? 'Cálculo' : 'Calculation' }}</span>
+  </section>
+</div>

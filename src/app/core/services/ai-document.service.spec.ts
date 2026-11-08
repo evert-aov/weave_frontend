@@ -9,7 +9,6 @@ import { NotesService } from './notes.service';
 import { AiAssistantSidebarComponent } from '../../layout/ai-assistant-sidebar/ai-assistant-sidebar.component';
 import { htmlTextFields, domTextFields, applyHtmlText, richTextHtml, cleanLatexSource, unwrapCodeFence } from '../utils/ai-edit-text';
 import { sheetAiAdapter } from '../../shared/utils/ai-sheet-adapter';
-import { slideAiAdapter } from '../../shared/utils/ai-slide-adapter';
 
 describe('document edits from the main assistant', () => {
   const currentNote = signal<any>({ _id: 'a' });
@@ -78,15 +77,6 @@ describe('document edits from the main assistant', () => {
     expect(Array.from(adapter.fields())[0]).toEqual({ id: 'cell:s1:1:1', text: '12' });
     adapter.apply(new Map([['cell:s1:1:1', '=SUM(B1:B3)']]));
     expect(setValue).toHaveBeenCalledWith({ f: '=SUM(B1:B3)', v: null, p: null }); expect(persist).toHaveBeenCalledWith(snapshot);
-  });
-  it('changes PPTX rich text segments and appends text without dropping images or selecting another slide', () => {
-    const element = { id: 't', type: 'text', textSegments: [{ text: 'Hola', style: { bold: true } }, { text: ' mundo' }] };
-    const viewer = { getSlides: () => [{ elements: [element, { id: 'img', type: 'image' }] }], getActiveSlideIndex: () => 2, setActiveSlideIndex: vi.fn(), updateElement: vi.fn() };
-    const addText = vi.fn(); const persist = vi.fn();
-    const adapter = slideAiAdapter(() => 'a', () => viewer, addText, persist);
-    adapter.apply(new Map([['slide:1:t:0', 'Adiós'], ['slide:1:append', 'Más contenido']]));
-    expect(viewer.updateElement).toHaveBeenCalledWith('t', { text: 'Adiós mundo', textSegments: [{ text: 'Adiós', style: { bold: true } }, { text: ' mundo' }] });
-    expect(addText).toHaveBeenCalledWith(0, 'Más contenido'); expect(viewer.setActiveSlideIndex).toHaveBeenLastCalledWith(2); expect(persist).toHaveBeenCalled();
   });
   it('enables AI direct editing on Word and Excel documents without requiring topbar edit mode', async () => {
     let content = 'Texto inicial';
@@ -163,12 +153,6 @@ describe('document edits from the main assistant', () => {
     expect(setValue).toHaveBeenNthCalledWith(2, { f: '=SUM(B2:B5)', v: null, p: null });
     expect(setValue).toHaveBeenNthCalledWith(3, { f: '=C2*D2', v: null, p: null });
     expect(setValue).toHaveBeenNthCalledWith(4, { v: 1500, f: null, p: null });
-
-    const addText = vi.fn();
-    const viewer = { getSlides: () => [{ elements: [] }], getActiveSlideIndex: () => 0, setActiveSlideIndex: vi.fn(), updateElement: vi.fn() };
-    const slideAdapter = slideAiAdapter(() => 'a', () => viewer, addText, () => {});
-    slideAdapter.apply(new Map([['slide:1:append', '## Resumen\n- **Meta** *anual*']]));
-    expect(addText).toHaveBeenCalledWith(0, 'Resumen\n• Meta anual');
 
     expect(cleanLatexSource('```latex\n## Método\nTexto **clave**\n```', true)).toBe('\\subsection{Método}\nTexto \\textbf{clave}');
     expect(unwrapCodeFence('```mermaid\ngraph TD\nA-->B\n```')).toBe('graph TD\nA-->B');

@@ -1,390 +1,193 @@
-import { AiDocumentService } from '../../core/services/ai-document.service';
-import { sheetAiAdapter } from '../../shared/utils/ai-sheet-adapter';
 import {
   Component,
   Input,
-  AfterViewInit,
+  OnInit,
   OnDestroy,
-  ElementRef,
-  ViewChild,
   inject,
-  effect,
   signal,
+  computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Block } from '../../core/models/block.model';
 import { NotesService } from '../../core/services/notes.service';
+import { ThemeService } from '../../core/services/theme.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { createUniver, LocaleType } from '@univerjs/presets';
-import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
-import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
-import UniverPresetSheetsCoreEsES from '@univerjs/preset-sheets-core/locales/es-ES';
-
+import { AiDocumentService } from '../../core/services/ai-document.service';
+import { sheetAiAdapter } from '../../shared/utils/ai-sheet-adapter';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { CellData, SheetGrid } from '../../editor/pure-sheet-editor/models/excel.model';
+import {
+  colIndexToLetter,
+  evaluateCellValueCached,
+  getCellId,
+} from '../../editor/pure-sheet-editor/services/formula-engine.service';
 
-/**
- * Bloque de Hoja de Cálculo Avanzado impulsado por Univer Sheets SDK.
- * Proporciona soporte nativo para fórmulas de cálculo reales (=SUM, =AVERAGE, etc.),
- * celdas combinadas, estilos tipográficos/colores, zoom dinámico (edición y lectura),
- * y ocultamiento total de cabeceras de filas y columnas en modo lectura.
- */
+const INITIAL_ROWS = 12;
+const INITIAL_COLS = 8;
+
 @Component({
   selector: 'app-sheet-block',
   standalone: true,
-  imports: [CommonModule, IconComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './sheet-block.component.html',
   styleUrls: ['./sheet-block.component.scss'],
 })
-export class SheetBlockComponent implements AfterViewInit, OnDestroy {
+export class SheetBlockComponent implements OnInit, OnDestroy {
   @Input({ required: true }) block!: Block;
-  @ViewChild('sheetContainer', { static: true })
-  sheetContainer!: ElementRef<HTMLDivElement>;
 
   readonly notesService = inject(NotesService);
+  readonly themeService = inject(ThemeService);
   readonly i18n = inject(I18nService);
+  private readonly aiDocuments = inject(AiDocumentService);
 
-  readonly readingHeight = signal<number>(160);
   readonly currentZoom = signal<number>(1.0);
+  readonly readingHeight = signal<number>(200);
   readonly Math = Math;
 
-  private univerInstance: any = null;
-  private univerAPI: any = null;
+  grid: SheetGrid = {};
+  selectedCell: { col: number; row: number } = { col: 0, row: 0 };
+  isEditing = false;
+  editingValue = '';
+
+  readonly totalRows = INITIAL_ROWS;
+  readonly totalCols = INITIAL_COLS;
+  readonly colLetters = Array.from({ length: INITIAL_COLS }, (_, i) => colIndexToLetter(i));
+  readonly rowIndices = Array.from({ length: INITIAL_ROWS }, (_, i) => i);
+
   private saveTimeout: any = null;
-  private commandSubscription: any = null;
+  private unregisterAi?: () => void;
 
-  private aiOwner?: string;
-  private readonly aiDocuments = inject(AiDocumentService);
-  private readonly unregisterAi = this.aiDocuments.register(sheetAiAdapter(
-    () => this.aiOwner, () => this.univerAPI?.getActiveWorkbook(),
-    snapshot => { clearTimeout(this.saveTimeout); this.notesService.updateBlockContent(this.block.id, { workbookData: snapshot }, this.aiOwner); }, () => `block:${this.block.id}:`,
-  ));
-
-  constructor() {
-    this.updateReadingHeight();
-    effect(() => {
-      const isReading = this.notesService.isReadingMode();
-      this.notesService.documentZoom();
-      this.updateHeadersVisibility(isReading);
-      this.applyDocZoom(this.currentZoom());
-      this.updateReadingHeight();
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 60);
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 160);
-    });
-  }
-
-  ngAfterViewInit(): void {
-    this.aiOwner = this.notesService.currentNote()?._id;
-    this.initUniver();
-    this.updateReadingHeight();
-    setTimeout(() => {
-      this.updateHeadersVisibility(this.notesService.isReadingMode());
-      this.applyDocZoom(this.currentZoom());
-      window.dispatchEvent(new Event('resize'));
-    }, 120);
-  }
-
-  zoomIn(): void {
-    const next = Math.min(Math.round((this.currentZoom() + 0.15) * 100) / 100, 2.5);
-    this.applyZoom(next);
-  }
-
-  zoomOut(): void {
-    const next = Math.max(Math.round((this.currentZoom() - 0.15) * 100) / 100, 0.4);
-    this.applyZoom(next);
-  }
-
-  resetZoom(): void {
-    this.applyZoom(1.0);
-  }
-
-  applyZoom(ratio: number): void {
-    this.currentZoom.set(ratio);
-    this.applyDocZoom(ratio);
-    this.updateReadingHeight();
-  }
-
-  /**
-   * Mantiene o ajusta el zoom en el motor vectorial de Univer Sheets.
-   */
-  applyDocZoom(zoomRatio?: number): void {
-    try {
-      if (this.univerAPI) {
-        const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
-        const activeSheet = activeWorkbook?.getActiveSheet?.();
-        if (activeSheet && typeof activeSheet.zoom === 'function') {
-          Promise.resolve(activeSheet.zoom(zoomRatio ?? this.currentZoom())).catch(() => {});
-        }
-      }
-    } catch (e) {
-      // Ignorar si el controlador de zoom de la hoja aún no está montado
-    }
-  }
-
-  /**
-   * Permite desplazamiento (scroll) con la rueda del ratón en la hoja de cálculo
-   * tanto en modo edición como en modo lectura, sin permitir editar celdas bloqueadas.
-   */
-  onWheelScroll(event: WheelEvent): void {
-    try {
-      if (this.univerAPI) {
-        const deltaX = event.deltaX;
-        const deltaY = event.deltaY;
-        if (deltaX !== 0 || deltaY !== 0) {
-          if (typeof this.univerAPI.executeCommand === 'function') {
-            this.univerAPI.executeCommand('sheet.command.set-scroll-relative', {
-              offsetX: deltaX,
-              offsetY: deltaY,
-            });
-          }
-        }
-      }
-    } catch (e) {
-      // Ignorar de forma segura si la hoja aún no está lista
-    }
-  }
-
-  /**
-   * Asegura que el canvas de Univer esté actualizado y ajusta cabeceras/barras según el modo.
-   */
-  async updateHeadersVisibility(isReading: boolean): Promise<void> {
-    try {
-      if (this.univerAPI) {
-        // 1. Visibilidad de barras de Univer a través de UIPartsService
-        const parts = this.univerAPI.Enum?.BuiltInUIPart;
-        const headerPart = parts?.HEADER ?? 'header';
-        const toolbarPart = parts?.TOOLBAR ?? 'toolbar';
-        const footerPart = parts?.FOOTER ?? 'footer';
-
-        if (typeof this.univerAPI.setUIVisible === 'function') {
-          this.univerAPI.setUIVisible(headerPart, !isReading);
-          this.univerAPI.setUIVisible(toolbarPart, !isReading);
-          this.univerAPI.setUIVisible(footerPart, !isReading);
-        }
-
-        // 2. Ocultar o restaurar cabeceras de fila (1, 2, 3...) y columna (A, B, C...)
-        const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
-        const activeSheet = activeWorkbook?.getActiveSheet?.();
-        if (activeSheet) {
-          if (typeof activeSheet.setRowHeaderWidth === 'function') {
-            activeSheet.setRowHeaderWidth(isReading ? 0 : 46);
-          }
-          if (typeof activeSheet.setColumnHeaderHeight === 'function') {
-            activeSheet.setColumnHeaderHeight(isReading ? 0 : 24);
-          }
-          if (typeof activeSheet.refreshCanvas === 'function') {
-            activeSheet.refreshCanvas();
-          }
-        }
-      }
-    } catch (e) {
-      // Ignorar de forma segura si la hoja aún no está completamente lista
-    }
-  }
-
-  /**
-   * Determina cuántas filas con contenido real o celdas combinadas existen en la hoja de cálculo.
-   */
-  getOccupiedRowsCount(): number {
-    try {
-      if (this.univerAPI) {
-        const activeWorkbook = this.univerAPI.getActiveWorkbook?.();
-        const activeSheet = activeWorkbook?.getActiveSheet?.();
-        if (activeSheet && typeof activeSheet.getLastRow === 'function') {
-          const lastRow = activeSheet.getLastRow();
-          if (typeof lastRow === 'number' && lastRow >= 0) {
-            return lastRow + 1;
-          }
-        }
-      }
-    } catch (e) {}
-
-    try {
-      const savedData = this.block?.content?.['workbookData'];
-      if (savedData?.sheets) {
-        const sheet = Object.values(savedData.sheets)[0] as any;
-        const cellData = sheet?.cellData;
-        let maxRow = 0;
-        if (cellData && typeof cellData === 'object') {
-          const rowKeys = Object.keys(cellData);
-          rowKeys.forEach((r) => {
-            const row = cellData[r];
-            if (row && Object.values(row).some((c: any) => c?.v !== undefined && c?.v !== null && c?.v !== '')) {
-              const rNum = Number(r);
-              if (rNum > maxRow) maxRow = rNum;
-            }
-          });
-        }
-        if (sheet?.mergeData && Array.isArray(sheet.mergeData)) {
-          sheet.mergeData.forEach((m: any) => {
-            if (m.endRow > maxRow) maxRow = m.endRow;
-          });
-        }
-        if (maxRow > 0) return maxRow + 1;
-      }
-    } catch (e) {}
-
-    return 5;
-  }
-
-  /**
-   * Calcula y actualiza la altura exacta necesaria para mostrar las celdas ocupadas.
-   */
-  updateReadingHeight(): void {
-    let totalHeight = 0;
-    const maxRow = this.getOccupiedRowsCount();
-    try {
-      const savedData = this.block?.content?.['workbookData'];
-      const sheet = savedData?.sheets ? (Object.values(savedData.sheets)[0] as any) : null;
-      const rowData = sheet?.rowData;
-      const defaultRowHeight = sheet?.defaultRowHeight || 24;
-      for (let i = 0; i < maxRow; i++) {
-        const h = rowData?.[i]?.h ?? defaultRowHeight;
-        totalHeight += h;
-      }
-    } catch {
-      totalHeight = maxRow * 24;
-    }
-
-    if (!totalHeight || totalHeight <= 0) {
-      totalHeight = maxRow * 24;
-    }
-    // Margen inferior para airear la última fila
-    const calculated = totalHeight + 20;
-    const clamped = Math.min(Math.max(calculated, 100), 750);
-    this.readingHeight.set(clamped);
+  ngOnInit(): void {
+    this.loadData();
+    this.registerAi();
   }
 
   ngOnDestroy(): void {
-    this.unregisterAi();
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
-    }
-    if (this.commandSubscription && typeof this.commandSubscription.dispose === 'function') {
-      this.commandSubscription.dispose();
-    }
-    if (this.univerInstance && typeof this.univerInstance.dispose === 'function') {
-      this.univerInstance.dispose();
+    if (this.saveTimeout) clearTimeout(this.saveTimeout);
+    this.unregisterAi?.();
+  }
+
+  private loadData(): void {
+    const raw = this.block.content?.['data'] || this.block.content?.['workbookData']?.data;
+    if (raw && typeof raw === 'object') {
+      this.grid = { ...raw };
+    } else {
+      // Default sample table in sheet block
+      this.grid = {
+        A1: { raw: 'Ítem', style: { bold: true } },
+        B1: { raw: 'Cantidad', style: { bold: true, align: 'right' } },
+        C1: { raw: 'Precio', style: { bold: true, align: 'right' } },
+        D1: { raw: 'Total', style: { bold: true, align: 'right' } },
+
+        A2: { raw: 'Artículo 1' },
+        B2: { raw: '3', style: { align: 'right' } },
+        C2: { raw: '15', style: { numberFormat: 'currency', align: 'right' } },
+        D2: { raw: '=B2*C2', style: { bold: true, numberFormat: 'currency', align: 'right' } },
+
+        A3: { raw: 'Artículo 2' },
+        B3: { raw: '5', style: { align: 'right' } },
+        C3: { raw: '20', style: { numberFormat: 'currency', align: 'right' } },
+        D3: { raw: '=B3*C3', style: { bold: true, numberFormat: 'currency', align: 'right' } },
+
+        A4: { raw: 'TOTAL', style: { bold: true } },
+        D4: { raw: '=SUMA(D2:D3)', style: { bold: true, numberFormat: 'currency', align: 'right' } },
+      };
     }
   }
 
-  private initUniver(): void {
-    try {
-      const containerEl = this.sheetContainer.nativeElement;
-      const lang = this.i18n.currentLang() === 'es' ? LocaleType.ES_ES : LocaleType.EN_US;
-
-      const { univer, univerAPI } = createUniver({
-        locale: lang,
-        locales: {
-          [LocaleType.EN_US]: UniverPresetSheetsCoreEnUS,
-          [LocaleType.ES_ES]: UniverPresetSheetsCoreEsES,
-        },
-        presets: [
-          UniverSheetsCorePreset({
-            container: containerEl,
-            header: true,
-            toolbar: true,
-            formulaBar: true,
-            footer: {
-              sheetBar: true,
-              statisticBar: true,
-            },
-          }),
-        ],
-      });
-
-      this.univerInstance = univer;
-      this.univerAPI = univerAPI;
-
-      let workbook: any = null;
-      const savedData = this.block.content?.['workbookData'];
-
-      if (savedData && typeof savedData === 'object' && Object.keys(savedData).length > 0) {
-        workbook = univerAPI.createWorkbook(savedData);
-      } else {
-        const initialWorkbookData = {
-          id: `wb-${this.block.id}`,
-          name: 'Sheet 1',
-          sheets: {
-            'sheet-01': {
-              id: 'sheet-01',
-              name: 'Sheet1',
-              rowCount: 30,
-              columnCount: 15,
-              cellData: {
-                0: {
-                  0: { v: 'Item', t: 1 },
-                  1: { v: 'Qty', t: 1 },
-                  2: { v: 'Unit Price', t: 1 },
-                  3: { v: 'Subtotal', t: 1 },
-                },
-                1: {
-                  0: { v: 'Widget A', t: 1 },
-                  1: { v: 12, t: 2 },
-                  2: { v: 18.5, t: 2 },
-                  3: { f: '=B2*C2', v: 222, t: 2 },
-                },
-                2: {
-                  0: { v: 'Widget B', t: 1 },
-                  1: { v: 8, t: 2 },
-                  2: { v: 45, t: 2 },
-                  3: { f: '=B3*C3', v: 360, t: 2 },
-                },
-                3: {
-                  0: { v: 'Widget C', t: 1 },
-                  1: { v: 15, t: 2 },
-                  2: { v: 22, t: 2 },
-                  3: { f: '=B4*C4', v: 330, t: 2 },
-                },
-                4: {
-                  0: { v: 'Total / Promedio', t: 1 },
-                  1: { f: '=SUM(B2:B4)', v: 35, t: 2 },
-                  2: { f: '=AVERAGE(C2:C4)', v: 28.5, t: 2 },
-                  3: { f: '=SUM(D2:D4)', v: 912, t: 2 },
-                },
-              },
-            },
-          },
-        };
-        workbook = univerAPI.createWorkbook(initialWorkbookData);
-      }
-
-      if (workbook && typeof workbook.onCommandExecuted === 'function') {
-        this.commandSubscription = workbook.onCommandExecuted(() => {
-          this.scheduleAutoSave(workbook);
-        });
-      }
-    } catch (err) {
-      console.error('[SheetBlockComponent] Error initializing Univer Sheets:', err);
-    }
-  }
-
-  private lastSavedSnapshotString = '';
-
-  private scheduleAutoSave(workbook: any): void {
-    if (this.saveTimeout) {
-      clearTimeout(this.saveTimeout);
-    }
-    this.saveTimeout = setTimeout(() => {
-      try {
-        if (workbook && typeof workbook.save === 'function') {
-          const snapshot = workbook.save();
-          const currentString = JSON.stringify(snapshot?.sheets || snapshot);
-          if (currentString === this.lastSavedSnapshotString) {
-            return;
+  private registerAi(): void {
+    this.unregisterAi?.();
+    const ownerId = this.notesService.currentNote()?._id;
+    this.unregisterAi = this.aiDocuments.register(
+      sheetAiAdapter(
+        () => ownerId,
+        () => ({ data: this.grid }),
+        (snapshot) => {
+          if (snapshot.data) {
+            this.grid = snapshot.data;
+            this.scheduleSave();
           }
-          this.lastSavedSnapshotString = currentString;
-          this.notesService.updateBlockContent(this.block.id, {
-            workbookData: snapshot,
-          });
-          this.updateReadingHeight();
-        }
-      } catch (err) {
-        console.error('[SheetBlockComponent] Error saving workbook snapshot:', err);
-      }
-    }, 800);
+        },
+        () => `block:${this.block.id}:`
+      )
+    );
+  }
+
+  scheduleSave(): void {
+    if (this.saveTimeout) clearTimeout(this.saveTimeout);
+    this.saveTimeout = setTimeout(() => {
+      this.notesService.updateBlockContent(this.block.id, { data: this.grid });
+    }, 400);
+  }
+
+  private calculationGrid?: SheetGrid;
+  private calculationCache = new WeakMap();
+  getCellDisplay(col: number, row: number): string {
+    if (this.calculationGrid !== this.grid) { this.calculationGrid = this.grid; this.calculationCache = new WeakMap(); }
+    const id = getCellId(col, row);
+    const cell = this.grid[id];
+    const val = evaluateCellValueCached(id, this.grid, this.calculationCache);
+    if (val === '' || val === null || val === undefined) return '';
+
+    const num = Number(val);
+    if (!isNaN(num) && cell?.style?.numberFormat === 'currency') {
+      return '$' + num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    return String(val);
+  }
+
+  getCellStyle(col: number, row: number): Record<string, string> {
+    const id = getCellId(col, row);
+    const s = this.grid[id]?.style;
+    return {
+      fontWeight: s?.bold ? 'bold' : 'normal',
+      fontStyle: s?.italic ? 'italic' : 'normal',
+      textAlign: s?.align || 'left',
+      backgroundColor: s?.bgColor || '',
+      color: s?.textColor || '',
+    };
+  }
+
+  onCellClick(col: number, row: number): void {
+    if (this.notesService.isReadingMode()) return;
+    this.selectedCell = { col, row };
+  }
+
+  onCellDblClick(col: number, row: number): void {
+    if (this.notesService.isReadingMode()) return;
+    this.selectedCell = { col, row };
+    const id = getCellId(col, row);
+    this.editingValue = this.grid[id]?.raw || '';
+    this.isEditing = true;
+  }
+
+  commitEdit(): void {
+    if (!this.isEditing) return;
+    this.isEditing = false;
+    const id = getCellId(this.selectedCell.col, this.selectedCell.row);
+    const val = this.editingValue.trim();
+
+    if (val === '') {
+      if (this.grid[id]) this.grid[id] = { ...this.grid[id], raw: '' };
+    } else {
+      this.grid[id] = {
+        ...(this.grid[id] || {}),
+        raw: val,
+      };
+    }
+    this.scheduleSave();
+  }
+
+  zoomIn(): void {
+    this.currentZoom.update((z) => Math.min(Math.round((z + 0.1) * 10) / 10, 2.0));
+  }
+
+  zoomOut(): void {
+    this.currentZoom.update((z) => Math.max(Math.round((z - 0.1) * 10) / 10, 0.5));
+  }
+
+  resetZoom(): void {
+    this.currentZoom.set(1.0);
   }
 }

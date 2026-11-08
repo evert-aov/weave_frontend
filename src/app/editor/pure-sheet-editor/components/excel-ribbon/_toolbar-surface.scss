@@ -1,0 +1,8 @@
+:host { height: 100%; min-width: 0; }
+.excel-toolbar-panel { height: 100%; margin: 0; padding: 0; color: var(--ribbon-text, #334155); background: transparent; border: 0; box-shadow: none; }
+.excel-toolbar-panel > .border-r { border-color: var(--ribbon-border, #e2e8f0); }
+.excel-toolbar-panel > div > .text-center:last-child { color: var(--ribbon-muted, #64748b); font-size: 10px; line-height: 16px; }
+.excel-toolbar-panel button { cursor: pointer; }
+.excel-toolbar-panel button:hover { background-color: var(--ribbon-hover, #eff6ff); }
+.excel-toolbar-panel button:focus-visible, .excel-toolbar-panel select:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.excel-toolbar-panel select { border-radius: 3px; border-color: var(--ribbon-border, #e2e8f0); background-color: var(--ribbon-panel, #fff); color: var(--ribbon-text, #334155); }

@@ -1,0 +1,168 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+     (click)="close.emit()">
+  <div class="w-full max-w-md rounded-xl shadow-2xl border p-5 transition-colors"
+       [class.bg-slate-800]="themeService.isDark()"
+       [class.border-slate-700]="themeService.isDark()"
+       [class.text-white]="themeService.isDark()"
+       [class.bg-white]="!themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()"
+       [class.text-slate-800]="!themeService.isDark()"
+       (click)="$event.stopPropagation()">
+    
+    <div class="flex items-center justify-between pb-3 border-b mb-4"
+         [class.border-slate-700]="themeService.isDark()"
+         [class.border-slate-200]="!themeService.isDark()">
+      <h3 class="text-sm font-semibold flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+        <span>{{ i18n.currentLang() === 'es' ? 'Formato Condicional' : 'Conditional Formatting' }}</span>
+      </h3>
+      <button type="button" (click)="close.emit()" class="text-slate-400 hover:text-slate-200">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Rule Type -->
+    <div class="space-y-3 mb-4">
+      <div>
+        <label class="block text-xs font-medium text-slate-400 mb-1">
+          {{ i18n.currentLang() === 'es' ? 'Tipo de Regla' : 'Rule Type' }}
+        </label>
+        <select [(ngModel)]="ruleType"
+                class="w-full text-xs rounded-lg px-2.5 py-2 border font-medium cursor-pointer"
+                [class.bg-slate-700]="themeService.isDark()"
+                [class.border-slate-600]="themeService.isDark()"
+                [class.text-white]="themeService.isDark()"
+                [class.bg-slate-50]="!themeService.isDark()"
+                [class.border-slate-200]="!themeService.isDark()">
+          <option value="greaterThan">{{ i18n.currentLang() === 'es' ? 'Es mayor que…' : 'Greater than…' }}</option>
+          <option value="lessThan">{{ i18n.currentLang() === 'es' ? 'Es menor que…' : 'Less than…' }}</option>
+          <option value="between">{{ i18n.currentLang() === 'es' ? 'Está entre…' : 'Between…' }}</option>
+          <option value="equalTo">{{ i18n.currentLang() === 'es' ? 'Es igual a…' : 'Equal to…' }}</option>
+          <option value="colorScale">{{ i18n.currentLang() === 'es' ? 'Escala de colores (Gradiente)' : 'Color Scale (Gradient)' }}</option>
+        </select>
+      </div>
+
+      <!-- Parameters depending on type -->
+      @if (ruleType === 'greaterThan' || ruleType === 'lessThan') {
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">
+            {{ i18n.currentLang() === 'es' ? 'Valor numérico límite' : 'Threshold value' }}
+          </label>
+          <input type="number" [(ngModel)]="val1"
+                 class="w-full text-xs rounded-lg px-2.5 py-1.5 border"
+                 [class.bg-slate-700]="themeService.isDark()"
+                 [class.border-slate-600]="themeService.isDark()"
+                 [class.text-white]="themeService.isDark()"
+                 [class.bg-slate-50]="!themeService.isDark()"
+                 [class.border-slate-200]="!themeService.isDark()" />
+        </div>
+      }
+
+      @if (ruleType === 'between') {
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">
+              {{ i18n.currentLang() === 'es' ? 'Desde' : 'From' }}
+            </label>
+            <input type="number" [(ngModel)]="val1"
+                   class="w-full text-xs rounded-lg px-2.5 py-1.5 border"
+                   [class.bg-slate-700]="themeService.isDark()"
+                   [class.border-slate-600]="themeService.isDark()"
+                   [class.text-white]="themeService.isDark()"
+                   [class.bg-slate-50]="!themeService.isDark()"
+                   [class.border-slate-200]="!themeService.isDark()" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">
+              {{ i18n.currentLang() === 'es' ? 'Hasta' : 'To' }}
+            </label>
+            <input type="number" [(ngModel)]="val2"
+                   class="w-full text-xs rounded-lg px-2.5 py-1.5 border"
+                   [class.bg-slate-700]="themeService.isDark()"
+                   [class.border-slate-600]="themeService.isDark()"
+                   [class.text-white]="themeService.isDark()"
+                   [class.bg-slate-50]="!themeService.isDark()"
+                   [class.border-slate-200]="!themeService.isDark()" />
+          </div>
+        </div>
+      }
+
+      @if (ruleType === 'equalTo') {
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">
+            {{ i18n.currentLang() === 'es' ? 'Texto o valor exacto' : 'Exact text or value' }}
+          </label>
+          <input type="text" [(ngModel)]="textVal"
+                 class="w-full text-xs rounded-lg px-2.5 py-1.5 border"
+                 [class.bg-slate-700]="themeService.isDark()"
+                 [class.border-slate-600]="themeService.isDark()"
+                 [class.text-white]="themeService.isDark()"
+                 [class.bg-slate-50]="!themeService.isDark()"
+                 [class.border-slate-200]="!themeService.isDark()" />
+        </div>
+      }
+
+      @if (ruleType !== 'colorScale') {
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">
+            {{ i18n.currentLang() === 'es' ? 'Estilo a aplicar' : 'Format style' }}
+          </label>
+          <select [(ngModel)]="presetStyle"
+                  class="w-full text-xs rounded-lg px-2.5 py-2 border font-medium cursor-pointer"
+                  [class.bg-slate-700]="themeService.isDark()"
+                  [class.border-slate-600]="themeService.isDark()"
+                  [class.text-white]="themeService.isDark()"
+                  [class.bg-slate-50]="!themeService.isDark()"
+                  [class.border-slate-200]="!themeService.isDark()">
+            <option value="good">{{ i18n.currentLang() === 'es' ? 'Verde (Bueno / Positivo)' : 'Green (Good / Positive)' }}</option>
+            <option value="bad">{{ i18n.currentLang() === 'es' ? 'Rojo (Malo / Crítico)' : 'Red (Bad / Critical)' }}</option>
+            <option value="neutral">{{ i18n.currentLang() === 'es' ? 'Amarillo (Neutral / Advertencia)' : 'Yellow (Neutral / Warning)' }}</option>
+          </select>
+        </div>
+      } @else {
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">
+            {{ i18n.currentLang() === 'es' ? 'Escala de degradado' : 'Gradient palette' }}
+          </label>
+          <select [(ngModel)]="colorScale"
+                  class="w-full text-xs rounded-lg px-2.5 py-2 border font-medium cursor-pointer"
+                  [class.bg-slate-700]="themeService.isDark()"
+                  [class.border-slate-600]="themeService.isDark()"
+                  [class.text-white]="themeService.isDark()"
+                  [class.bg-slate-50]="!themeService.isDark()"
+                  [class.border-slate-200]="!themeService.isDark()">
+            <option value="green-yellow-red">{{ i18n.currentLang() === 'es' ? 'Verde - Amarillo - Rojo' : 'Green - Yellow - Red' }}</option>
+            <option value="red-yellow-green">{{ i18n.currentLang() === 'es' ? 'Rojo - Amarillo - Verde' : 'Red - Yellow - Green' }}</option>
+            <option value="blue-white-red">{{ i18n.currentLang() === 'es' ? 'Azul - Blanco - Rojo' : 'Blue - White - Red' }}</option>
+          </select>
+        </div>
+      }
+    </div>
+
+    <!-- Buttons -->
+    <div class="flex items-center justify-between gap-2 pt-3 border-t"
+         [class.border-slate-700]="themeService.isDark()"
+         [class.border-slate-200]="!themeService.isDark()">
+      <div class="flex items-center gap-1.5">
+        <button type="button"
+                (click)="clearRangeRules.emit()"
+                class="text-[11px] text-rose-500 hover:text-rose-600 underline">
+          {{ i18n.currentLang() === 'es' ? 'Borrar reglas de selección' : 'Clear range rules' }}
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button type="button" (click)="close.emit()"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200">
+          {{ i18n.currentLang() === 'es' ? 'Cancelar' : 'Cancel' }}
+        </button>
+        <button type="button" (click)="handleApply()"
+                class="px-4 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+          {{ i18n.currentLang() === 'es' ? 'Aplicar' : 'Apply' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

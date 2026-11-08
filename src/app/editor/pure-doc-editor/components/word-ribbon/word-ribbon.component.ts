@@ -229,6 +229,7 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Input() showGridlines = false;
   @Input() showTocSidebar = false;
   @Input() zoom = 100;
+  @Input() pdfExporting = false;
 
   @Output() setActiveTab = new EventEmitter<RibbonTab>();
   @Output() updateLayout = new EventEmitter<(prev: DocumentLayoutConfig) => DocumentLayoutConfig>();
@@ -282,10 +283,11 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() copyFormat = new EventEmitter<void>();
   @Output() importClick = new EventEmitter<void>();
   @Output() exportWord = new EventEmitter<void>();
+  @Output() exportLegacyDoc = new EventEmitter<void>();
+  @Output() exportPdf = new EventEmitter<void>();
   @Output() exportHtml = new EventEmitter<void>();
   @Output() exportMarkdown = new EventEmitter<void>();
   @Output() exportTxt = new EventEmitter<void>();
-  @Output() print = new EventEmitter<void>();
   @Output() readAloud = new EventEmitter<void>();
   @Output() setViewMode = new EventEmitter<DocumentViewMode>();
   @Output() setFocusMode = new EventEmitter<boolean>();

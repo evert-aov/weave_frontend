@@ -1,62 +1,106 @@
-<div
-  class="univer-sheet-block"
-  [class.reading-mode]="notesService.isReadingMode()"
->
-  <!-- Barra superior de información y zoom del bloque -->
-  <div class="sheet-toolbar-strip" [class.reading-mode]="notesService.isReadingMode()">
-    <div class="sheet-info-group">
-      <app-icon name="sheet" [size]="16" class="text-accent"></app-icon>
-      <span class="badge-title">
+<div class="sheet-block-wrapper rounded-xl border overflow-hidden my-3 shadow-xs transition-colors"
+     [class.bg-slate-900]="themeService.isDark()"
+     [class.border-slate-700]="themeService.isDark()"
+     [class.bg-white]="!themeService.isDark()"
+     [class.border-slate-200]="!themeService.isDark()">
+
+  <!-- Toolbar header -->
+  <div class="px-3 py-2 border-b flex items-center justify-between text-xs"
+       [class.border-slate-700]="themeService.isDark()"
+       [class.bg-slate-800]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()"
+       [class.bg-slate-50]="!themeService.isDark()">
+    
+    <div class="flex items-center gap-2">
+      <div class="w-5 h-5 rounded bg-emerald-600 flex items-center justify-center text-white font-bold text-[10px]">
+        X
+      </div>
+      <span class="font-semibold text-xs">
         {{ i18n.currentLang() === 'es' ? 'Hoja de Cálculo' : 'Spreadsheet' }}
       </span>
       @if (!notesService.isReadingMode()) {
-        <span class="badge-subtitle">
-          {{ i18n.currentLang() === 'es' ? 'Cálculos matemáticos reales en vivo' : 'Live real-time formulas & computing' }}
+        <span class="text-[10px] text-slate-400">
+          {{ i18n.currentLang() === 'es' ? 'Fórmulas dinámicas' : 'Dynamic formulas' }}
         </span>
       }
     </div>
 
-    <!-- Controles de Zoom para Hoja de Cálculo (Edición y Lectura) -->
-    <div class="sheet-zoom-controls">
-      <button
-        type="button"
-        class="zoom-btn"
-        (click)="zoomOut()"
-        [title]="i18n.currentLang() === 'es' ? 'Reducir zoom' : 'Zoom out'"
-      >
-        <app-icon name="zoom-out" [size]="13"></app-icon>
-      </button>
-      <button
-        type="button"
-        class="zoom-display-btn"
-        (click)="resetZoom()"
-        [title]="i18n.currentLang() === 'es' ? 'Restablecer zoom a 100%' : 'Reset zoom to 100%'"
-      >
+    <!-- Zoom buttons -->
+    <div class="flex items-center gap-1.5 text-xs text-slate-400">
+      <button type="button" (click)="zoomOut()" class="hover:text-emerald-500 px-1 font-mono">-</button>
+      <button type="button" (click)="resetZoom()" class="font-mono text-[10px] w-9 text-center">
         {{ Math.round(currentZoom() * 100) }}%
       </button>
-      <button
-        type="button"
-        class="zoom-btn"
-        (click)="zoomIn()"
-        [title]="i18n.currentLang() === 'es' ? 'Aumentar zoom' : 'Zoom in'"
-      >
-        <app-icon name="zoom-in" [size]="13"></app-icon>
-      </button>
+      <button type="button" (click)="zoomIn()" class="hover:text-emerald-500 px-1 font-mono">+</button>
     </div>
   </div>
 
-  <div
-    class="sheet-container-wrapper"
-    [class.reading-mode]="notesService.isReadingMode()"
-    [style.height.px]="notesService.isReadingMode() ? readingHeight() : 460"
-    (wheel)="onWheelScroll($event)"
-  >
-    <div
-      #sheetContainer
-      class="univer-container"
-      [style.zoom]="1 / notesService.documentZoom()"
-      [style.width.%]="100 * notesService.documentZoom()"
-      [style.height.%]="100 * notesService.documentZoom()"
-    ></div>
+  <!-- Scrollable Table -->
+  <div class="overflow-auto max-h-[380px] p-1"
+       [style.zoom]="currentZoom()">
+    <table class="border-collapse table-fixed w-full text-xs">
+      <thead>
+        <tr class="h-6">
+          <th class="w-8 border text-slate-400 text-[10px] font-normal"
+              [class.bg-slate-800]="themeService.isDark()"
+              [class.border-slate-700]="themeService.isDark()"
+              [class.bg-slate-100]="!themeService.isDark()"
+              [class.border-slate-200]="!themeService.isDark()">#</th>
+          @for (letter of colLetters; track letter; let c = $index) {
+            <th class="w-24 border text-slate-400 text-[10px] font-normal"
+                [class.bg-slate-800]="themeService.isDark()"
+                [class.border-slate-700]="themeService.isDark()"
+                [class.bg-slate-100]="!themeService.isDark()"
+                [class.border-slate-200]="!themeService.isDark()">
+              {{ letter }}
+            </th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rowIndices; track row) {
+          <tr class="h-6">
+            <th class="border text-slate-400 text-[10px] font-normal"
+                [class.bg-slate-800]="themeService.isDark()"
+                [class.border-slate-700]="themeService.isDark()"
+                [class.bg-slate-100]="!themeService.isDark()"
+                [class.border-slate-200]="!themeService.isDark()">
+              {{ row + 1 }}
+            </th>
+
+            @for (letter of colLetters; track letter; let col = $index) {
+              @let isSelected = selectedCell.col === col && selectedCell.row === row;
+
+              <td (click)="onCellClick(col, row)"
+                  (dblclick)="onCellDblClick(col, row)"
+                  [ngStyle]="getCellStyle(col, row)"
+                  class="px-2 border truncate relative"
+                  [class.border-slate-700]="themeService.isDark()"
+                  [class.border-slate-200]="!themeService.isDark()"
+                  [class.ring-2]="isSelected && !notesService.isReadingMode()"
+                  [class.ring-emerald-500]="isSelected && !notesService.isReadingMode()"
+                  [class.z-10]="isSelected">
+                
+                @if (isSelected && isEditing) {
+                  <input type="text"
+                         [(ngModel)]="editingValue"
+                         (blur)="commitEdit()"
+                         (keydown.enter)="$event.preventDefault(); commitEdit()"
+                         (keydown.escape)="$event.preventDefault(); isEditing = false"
+                         autofocus
+                         class="absolute inset-0 w-full h-full px-1.5 font-mono text-xs outline-none border border-emerald-500"
+                         [class.bg-slate-800]="themeService.isDark()"
+                         [class.text-white]="themeService.isDark()"
+                         [class.bg-white]="!themeService.isDark()"
+                         [class.text-slate-900]="!themeService.isDark()" />
+                } @else {
+                  <span class="truncate block">{{ getCellDisplay(col, row) }}</span>
+                }
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
   </div>
 </div>

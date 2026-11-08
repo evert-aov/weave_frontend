@@ -1,9 +1,9 @@
 # Guía del desarrollador — frontend Angular de Weave
 
 El frontend combina navegación por espacios, documentos por bloques y editores especializados.
-Angular administra rutas, estado y persistencia; Tiptap, Univer, Excalidraw, Monaco y el visor
-PPTX aportan capacidades concretas. Cada motor se descarga al abrir el documento o bloque que
-lo necesita. Las credenciales de proveedores de IA pertenecen a FastAPI.
+Angular administra rutas, estado, persistencia y el modelo de hojas de cálculo; Tiptap,
+Excalidraw y Monaco aportan capacidades concretas. Los editores especializados se cargan al
+abrir el documento o bloque que los necesita. Las credenciales de proveedores de IA pertenecen a FastAPI.
 
 ## Contenido
 
@@ -25,9 +25,9 @@ lo necesita. Las credenciales de proveedores de IA pertenecen a FastAPI.
 | [13 — LaTeX avanzado](13-LATEX-AVANZADO.md) | Fórmulas, documentos completos, autocompletado, guardado y compilación PDF. |
 | [14 — Monaco y Vim](14-MONACO-Y-VIM.md) | Editor LaTeX compartido, carga local, autocompletado y teclado modal. |
 | [15 — Texto enriquecido y vista previa](15-MARKDOWN-Y-VISTA-EN-VIVO.md) | Tiptap, preview sin Vim, compatibilidad con notas Markdown y alineación por línea en fórmulas. |
-
 | [16 — Chats y edición IA](16-CHATS-Y-EDICION-IA.md) | Conversaciones independientes, adaptadores de edición y pantalla completa LaTeX. |
 | [17 — Editor Pure Doc (Word Studio)](17-PURE-DOC-EDITOR.md) | Arquitectura de componentes Word, pestañas Home e Insertar, SmartArt, Formas, Iconos SVG y selección. |
+| [18 — Hojas de cálculo](18-HOJAS-DE-CALCULO.md) | Modelo Angular, gráficos y colores, dibujo flotante, portapapeles, referencias entre hojas y rastreo. |
 
 ## Inicio rápido
 

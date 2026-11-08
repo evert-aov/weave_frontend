@@ -9,28 +9,28 @@ describe('on-demand editor styles', () => {
     service = TestBed.inject(EditorStylesService);
   });
   afterEach(() => {
-    document.head.querySelectorAll('link[href$="pptx-angular-viewer.css"]').forEach(link => link.remove());
+    document.head.querySelectorAll('link[href$="canvas-vendor.css"]').forEach(link => link.remove());
   });
 
   it('does not add a stylesheet before opening a tool and deduplicates concurrent loads', async () => {
-    expect(document.head.querySelectorAll('link[href$="pptx-angular-viewer.css"]').length).toBe(0);
-    const first = service.load('pptx-angular-viewer.css');
-    const second = service.load('pptx-angular-viewer.css');
+    expect(document.head.querySelectorAll('link[href$="canvas-vendor.css"]').length).toBe(0);
+    const first = service.load('canvas-vendor.css');
+    const second = service.load('canvas-vendor.css');
     expect(first).toBe(second);
-    const links = document.head.querySelectorAll('link[href$="pptx-angular-viewer.css"]');
+    const links = document.head.querySelectorAll('link[href$="canvas-vendor.css"]');
     expect(links.length).toBe(1);
     links[0].dispatchEvent(new Event('load'));
     await expect(first).resolves.toBeUndefined();
   });
 
   it('allows retrying a failed stylesheet request', async () => {
-    const first = service.load('pptx-angular-viewer.css');
+    const first = service.load('canvas-vendor.css');
     const rejected = expect(first).rejects.toThrow('Editor stylesheet');
-    document.head.querySelector('link[href$="pptx-angular-viewer.css"]')!.dispatchEvent(new Event('error'));
+    document.head.querySelector('link[href$="canvas-vendor.css"]')!.dispatchEvent(new Event('error'));
     await rejected;
-    const retry = service.load('pptx-angular-viewer.css');
+    const retry = service.load('canvas-vendor.css');
     expect(retry).not.toBe(first);
-    document.head.querySelector('link[href$="pptx-angular-viewer.css"]')!.dispatchEvent(new Event('load'));
+    document.head.querySelector('link[href$="canvas-vendor.css"]')!.dispatchEvent(new Event('load'));
     await retry;
   });
 });

@@ -71,3 +71,19 @@ tipo de bloque, revisar los tres exportadores para no perder contenido.
 
 Los cambios de impresión y captura requieren pruebas manuales de documentos largos, tablas,
 imágenes, fórmulas y saltos de página. Las pruebas de estado no verifican fidelidad visual.
+
+
+## PDF del editor Word
+
+La exportación toma una copia de las hojas visibles con estilos calculados, incluyendo tamaños
+reales de filas, columnas y párrafos. El zoom del workspace no cambia las dimensiones físicas:
+se convierten píxeles CSS a puntos PDF (72/96). No se agregan márgenes ni padding a las tablas.
+`word-pdf-export.ts` carga jsPDF al exportar; el render utiliza SVG foreignObject
+para conservar la composición del texto y bordes del navegador. El PDF contiene imágenes de
+las hojas, no texto seleccionable.
+
+La captura convierte la copia XHTML con estilos en una imagen SVG y la dibuja en un canvas.
+No crea iframes ni vuelve a cargar las hojas CSS de la aplicación. No modifica el DOM editable
+ni restaura una posición de scroll antigua. Las cargas de recursos y el dibujo tienen un
+límite de espera; el progreso por página y los errores aparecen junto a la barra de herramientas. El botón muestra el estado de
+exportación y bloquea solicitudes simultáneas. La exportación requiere vista de páginas.

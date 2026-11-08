@@ -1,0 +1,397 @@
+<div (click)="$event.stopPropagation()"
+     class="excel-toolbar-panel flex items-stretch gap-2 text-[11px] relative z-40 select-none transition-colors">
+
+  <!-- 1. Undo Group -->
+  <div class="flex flex-col justify-between pr-2.5 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex flex-col items-center gap-1.5 pt-0.5">
+      <button type="button"
+              (click)="undoInk.emit()"
+              title="Deshacer trazo (Undo)"
+              class="p-1 rounded transition-colors"
+              [class.text-gray-300]="themeService.isDark()"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.text-slate-600]="!themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="undo-2" [size]="15"></svg>
+      </button>
+      <button type="button"
+              (click)="redoInk.emit()"
+              title="Rehacer trazo (Redo)"
+              class="p-1 rounded transition-colors"
+              [class.text-gray-400]="themeService.isDark()"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.text-slate-400]="!themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="redo-2" [size]="15"></svg>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Undo</div>
+  </div>
+
+  <!-- 2. Drawing Tools Group -->
+  <div class="flex flex-col justify-between pr-3 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-2">
+      
+      <!-- Select Cursor Tool -->
+      <button type="button"
+              (click)="selectTool.emit('select')"
+              title="Select (Volver al cursor de selección de celdas)"
+              class="w-10 h-12 flex items-center justify-center rounded transition-all"
+              [class.bg-[#2d2d2d]]="themeService.isDark() && activeTool === 'select'"
+              [class.ring-1]="activeTool === 'select'"
+              [class.ring-[#107c41]]="activeTool === 'select'"
+              [class.bg-emerald-50]="!themeService.isDark() && activeTool === 'select'"
+              [class.hover:bg-[#2a2a2a]]="themeService.isDark() && activeTool !== 'select'"
+              [class.hover:bg-slate-100]="!themeService.isDark() && activeTool !== 'select'">
+        <svg class="w-6 h-8" viewBox="0 0 24 32" fill="none">
+          <path d="M5 3L19 17H11.5L15 25.5L11.5 27L8 18.5L5 22V3Z"
+                [attr.stroke]="themeService.isDark() ? '#e5e7eb' : '#334155'"
+                stroke-width="1.6" fill="none" />
+        </svg>
+      </button>
+
+      <!-- Lasso Select Tool -->
+      <button type="button"
+              (click)="selectTool.emit('lasso')"
+              title="Lasso Select (Selección por lazo de trazos)"
+              class="w-10 h-12 flex items-center justify-center rounded transition-all"
+              [class.bg-[#2d2d2d]]="themeService.isDark() && activeTool === 'lasso'"
+              [class.ring-1]="activeTool === 'lasso'"
+              [class.ring-[#107c41]]="activeTool === 'lasso'"
+              [class.bg-emerald-50]="!themeService.isDark() && activeTool === 'lasso'"
+              [class.hover:bg-[#2a2a2a]]="themeService.isDark() && activeTool !== 'lasso'"
+              [class.hover:bg-slate-100]="!themeService.isDark() && activeTool !== 'lasso'">
+        <svg class="w-7 h-8" viewBox="0 0 28 32" fill="none">
+          <ellipse cx="14" cy="14" rx="9" ry="8"
+                   [attr.stroke]="themeService.isDark() ? '#d4d4d4' : '#64748b'"
+                   stroke-width="1.4" stroke-dasharray="2.5 2" />
+          <circle cx="14" cy="22" r="2.2"
+                  [attr.stroke]="themeService.isDark() ? '#d4d4d4' : '#64748b'"
+                  stroke-width="1.2" />
+          <path d="M16 22 Q 21 23, 23 26"
+                [attr.stroke]="themeService.isDark() ? '#d4d4d4' : '#64748b'"
+                stroke-width="1.4" stroke-dasharray="2 2" />
+        </svg>
+      </button>
+
+      <!-- Stroke Eraser Tool -->
+      <button type="button"
+              (click)="selectTool.emit('eraser')"
+              title="Stroke Eraser (Haz clic o arrastra sobre un trazo para borrarlo)"
+              class="w-9 h-12 flex items-center justify-center rounded transition-all"
+              [class.bg-[#2d2d2d]]="themeService.isDark() && activeTool === 'eraser'"
+              [class.ring-1]="activeTool === 'eraser'"
+              [class.ring-[#107c41]]="activeTool === 'eraser'"
+              [class.bg-emerald-50]="!themeService.isDark() && activeTool === 'eraser'"
+              [class.hover:bg-[#2a2a2a]]="themeService.isDark() && activeTool !== 'eraser'"
+              [class.hover:bg-slate-100]="!themeService.isDark() && activeTool !== 'eraser'">
+        <svg class="w-7 h-12" viewBox="0 0 28 48" fill="none">
+          <rect x="8" y="4" width="12" height="24" fill="#737373" stroke="#d4d4d4" stroke-width="1" />
+          <rect x="8" y="28" width="12" height="4" fill="#d4d4d4" />
+          <rect x="8" y="32" width="12" height="6" rx="1.5" fill="#c026d3" stroke="#e5e7eb" stroke-width="1" />
+        </svg>
+      </button>
+
+      <!-- Interactive SVG Pens Palette -->
+      @for (pen of pens; track pen.id) {
+        <button type="button"
+                (click)="selectTool.emit(pen.id)"
+                [title]="pen.name"
+                class="px-1 h-12 flex items-center justify-center rounded relative transition-all"
+                [class.bg-[#2d2d2d]]="themeService.isDark() && activeTool === pen.id"
+                [class.ring-1]="activeTool === pen.id"
+                [class.ring-[#107c41]]="activeTool === pen.id"
+                [class.bg-emerald-50]="!themeService.isDark() && activeTool === pen.id"
+                [class.hover:bg-[#2a2a2a]]="themeService.isDark() && activeTool !== pen.id"
+                [class.hover:bg-slate-100]="!themeService.isDark() && activeTool !== pen.id">
+
+          <!-- Highlighter SVG -->
+          @if (pen.kind === 'highlighter') {
+            <svg class="w-7 h-12 transition-transform"
+                 [class.translate-y-0]="activeTool === pen.id"
+                 [class.scale-105]="activeTool === pen.id"
+                 [class.-translate-y-1]="activeTool !== pen.id"
+                 viewBox="0 0 28 48" fill="none">
+              <rect x="6" y="2" width="16" height="24" [attr.fill]="pen.color" stroke="#d4d4d4" stroke-width="1" />
+              <polygon points="6,26 22,26 18,34 10,34" fill="#d4d4d4" stroke="#737373" stroke-width="1" />
+              <polygon points="10,34 18,34 18,41 10,44" [attr.fill]="pen.color" />
+            </svg>
+          }
+
+          <!-- Pencil SVG -->
+          @if (pen.kind === 'pencil') {
+            <svg class="w-7 h-12 transition-transform"
+                 [class.translate-y-0]="activeTool === pen.id"
+                 [class.scale-105]="activeTool === pen.id"
+                 [class.-translate-y-1]="activeTool !== pen.id"
+                 viewBox="0 0 28 48" fill="none">
+              <rect x="8" y="2" width="12" height="24" fill="#9ca3af" stroke="#d4d4d4" stroke-width="1" />
+              <line x1="12" y1="2" x2="12" y2="26" stroke="#d4d4d4" stroke-width="0.8" />
+              <line x1="16" y1="2" x2="16" y2="26" stroke="#d4d4d4" stroke-width="0.8" />
+              <polygon points="8,26 20,26 14,42" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1" />
+              <polygon points="12.2,37 15.8,37 14,42" [attr.fill]="pen.color" />
+            </svg>
+          }
+
+          <!-- Fountain Pen SVG -->
+          @if (pen.kind === 'fountain') {
+            <svg class="w-7 h-12 transition-transform"
+                 [class.translate-y-0]="activeTool === pen.id"
+                 [class.scale-105]="activeTool === pen.id"
+                 [class.-translate-y-1]="activeTool !== pen.id"
+                 viewBox="0 0 28 48" fill="none">
+              <rect x="8" y="2" width="12" height="22" [attr.fill]="pen.color" stroke="#d4d4d4" stroke-width="1" />
+              <polygon points="9,24 19,24 17,36 14,43 11,36" fill="#1e293b" stroke="#cbd5e1" stroke-width="1" />
+              <line x1="14" y1="26" x2="14" y2="35" stroke="#cbd5e1" stroke-width="1" />
+              <circle cx="14" cy="34" r="1.4" fill="#cbd5e1" />
+            </svg>
+          }
+
+          <!-- Marker SVG -->
+          @if (pen.kind === 'marker') {
+            <svg class="w-7 h-12 transition-transform"
+                 [class.translate-y-0]="activeTool === pen.id"
+                 [class.scale-105]="activeTool === pen.id"
+                 [class.-translate-y-1]="activeTool !== pen.id"
+                 viewBox="0 0 28 48" fill="none">
+              <rect x="8" y="2" width="12" height="22" [attr.fill]="pen.color" stroke="#d4d4d4" stroke-width="1" />
+              <rect x="7" y="24" width="14" height="4" fill="#374151" stroke="#d4d4d4" stroke-width="1" />
+              <path d="M10 28 H18 L17 38 Q14 43 11 38 Z" [attr.fill]="pen.color" stroke="#d4d4d4" stroke-width="1" />
+            </svg>
+          }
+
+          <!-- Galaxy Pen SVG -->
+          @if (pen.kind === 'galaxy') {
+            <svg class="w-7 h-12 transition-transform"
+                 [class.translate-y-0]="activeTool === pen.id"
+                 [class.scale-105]="activeTool === pen.id"
+                 [class.-translate-y-1]="activeTool !== pen.id"
+                 viewBox="0 0 28 48" fill="none">
+              <rect x="9" y="2" width="10" height="22" fill="#10b981" stroke="#d4d4d4" stroke-width="1" />
+              <polygon points="9,24 19,24 14,40" fill="#064e3b" stroke="#d4d4d4" stroke-width="1" />
+              <path d="M5 33 L6.5 36 L9.5 37.5 L6.5 39 L5 42 L3.5 39 L0.5 37.5 L3.5 36 Z" fill="#6ee7b7" />
+              <path d="M15 38 L16 40.5 L18.5 41.5 L16 42.5 L15 45 L14 42.5 L11.5 41.5 L14 40.5 Z" fill="#34d399" />
+              <circle cx="5" cy="29" r="1.2" fill="#a7f3d0" />
+            </svg>
+          }
+
+          <!-- Standard Ballpoint Pen SVG -->
+          @if (pen.kind === 'pen') {
+            <svg class="w-7 h-12 transition-transform"
+                 [class.translate-y-0]="activeTool === pen.id"
+                 [class.scale-105]="activeTool === pen.id"
+                 [class.-translate-y-1]="activeTool !== pen.id"
+                 viewBox="0 0 28 48" fill="none">
+              <rect x="8" y="2" width="12" height="22" [attr.fill]="pen.id === 'penBlack' ? '#09090b' : pen.color" stroke="#d4d4d4" stroke-width="1" />
+              <polygon points="8,24 20,24 16,38 12,38" fill="#52525b" stroke="#d4d4d4" stroke-width="1" />
+              <polygon points="12,38 16,38 14,43" [attr.fill]="pen.color" />
+            </svg>
+          }
+
+        </button>
+      }
+
+      <!-- Add Pen Dropdown Button (+ Add v) -->
+      <div class="relative draw-dropdown-trigger">
+        <button type="button"
+                (click)="toggleAddPenMenu($event)"
+                class="flex flex-col items-center justify-center px-2.5 py-1 rounded h-12 transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="plus" [size]="18" class="text-emerald-500 mb-0.5"></svg>
+          <span class="text-[11px] leading-tight font-medium">Add</span>
+          <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+        </button>
+
+        @if (addPenMenuOpen) {
+          <div class="draw-dropdown-menu absolute left-0 top-full mt-1 w-48 rounded shadow-2xl z-50 py-1.5 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border-b"
+                 [class.text-gray-400]="themeService.isDark()"
+                 [class.border-[#333]]="themeService.isDark()"
+                 [class.text-slate-400]="!themeService.isDark()"
+                 [class.border-slate-100]="!themeService.isDark()">
+              Agregar Herramienta
+            </div>
+            <button type="button"
+                    (click)="onAddSpecificPen('pen')"
+                    class="w-full px-3 py-1.5 flex items-center gap-2 text-left transition-colors"
+                    [class.hover:bg-[#353535]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              <span class="w-3 h-3 rounded-full bg-purple-600"></span>
+              <span>Add Pen (Bolígrafo Púrpura)</span>
+            </button>
+            <button type="button"
+                    (click)="onAddSpecificPen('pencil')"
+                    class="w-full px-3 py-1.5 flex items-center gap-2 text-left transition-colors"
+                    [class.hover:bg-[#353535]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              <span class="w-3 h-3 rounded-full bg-gray-500"></span>
+              <span>Add Pencil (Lápiz Carbón)</span>
+            </button>
+            <button type="button"
+                    (click)="onAddSpecificPen('highlighter')"
+                    class="w-full px-3 py-1.5 flex items-center gap-2 text-left transition-colors"
+                    [class.hover:bg-[#353535]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              <span class="w-3 h-3 rounded-full bg-pink-400"></span>
+              <span>Add Highlighter (Rosa)</span>
+            </button>
+
+            @if (hasStrokes) {
+              <div class="border-t mt-1 pt-1"
+                   [class.border-[#333]]="themeService.isDark()"
+                   [class.border-slate-200]="!themeService.isDark()">
+                <button type="button"
+                        (click)="clearAllInk.emit(); addPenMenuOpen = false"
+                        class="w-full px-3 py-1.5 flex items-center gap-2 text-left text-rose-500 transition-colors"
+                        [class.hover:bg-[#353535]]="themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="trash-2" [size]="14"></svg>
+                  <span>Borrar todos los trazos</span>
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Drawing Tools</div>
+  </div>
+
+  <!-- 3. Convert Group -->
+  <div class="flex flex-col justify-between px-2 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-2">
+      <button type="button"
+              (click)="toggleInkToShape.emit()"
+              title="Convierte automáticamente trazos cerrados en formas geométricas"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.bg-emerald-600_20]="inkToShape"
+              [class.ring-1]="inkToShape"
+              [class.ring-emerald-500]="inkToShape"
+              [class.text-emerald-400]="inkToShape"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark() && !inkToShape"
+              [class.hover:bg-slate-100]="!themeService.isDark() && !inkToShape">
+        <svg lucideIcon="shapes" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span class="leading-tight">Ink to</span>
+        <span class="leading-tight">Shape</span>
+      </button>
+
+      <button type="button"
+              (click)="openInkToMath.emit()"
+              title="Entrada matemática para insertar fórmulas en la celda activa"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <div class="h-5 flex items-center justify-center font-serif text-sm text-sky-400 mb-0.5">
+          π → <span class="font-sans font-bold">π</span>
+        </div>
+        <span class="leading-tight">Ink to</span>
+        <span class="leading-tight">Math</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Convert</div>
+  </div>
+
+  <!-- 4. Replay Group -->
+  <div class="flex flex-col justify-between px-2 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center justify-center">
+      <button type="button"
+              (click)="replayInk.emit()"
+              [disabled]="!hasStrokes || isReplaying"
+              title="Reproducir animación de todos los trazos dibujados"
+              class="flex flex-col items-center px-2.5 py-1 rounded text-center transition-colors disabled:opacity-40"
+              [class.bg-emerald-600_20]="isReplaying"
+              [class.ring-1]="isReplaying"
+              [class.ring-emerald-500]="isReplaying"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark() && !isReplaying"
+              [class.hover:bg-slate-100]="!themeService.isDark() && !isReplaying">
+        <svg lucideIcon="play-circle" [size]="18" class="text-emerald-400 mb-0.5"></svg>
+        <span class="leading-tight">Ink</span>
+        <span class="leading-tight">Replay</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Replay</div>
+  </div>
+
+  <!-- 5. Help Group -->
+  <div class="flex flex-col justify-between px-2 shrink-0">
+    <div class="flex items-center justify-center">
+      <button type="button"
+              (click)="helpModalOpen = true"
+              class="flex flex-col items-center px-2.5 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="help-circle" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span class="leading-tight">Ink</span>
+        <span class="leading-tight">Help</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Help</div>
+  </div>
+
+  <!-- Ink Help Modal Dialog -->
+  @if (helpModalOpen) {
+    <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div class="w-96 rounded-lg shadow-2xl p-4 text-xs border"
+           [class.bg-[#202020]]="themeService.isDark()"
+           [class.border-[#3d3d3d]]="themeService.isDark()"
+           [class.text-gray-200]="themeService.isDark()"
+           [class.bg-white]="!themeService.isDark()"
+           [class.border-slate-200]="!themeService.isDark()"
+           [class.text-slate-800]="!themeService.isDark()">
+        <div class="flex items-center justify-between pb-2.5 border-b mb-3"
+             [class.border-[#333]]="themeService.isDark()"
+             [class.border-slate-200]="!themeService.isDark()">
+          <h3 class="font-semibold text-sm">
+            Guía de Herramientas de Dibujo (Draw)
+          </h3>
+          <button type="button"
+                  (click)="helpModalOpen = false"
+                  class="p-1 rounded text-gray-400 hover:text-white transition-colors">
+            <svg lucideIcon="x" [size]="15"></svg>
+          </button>
+        </div>
+        <ul class="space-y-2 leading-relaxed opacity-90">
+          <li>
+            • <strong>Plumas y Marcadores:</strong> Selecciona cualquier bolígrafo o resaltador y arrastra sobre la hoja para dibujar libremente.
+          </li>
+          <li>
+            • <strong>Borrador (Eraser):</strong> Haz clic o arrastra sobre cualquier trazo para eliminarlo.
+          </li>
+          <li>
+            • <strong>Ink to Shape:</strong> Convierte automáticamente trazos circulares o rectangulares en formas vectoriales perfectas.
+          </li>
+          <li>
+            • <strong>Ink to Math:</strong> Convierte bocetos de fórmulas matemáticas a sintaxis evaluable.
+          </li>
+          <li>
+            • <strong>Ink Replay:</strong> Reproduce en secuencia animada todos los trazos creados.
+          </li>
+        </ul>
+        <div class="mt-4 flex justify-end">
+          <button type="button"
+                  (click)="helpModalOpen = false"
+                  class="px-3 py-1 bg-[#107c41] hover:bg-[#159550] text-white rounded font-medium transition-colors">
+            Entendido
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+</div>

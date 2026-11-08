@@ -13,7 +13,9 @@
 | `src/app/pages/` | Login, registro y composición del workspace. |
 | `src/app/layout/` | Sidebar, header, pestañas y panel IA. |
 | `src/app/editor/document-editor/` | Host de documento y bloques. |
-| `src/app/editor/pure-*-editor/` | Ediciones completas Word, hojas, canvas y PPTX. |
+| `src/app/editor/pure-*-editor/` | Editores especializados Word, hojas y canvas; entrada de presentaciones. |
+| `src/app/editor/pure-sheet-editor/` | Libro Angular, motor de fórmulas, gráficos SVG, rastreo y objetos flotantes. |
+| `src/app/editor/pure-sheet-editor/controllers/` | Controladores por instancia para libro, edición, interacción, viewport, formato, datos, gráficos y dibujo; el componente central coordina sus acciones. |
 | `src/app/blocks/` | Implementaciones de cada tipo de bloque. |
 | `src/app/export/` | Modal, contratos y estrategias de exportación. |
 | `src/app/shared/` | Iconos, estados de carga y directiva de redimensionado. |
@@ -38,3 +40,7 @@ flowchart TD
 Agregar UI compartida en `shared`, preferencias en el servicio de layout, reglas de un motor
 en su adaptación y contratos de red en `core/models`. No importar implementaciones pesadas
 desde una utilidad global para evitar diseñar una frontera explícita.
+
+El mapa interno del editor de hojas y los contratos persistidos se describen en
+[Hojas de cálculo](18-HOJAS-DE-CALCULO.md). Las reglas de evaluación y portapapeles pertenecen
+a sus servicios; las mutaciones e historial del libro pertenecen al coordinador del editor.

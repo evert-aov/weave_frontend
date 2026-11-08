@@ -7,6 +7,8 @@ import {
 } from '../models/word-document.model';
 import { DEFAULT_LAYOUT_CONFIG, PAPER_FORMAT_PRESETS } from '../constants/word-document.constants';
 import { DocxParserService } from './docx-parser.service';
+import { createDocxBlob } from './docx-export';
+import { snapshotWordSheets } from './word-pdf-export';
 
 
 
@@ -289,6 +291,20 @@ export class WordCompatibilityService {
     });
     this.triggerDownload(blob, `${sanitizedTitle}.doc`);
   }
+
+  async exportToDocxFile(title: string, pages: DocumentPage[], layout: DocumentLayoutConfig = DEFAULT_LAYOUT_CONFIG): Promise<void> {
+    const sanitizedTitle = (title || 'Documento').replace(/[^a-z0-9-_áéíóúñ\s]/gi, '').trim() || 'Documento';
+    const embedded = await Promise.all(pages.map(async page => ({ ...page, html: await this.docxParser.convertBlobUrlsInHtmlToBase64(page.html) })));
+    this.triggerDownload(createDocxBlob(embedded, layout), `${sanitizedTitle}.docx`);
+  }
+
+  async exportToPdf(title: string, sheets: HTMLElement[], progress?: (message: string) => void): Promise<void> {
+    const snapshots = snapshotWordSheets(sheets);
+    const { renderWordPdf } = await import('./word-pdf-export');
+    const blob = await renderWordPdf(snapshots, progress);
+    const filename = (title || 'Documento').replace(/[^a-z0-9-_áéíóúñ\s]/gi, '').trim() || 'Documento';
+    this.triggerDownload(blob, `${filename}.pdf`);
+  }
   async exportToHtmlFile(
     title: string,
     pages: DocumentPage[],
@@ -394,7 +410,7 @@ export class WordCompatibilityService {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   async parseImportedFile(file: File): Promise<{
     title: string;
@@ -416,7 +432,12 @@ export class WordCompatibilityService {
       };
     }
 
-    const rawText = await file.text();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (lowerName.endsWith('.doc') && bytes.length >= 8
+      && bytes.slice(0, 8).every((value, index) => value === [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1][index])) {
+      throw new Error('Este .doc usa el formato binario antiguo de Word. Weave puede importar .docx y .doc basado en HTML; convierte este archivo a .docx desde Word o LibreOffice para conservar su contenido.');
+    }
+    const rawText = new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
     const baseName = file.name.replace(/\.[^/.]+$/, '');
 
     if (
@@ -444,7 +465,8 @@ export class WordCompatibilityService {
         return { title: baseName, pages: extractedPages };
       }
 
-      const bodyHtml = doc.body ? doc.body.innerHTML : rawText;
+      const section = doc.querySelector('.Section1, [class*="Section"]');
+      const bodyHtml = section?.innerHTML || (doc.body ? doc.body.innerHTML : rawText);
       const rawChunks = bodyHtml.split(/<br[^>]*page-break-before:\s*always[^>]*>/i);
       const pages: DocumentPage[] = rawChunks.map((chunk, i) => ({
         id: `imported-page-${i + 1}-${Date.now()}`,

@@ -8,9 +8,9 @@ mediante un `@defer` por tipo. El shell y las notas comunes no importan sus moto
 | Tipo | Entrada | Responsabilidad |
 | --- | --- | --- |
 | `doc` | `editor/pure-doc-editor` | Páginas, formato, tablas, imágenes, fórmulas, TOC y compatibilidad DOCX. |
-| `sheet` | `editor/pure-sheet-editor` | Univer y presets de fórmulas, filtros, orden, formatos y dibujos. |
+| `sheet` | `editor/pure-sheet-editor` | Cuadrícula Angular, fórmulas entre hojas, gráficos SVG, formatos y dibujo flotante. |
 | `canvas` | `editor/pure-canvas-editor` | Pizarra Excalidraw completa y adaptación React/Angular. |
-| `slide` | `editor/pure-slide-editor` | Visor/editor PPTX y serialización binaria. |
+| `slide` | `editor/pure-slide-editor` | Aviso temporal de editor deshabilitado; conserva los documentos guardados. |
 
 ## Editor Word
 
@@ -33,24 +33,33 @@ El servicio de imágenes transforma referencias a archivos servidos por el backe
 compatibilidad con referencias anteriores. No reemplazar archivos persistidos por URLs Blob
 temporales al guardar un documento.
 
-## Hojas y pizarra
+## Hojas de cálculo
 
-Univer y Excalidraw reciben el snapshot completo de `note.docData`. Cada adaptación convierte
-los eventos del motor en cambios de `NotesService`; no guarda directamente en MongoDB. Las
-instancias de motores pertenecen al componente activo y deben destruirse al salir.
+`PureSheetEditorComponent` coordina un libro `{ sheets: Sheet[], activeSheetId }`. El modelo
+propio conserva celdas, gráficos y objetos flotantes; el evaluador resuelve referencias locales
+y entre hojas. Los gráficos usan SVG y separan datos, apariencia y colores por serie.
 
-## PPTX y estilos
+Los cambios se publican mediante `NotesService`; el componente mantiene historial y debounce.
+No se guarda una instancia de motor externo como representación del libro. El bloque de hoja
+comparte el modelo y el evaluador, con controles reducidos.
 
-`PureSlideEditorComponent` acepta `docData` con Base64 o carga `docUrl` cuando corresponde.
-Existe una presentación inicial para nuevos documentos. El componente coordina traducciones,
-tema y guardado del contenido serializado del visor.
+La arquitectura, los flujos de selección, las fórmulas, el rastreo, los gráficos y sus pruebas
+se detallan en [Hojas de cálculo](18-HOJAS-DE-CALCULO.md).
 
-[EditorStylesService](../src/app/core/services/editor-styles.service.ts) carga
-`pptx-angular-viewer.css` al abrir esta herramienta y reutiliza su promesa. Esa hoja se copia
-como asset durante el build, pero ya no bloquea el HTML inicial.
+## Pizarra
 
-Los datos de estos documentos se leen por `GET /api/notes/:id`. El listado resumido no contiene
-`docData`; tampoco debe iniciar lecturas de todos los PPTX o JSON desde el servidor.
+Excalidraw recibe el snapshot de `note.docData`. Su adaptación convierte los eventos del motor
+en cambios de `NotesService`; no guarda directamente en MongoDB. La instancia pertenece al
+componente activo y se destruye al salir. `EditorStylesService` carga `canvas-vendor.css` al abrirla.
+
+## Presentaciones
+
+El componente de presentaciones muestra actualmente un aviso de editor temporalmente deshabilitado.
+Los archivos guardados se conservan para un próximo editor. El visor PPTX y su CSS se retiraron;
+no describirlos como una dependencia activa de esta versión.
+
+Los datos completos se leen por `GET /api/notes/:id`. El listado resumido no contiene `docData`
+ni debe iniciar lecturas de todos los documentos desde el servidor.
 
 ## Documento LaTeX
 

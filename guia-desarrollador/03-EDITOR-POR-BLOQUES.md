@@ -12,7 +12,7 @@ orquesta selección, reordenamiento, inserción y renderizado. Su plantilla deci
 | `image` | `blocks/image-block` | Subida, cámara y pie de imagen. |
 | `file` | `blocks/file-block` | Adjuntos y previsualización de PDF. |
 | `canvas` | `blocks/canvas-block` | Excalidraw mediante React. |
-| `sheet` | `blocks/sheet-block` | Libro de cálculo Univer. |
+| `sheet` | `blocks/sheet-block` | Cuadrícula Angular y evaluador compartido con el editor de hojas. |
 | `code` | `blocks/code-block` | Monaco y selección de lenguaje. |
 | `latex` | `blocks/latex-block` | Edición y renderizado KaTeX. |
 | `mermaid` | `blocks/mermaid-block` | Diagramas declarativos. |
@@ -21,6 +21,10 @@ Los bloques con motores grandes están dentro de `@defer (on immediate)` en su c
 El disparador se activa cuando existe ese bloque en la plantilla; no descarga todos los tipos
 al abrir una nota solo de texto. Los estados de carga/error usan
 [LazyLoadStateComponent](../src/app/shared/components/lazy-load-state/lazy-load-state.component.ts).
+
+El bloque de hoja usa `SheetGrid` y el evaluador de `pure-sheet-editor`; su interfaz reducida
+no incluye todos los controles del libro completo. Ver [Hojas de cálculo](18-HOJAS-DE-CALCULO.md)
+para la arquitectura del editor y las diferencias de alcance.
 
 ## Inserción y orden
 

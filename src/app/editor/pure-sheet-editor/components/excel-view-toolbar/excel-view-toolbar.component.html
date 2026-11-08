@@ -1,0 +1,206 @@
+<div (click)="$event.stopPropagation()"
+     class="excel-toolbar-panel flex items-stretch gap-2 text-[11px] relative z-40 select-none transition-colors">
+
+  <!-- 1. Workbook Views Group -->
+  <div class="flex flex-col justify-between pr-3 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-2">
+      <!-- Normal (Grid) View -->
+      <button type="button"
+              (click)="selectNormalView.emit()"
+              class="flex flex-col items-center px-2.5 py-1 rounded transition-colors"
+              [class.bg-[#2d2d2d]]="themeService.isDark() && activeSheetType === 'grid'"
+              [class.ring-1]="activeSheetType === 'grid'"
+              [class.ring-[#107c41]]="activeSheetType === 'grid'"
+              [class.bg-emerald-50]="!themeService.isDark() && activeSheetType === 'grid'"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark() && activeSheetType !== 'grid'"
+              [class.hover:bg-slate-100]="!themeService.isDark() && activeSheetType !== 'grid'">
+        <svg lucideIcon="file-spreadsheet" [size]="16" class="text-emerald-400 mb-0.5"></svg>
+        <span class="font-medium">Normal</span>
+      </button>
+
+      <!-- Chart Sheet View -->
+      <button type="button"
+              (click)="selectChartView.emit()"
+              class="flex flex-col items-center px-2.5 py-1 rounded transition-colors"
+              [class.bg-[#2d2d2d]]="themeService.isDark() && activeSheetType === 'chart'"
+              [class.ring-1]="activeSheetType === 'chart'"
+              [class.ring-[#107c41]]="activeSheetType === 'chart'"
+              [class.bg-emerald-50]="!themeService.isDark() && activeSheetType === 'chart'"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark() && activeSheetType !== 'chart'"
+              [class.hover:bg-slate-100]="!themeService.isDark() && activeSheetType !== 'chart'">
+        <svg lucideIcon="eye" [size]="16" class="text-sky-400 mb-0.5"></svg>
+        <span class="font-medium">Chart View</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Workbook Views</div>
+  </div>
+
+  <!-- 2. Show Group -->
+  <div class="flex flex-col justify-between pr-3 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex flex-col gap-1 justify-center">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox"
+               [checked]="showGridlines"
+               (change)="toggleGridlines.emit($any($event.target).checked)"
+               class="accent-[#107c41] rounded" />
+        <span>Gridlines</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox"
+               [checked]="showFormulaBar"
+               (change)="toggleFormulaBar.emit($any($event.target).checked)"
+               class="accent-[#107c41] rounded" />
+        <span>Formula Bar</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox"
+               [checked]="showHeadings"
+               (change)="toggleHeadings.emit($any($event.target).checked)"
+               class="accent-[#107c41] rounded" />
+        <span>Headings</span>
+      </label>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Show</div>
+  </div>
+
+  <!-- 3. Zoom Group -->
+  <div class="flex flex-col justify-between pr-3 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-2">
+      <button type="button"
+              (click)="changeZoom.emit(100)"
+              title="Restablecer zoom al 100%"
+              class="flex flex-col items-center px-2.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="zoom-in" [size]="16" class="text-sky-400 mb-0.5"></svg>
+        <span class="font-medium">100%</span>
+      </button>
+
+      <div class="flex flex-col gap-1">
+        <button type="button"
+                (click)="changeZoom.emit(Math.min(150, zoom + 10))"
+                class="px-2 py-0.5 rounded text-xs border transition-colors"
+                [class.bg-[#262626]]="themeService.isDark()"
+                [class.hover:bg-[#333]]="themeService.isDark()"
+                [class.border-[#3a3a3a]]="themeService.isDark()"
+                [class.bg-slate-100]="!themeService.isDark()"
+                [class.hover:bg-slate-200]="!themeService.isDark()"
+                [class.border-slate-300]="!themeService.isDark()">
+          Zoom + ({{ zoom }}%)
+        </button>
+        <button type="button"
+                (click)="changeZoom.emit(Math.max(60, zoom - 10))"
+                class="px-2 py-0.5 rounded text-xs border transition-colors"
+                [class.bg-[#262626]]="themeService.isDark()"
+                [class.hover:bg-[#333]]="themeService.isDark()"
+                [class.border-[#3a3a3a]]="themeService.isDark()"
+                [class.bg-slate-100]="!themeService.isDark()"
+                [class.hover:bg-slate-200]="!themeService.isDark()"
+                [class.border-slate-300]="!themeService.isDark()">
+          Zoom -
+        </button>
+      </div>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Zoom</div>
+  </div>
+
+  <!-- 4. Window / Freeze Panes Group -->
+  <div class="flex flex-col justify-between pr-3 shrink-0">
+    <div class="flex items-center gap-2">
+      <div class="relative view-freeze-trigger">
+        <button type="button"
+                (click)="toggleFreezeMenu($event)"
+                class="flex flex-col items-center px-3 py-1 rounded transition-colors"
+                [class.bg-[#2d2d2d]]="themeService.isDark() && (freezePanes.rows > 0 || freezePanes.cols > 0 || freezeMenuOpen)"
+                [class.ring-1]="freezePanes.rows > 0 || freezePanes.cols > 0 || freezeMenuOpen"
+                [class.ring-[#107c41]]="freezePanes.rows > 0 || freezePanes.cols > 0 || freezeMenuOpen"
+                [class.text-sky-300]="themeService.isDark() && (freezePanes.rows > 0 || freezePanes.cols > 0 || freezeMenuOpen)"
+                [class.bg-emerald-50]="!themeService.isDark() && (freezePanes.rows > 0 || freezePanes.cols > 0 || freezeMenuOpen)"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark() && !(freezePanes.rows > 0 || freezePanes.cols > 0 || freezeMenuOpen)"
+                [class.hover:bg-slate-100]="!themeService.isDark() && !(freezePanes.rows > 0 || freezePanes.cols > 0 || freezeMenuOpen)">
+          <svg lucideIcon="snowflake" [size]="16" class="text-sky-400 mb-0.5"></svg>
+          <span class="flex items-center gap-1 font-medium">
+            Freeze Panes <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+          </span>
+        </button>
+
+        <!-- Freeze Panes Dropdown -->
+        @if (freezeMenuOpen) {
+          <div class="view-freeze-menu absolute left-0 top-full mt-1 w-72 rounded-md shadow-2xl z-50 py-1.5 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            <button type="button"
+                    (click)="freezeActiveCell()"
+                    class="w-full px-3 py-2 flex items-start gap-2.5 text-left transition-colors"
+                    [class.hover:bg-[#333333]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              <svg lucideIcon="snowflake" [size]="16" class="text-sky-400 shrink-0 mt-0.5"></svg>
+              <div>
+                <div class="font-medium">
+                  Freeze Panes (Hasta celda {{ activeCellId }})
+                </div>
+                <div class="text-[10px] text-gray-400">
+                  Mantiene visibles las filas y columnas anteriores mientras te desplazas.
+                </div>
+              </div>
+            </button>
+
+            <button type="button"
+                    (click)="freezeTopRow()"
+                    class="w-full px-3 py-2 flex items-start gap-2.5 text-left transition-colors"
+                    [class.hover:bg-[#333333]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              <svg lucideIcon="rows" [size]="16" class="text-emerald-400 shrink-0 mt-0.5"></svg>
+              <div>
+                <div class="font-medium">Freeze Top Row</div>
+                <div class="text-[10px] text-gray-400">
+                  Mantiene visible la primera fila en todo momento.
+                </div>
+              </div>
+            </button>
+
+            <button type="button"
+                    (click)="freezeFirstColumn()"
+                    class="w-full px-3 py-2 flex items-start gap-2.5 text-left transition-colors"
+                    [class.hover:bg-[#333333]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              <svg lucideIcon="columns" [size]="16" class="text-amber-400 shrink-0 mt-0.5"></svg>
+              <div>
+                <div class="font-medium">Freeze First Column</div>
+                <div class="text-[10px] text-gray-400">
+                  Mantiene visible la primera columna en todo momento.
+                </div>
+              </div>
+            </button>
+
+            @if (freezePanes.rows > 0 || freezePanes.cols > 0) {
+              <div class="border-t my-1"
+                   [class.border-[#333]]="themeService.isDark()"
+                   [class.border-slate-200]="!themeService.isDark()"></div>
+              <button type="button"
+                      (click)="handleUnfreeze()"
+                      class="w-full px-3 py-1.5 flex items-center gap-2 text-left text-rose-400 transition-colors"
+                      [class.hover:bg-[#333333]]="themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                <svg lucideIcon="x" [size]="14" class="text-rose-400"></svg>
+                <span>Unfreeze Panes (Movilizar paneles)</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Window</div>
+  </div>
+
+</div>

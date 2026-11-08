@@ -1,0 +1,71 @@
+<div class="chart-dialog-backdrop" (click)="close.emit()">
+  <section #dialog class="chart-dialog" (keydown)="onDialogKeydown($event)" role="dialog" aria-modal="true" aria-labelledby="chart-dialog-title"
+    [class.dark-dialog]="themeService.isDark()" (click)="$event.stopPropagation()" tabindex="-1">
+    <header class="dialog-titlebar">
+      <span id="chart-dialog-title">{{ i18n.currentLang() === 'es' ? 'Cambiar tipo de gráfico' : 'Change Chart Type' }}</span>
+      <button type="button" (click)="close.emit()" [attr.aria-label]="i18n.currentLang() === 'es' ? 'Cerrar' : 'Close'"><svg lucideIcon="x" [size]="16"></svg></button>
+    </header>
+    <div class="dialog-tabs" role="tablist">
+      <button type="button" role="tab" [attr.aria-selected]="activeTab === 'recommended'" [class.active]="activeTab === 'recommended'" (click)="activeTab = 'recommended'">{{ i18n.currentLang() === 'es' ? 'Gráficos recomendados' : 'Recommended Charts' }}</button>
+      <button type="button" role="tab" [attr.aria-selected]="activeTab === 'all'" [class.active]="activeTab === 'all'" (click)="activeTab = 'all'">{{ i18n.currentLang() === 'es' ? 'Todos los gráficos' : 'All Charts' }}</button>
+    </div>
+    <div class="dialog-body">
+      <nav class="chart-categories" [attr.aria-label]="i18n.currentLang() === 'es' ? 'Tipos de gráfico' : 'Chart types'">
+        @if (activeTab === 'all') {
+          <div class="category-placeholder"><svg lucideIcon="rotate-ccw" [size]="16"></svg>{{ i18n.currentLang() === 'es' ? 'Recientes' : 'Recent' }}</div>
+          <div class="category-placeholder"><svg lucideIcon="folder" [size]="16"></svg>{{ i18n.currentLang() === 'es' ? 'Plantillas' : 'Templates' }}</div>
+        }
+        @for (cat of activeTab === 'all' ? categories : recommendedCategories; track cat.id) {
+          <button type="button" class="category" [class.selected]="activeCategory === cat.id" [attr.aria-pressed]="activeCategory === cat.id" (click)="selectCategory(cat.id)">
+            <svg [lucideIcon]="cat.icon" [size]="16"></svg><span>{{ i18n.currentLang() === 'es' ? cat.labelEs : cat.labelEn }}</span>
+          </button>
+        }
+      </nav>
+      <main class="chart-options">
+        <div class="subtype-strip" [attr.aria-label]="i18n.currentLang() === 'es' ? 'Subtipos' : 'Subtypes'">
+          @for (st of currentCategoryDef?.subTypes; track st.id; let idx = $index) {
+            <button type="button" class="subtype" [class.selected]="activeSubType === st.id" [attr.aria-pressed]="activeSubType === st.id"
+              [title]="i18n.currentLang() === 'es' ? st.labelEs : st.labelEn" [attr.aria-label]="i18n.currentLang() === 'es' ? st.labelEs : st.labelEn" (click)="activeSubType = st.id">
+              <svg viewBox="0 0 44 44" fill="none" aria-hidden="true">
+                @if (!['pie', 'sunburst', 'radar'].includes(activeCategory)) { <path d="M6 6V37H38" stroke="#595959" stroke-width="1.2"/> }
+                @switch (activeCategory) {
+                  @case ('line') {
+                    <path d="M8 30L17 18L26 25L36 11" stroke="#2e75b6" stroke-width="2"/>
+                    <path d="M8 34L17 26L26 31L36 19" stroke="#595959" stroke-width="1.6"/>
+                    @if (st.id.toLowerCase().includes('markers')) { <g fill="#2e75b6"><circle cx="17" cy="18" r="2.2"/><circle cx="26" cy="25" r="2.2"/><circle cx="36" cy="11" r="2.2"/></g> }
+                  }
+                  @case ('pie') {
+                    @if (st.id === 'doughnut') { <circle cx="22" cy="22" r="12" stroke="#2e75b6" stroke-width="6"/> }
+                    @else { <circle cx="22" cy="22" r="14" fill="#595959"/><path d="M22 22V8A14 14 0 0 1 34 29Z" fill="#2e75b6"/> }
+                  }
+                  @case ('bar') { <path d="M7 12H31M7 20H23M7 28H19M7 34H27" stroke="#2e75b6" stroke-width="5"/> }
+                  @case ('area') { <path d="M7 36V20L17 13L27 22L37 12V36Z" fill="#5b9bd5" stroke="#2e75b6"/><path d="M7 36V28L17 22L27 29L37 22V36Z" fill="#a6a6a6"/> }
+                  @case ('scatter') {
+                    @if (idx > 0 && idx < 5) { <path d="M9 31Q18 10 26 24T36 12" stroke="#2e75b6" stroke-width="1.8"/> }
+                    <g fill="#5b9bd5"><circle cx="13" cy="16" [attr.r]="idx >= 5 ? 5 : 2"/><circle cx="22" cy="26" [attr.r]="idx >= 5 ? 4 : 2"/><circle cx="33" cy="13" [attr.r]="idx >= 5 ? 5 : 2"/></g>
+                  }
+                  @case ('surface') { <path d="M8 28L22 12L36 24L22 34Z" [attr.fill]="idx % 2 === 0 ? '#5b9bd5' : 'none'" stroke="#2e75b6"/><path d="M15 20L29 29M29 18L15 31" stroke="#595959"/> }
+                  @case ('radar') { <path d="M22 6L38 18L32 37H12L6 18Z" stroke="#999"/><path d="M22 12L32 20L28 31L16 27L12 20Z" fill="#5b9bd5" fill-opacity=".4" stroke="#2e75b6"/> }
+                  @case ('sunburst') { <circle cx="22" cy="22" r="14" stroke="#5b9bd5" stroke-width="7"/><circle cx="22" cy="22" r="7" stroke="#a6a6a6" stroke-width="5"/> }
+                  @default {
+                    <rect x="10" [attr.y]="idx === 0 ? 18 : 10" width="6" [attr.height]="idx === 0 ? 18 : 26" fill="#2e75b6"/>
+                    <rect x="20" y="12" width="6" height="24" fill="#5b9bd5"/><rect x="30" y="22" width="6" height="14" fill="#7f7f7f"/>
+                    @if (st.id.toLowerCase().includes('stacked')) { <path d="M10 26H16M20 22H26M30 28H36" stroke="white" stroke-width="3"/> }
+                  }
+                }
+              </svg>
+            </button>
+          }
+        </div>
+        <h3>{{ i18n.currentLang() === 'es' ? currentSubTypeDef?.labelEs : currentSubTypeDef?.labelEn }}</h3>
+        <div class="chart-preview" [class.recommended-preview]="activeTab === 'recommended'">
+          <app-excel-chart-renderer [dataRevision]="dataRevision" [seriesColors]="seriesColors" [appearance]="appearance" [dataConfig]="dataConfig" [compact]="true" [category]="activeCategory" [subType]="activeSubType" [grid]="grid" [range]="range"/>
+        </div>
+      </main>
+    </div>
+    <footer class="dialog-footer">
+      <button type="button" class="confirm" (click)="handleConfirm()">{{ i18n.currentLang() === 'es' ? 'Aceptar' : 'OK' }}</button>
+      <button type="button" (click)="close.emit()">{{ i18n.currentLang() === 'es' ? 'Cancelar' : 'Cancel' }}</button>
+    </footer>
+  </section>
+</div>

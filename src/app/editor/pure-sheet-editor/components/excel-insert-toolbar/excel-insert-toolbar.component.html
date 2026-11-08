@@ -1,0 +1,483 @@
+<div (click)="$event.stopPropagation()"
+     class="excel-toolbar-panel flex items-stretch gap-2 text-[11px] relative z-40 select-none transition-colors">
+
+  <!-- 1. Tables Group -->
+  <div class="flex flex-col justify-between pr-2 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-1.5">
+      <button type="button"
+              (click)="handleOpenModal('recommended')"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="file-spreadsheet" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span>PivotTable</span>
+      </button>
+
+      <button type="button"
+              (click)="formatSelectionAsTable.emit()"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="table" [size]="18" class="text-emerald-400 mb-0.5"></svg>
+        <span>Table</span>
+      </button>
+
+      <button type="button"
+              (click)="formatSelectionAsTable.emit()"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="file-text" [size]="18" class="text-teal-400 mb-0.5"></svg>
+        <span>Forms</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Tables</div>
+  </div>
+
+  <!-- 2. Illustrations Group -->
+  <div class="flex flex-col justify-between px-2 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-1.5">
+      <button type="button"
+              (click)="handleOpenModal('all', 'column')"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="image" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span>Pictures</span>
+      </button>
+
+      <button type="button"
+              (click)="openShapes.emit()"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="shapes" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span>Shapes</span>
+      </button>
+
+      <button type="button"
+              (click)="openIcons.emit()"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="sparkles" [size]="18" class="text-amber-400 mb-0.5"></svg>
+        <span>Icons</span>
+      </button>
+
+      <div class="flex flex-col gap-0.5">
+        <button type="button"
+                (click)="handleOpenModal('all', 'surface')"
+                class="flex items-center gap-1 px-1.5 py-0.5 rounded text-left transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="box" [size]="12" class="text-sky-400"></svg>
+          <span>3D Models</span>
+        </button>
+        <button type="button"
+                (click)="handleOpenModal('all', 'treemap')"
+                class="flex items-center gap-1 px-1.5 py-0.5 rounded text-left transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="activity" [size]="12" class="text-emerald-400"></svg>
+          <span>SmartArt</span>
+        </button>
+      </div>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Illustrations</div>
+  </div>
+
+  <!-- 3. Controls Group -->
+  <div class="flex flex-col justify-between px-2 border-r shrink-0"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center justify-center h-full">
+      <button type="button"
+              (click)="insertCheckbox.emit()"
+              title="Insertar casilla de verificación en las celdas seleccionadas"
+              class="flex flex-col items-center px-2.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="check-square" [size]="18" class="text-emerald-400 mb-0.5"></svg>
+        <span>Checkbox</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Controls</div>
+  </div>
+
+  <!-- 4. CHARTS GROUP (Interactive with Flyout Menus & Subtypes) -->
+  <div class="flex flex-col justify-between px-2 border-r shrink-0 relative"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-2">
+      <!-- Recommended Charts -->
+      <button type="button"
+              (click)="handleOpenModal('recommended')"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="bar-chart-2" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span class="leading-tight font-medium">Recommended</span>
+        <span class="leading-tight font-medium">Charts</span>
+      </button>
+
+      <!-- Chart categories arranged in two rows -->
+      <div class="chart-types-grid">
+        
+        <!-- Row 1, Col 1: Column / Bar Dropdown -->
+        <div class="relative insert-dropdown-trigger">
+          <button type="button"
+                  (click)="toggleDropdown('column', $event)"
+                  title="Insert Column or Bar Chart"
+                  class="flex items-center gap-0.5 px-1.5 py-0.5 rounded border transition-colors"
+                  [class.bg-[#353535]]="themeService.isDark() && openDropdown === 'column'"
+                  [class.bg-slate-200]="!themeService.isDark() && openDropdown === 'column'"
+                  [class.border-gray-400]="openDropdown === 'column'"
+                  [class.border-transparent]="openDropdown !== 'column'"
+                  [class.hover:bg-[#2d2d2d]]="themeService.isDark() && openDropdown !== 'column'"
+                  [class.hover:bg-slate-100]="!themeService.isDark() && openDropdown !== 'column'">
+            <svg lucideIcon="bar-chart-2" [size]="15" class="text-sky-400"></svg>
+            <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+          </button>
+
+          @if (openDropdown === 'column') {
+            <div class="insert-dropdown-menu absolute left-0 top-full mt-1 w-60 rounded-md shadow-2xl z-50 p-2 text-xs border"
+                 [class.bg-[#252525]]="themeService.isDark()"
+                 [class.border-[#444]]="themeService.isDark()"
+                 [class.text-gray-200]="themeService.isDark()"
+                 [class.bg-white]="!themeService.isDark()"
+                 [class.border-slate-200]="!themeService.isDark()"
+                 [class.text-slate-800]="!themeService.isDark()">
+              <div class="font-semibold px-1 pb-1">2-D Column</div>
+              <div class="flex items-center gap-2 px-1 mb-2">
+                <button type="button" title="Clustered Column"
+                        (click)="handleInsert('column', 'clusteredColumn')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="bar-chart-2" [size]="20" class="text-sky-400"></svg>
+                </button>
+                <button type="button" title="Stacked Column"
+                        (click)="handleInsert('column', 'stackedColumn')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="bar-chart-2" [size]="20" class="text-amber-400"></svg>
+                </button>
+                <button type="button" title="100% Stacked Column"
+                        (click)="handleInsert('column', 'percentStackedColumn')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="bar-chart-2" [size]="20" class="text-emerald-400"></svg>
+                </button>
+              </div>
+
+              <div class="font-semibold px-1 pt-1.5 border-t"
+                   [class.border-[#383838]]="themeService.isDark()"
+                   [class.border-slate-200]="!themeService.isDark()">2-D Bar</div>
+              <div class="flex items-center gap-2 px-1 mb-2">
+                <button type="button" title="Clustered Bar"
+                        (click)="handleInsert('bar', 'clusteredBar')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="bar-chart-2" [size]="20" class="text-sky-400 rotate-90"></svg>
+                </button>
+                <button type="button" title="Stacked Bar"
+                        (click)="handleInsert('bar', 'stackedBar')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="bar-chart-2" [size]="20" class="text-amber-400 rotate-90"></svg>
+                </button>
+              </div>
+
+              <button type="button"
+                      (click)="handleOpenModal('all', 'column')"
+                      class="w-full pt-1.5 border-t text-left px-1 py-1 underline font-medium transition-colors"
+                      [class.border-[#383838]]="themeService.isDark()"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.border-slate-200]="!themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                More Column Charts...
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Row 1, Col 2: Hierarchy Chart (Treemap / Sunburst) -->
+        <button type="button"
+                (click)="handleOpenModal('all', 'treemap')"
+                title="Insert Hierarchy Chart (Treemap, Sunburst)"
+                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="table" [size]="15" class="text-sky-400"></svg>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+        </button>
+
+        <!-- Row 1, Col 3: Waterfall, Funnel, Stock, Surface, Radar -->
+        <button type="button"
+                (click)="handleOpenModal('all', 'stock')"
+                title="Insert Waterfall, Funnel, Stock, Surface, or Radar Chart"
+                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="activity" [size]="15" class="text-sky-400"></svg>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+        </button>
+
+        <!-- Row 2, Col 1: Line / Area Dropdown -->
+        <div class="relative insert-dropdown-trigger">
+          <button type="button"
+                  (click)="toggleDropdown('line', $event)"
+                  title="Insert Line or Area Chart"
+                  class="flex items-center gap-0.5 px-1.5 py-0.5 rounded border transition-colors"
+                  [class.bg-[#353535]]="themeService.isDark() && openDropdown === 'line'"
+                  [class.bg-slate-200]="!themeService.isDark() && openDropdown === 'line'"
+                  [class.border-gray-400]="openDropdown === 'line'"
+                  [class.border-transparent]="openDropdown !== 'line'"
+                  [class.hover:bg-[#2d2d2d]]="themeService.isDark() && openDropdown !== 'line'"
+                  [class.hover:bg-slate-100]="!themeService.isDark() && openDropdown !== 'line'">
+            <svg lucideIcon="trending-up" [size]="15" class="text-sky-400"></svg>
+            <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+          </button>
+
+          @if (openDropdown === 'line') {
+            <div class="insert-dropdown-menu absolute left-0 top-full mt-1 w-60 rounded-md shadow-2xl z-50 p-2 text-xs border"
+                 [class.bg-[#252525]]="themeService.isDark()"
+                 [class.border-[#444]]="themeService.isDark()"
+                 [class.text-gray-200]="themeService.isDark()"
+                 [class.bg-white]="!themeService.isDark()"
+                 [class.border-slate-200]="!themeService.isDark()"
+                 [class.text-slate-800]="!themeService.isDark()">
+              <div class="font-semibold px-1 pb-1">2-D Line</div>
+              <div class="flex items-center gap-2 px-1 mb-2">
+                <button type="button" title="Line"
+                        (click)="handleInsert('line', 'line')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="trending-up" [size]="20" class="text-sky-400"></svg>
+                </button>
+                <button type="button" title="Line with Markers"
+                        (click)="handleInsert('line', 'lineMarkers')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="trending-up" [size]="20" class="text-emerald-400"></svg>
+                </button>
+              </div>
+
+              <div class="font-semibold px-1 pt-1.5 border-t"
+                   [class.border-[#383838]]="themeService.isDark()"
+                   [class.border-slate-200]="!themeService.isDark()">2-D Area</div>
+              <div class="flex items-center gap-2 px-1 mb-2">
+                <button type="button" title="Area"
+                        (click)="handleInsert('area', 'area')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="activity" [size]="20" class="text-sky-400"></svg>
+                </button>
+                <button type="button" title="Stacked Area"
+                        (click)="handleInsert('area', 'stackedArea')"
+                        class="p-1.5 rounded border transition-colors"
+                        [class.bg-[#1e1e1e]]="themeService.isDark()"
+                        [class.border-[#444]]="themeService.isDark()"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.bg-slate-50]="!themeService.isDark()"
+                        [class.border-slate-200]="!themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg lucideIcon="activity" [size]="20" class="text-amber-400"></svg>
+                </button>
+              </div>
+
+              <button type="button"
+                      (click)="handleOpenModal('all', 'line')"
+                      class="w-full pt-1.5 border-t text-left px-1 py-1 underline font-medium transition-colors"
+                      [class.border-[#383838]]="themeService.isDark()"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.border-slate-200]="!themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                More Line Charts...
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Row 2, Col 2: Statistic Chart (Histogram / Box & Whisker) -->
+        <button type="button"
+                (click)="handleOpenModal('all', 'histogram')"
+                title="Insert Statistic Chart (Histogram, Pareto, Box & Whisker)"
+                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="bar-chart-2" [size]="15" class="text-sky-500"></svg>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+        </button>
+
+        <!-- Row 2, Col 3: Combo Chart -->
+        <button type="button"
+                (click)="handleOpenModal('all', 'combo')"
+                title="Insert Combo Chart"
+                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="trending-up" [size]="15" class="text-amber-400"></svg>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+        </button>
+
+        <!-- Row 3, Col 1: Pie / Doughnut Dropdown -->
+        <div class="relative insert-dropdown-trigger">
+          <button type="button"
+                  (click)="toggleDropdown('pie', $event)"
+                  title="Insert Pie or Doughnut Chart"
+                  class="flex items-center gap-0.5 px-1.5 py-0.5 rounded border transition-colors"
+                  [class.bg-[#353535]]="themeService.isDark() && openDropdown === 'pie'"
+                  [class.bg-slate-200]="!themeService.isDark() && openDropdown === 'pie'"
+                  [class.border-gray-400]="openDropdown === 'pie'"
+                  [class.border-transparent]="openDropdown !== 'pie'"
+                  [class.hover:bg-[#2d2d2d]]="themeService.isDark() && openDropdown !== 'pie'"
+                  [class.hover:bg-slate-100]="!themeService.isDark() && openDropdown !== 'pie'">
+            <svg lucideIcon="pie-chart" [size]="15" class="text-sky-400"></svg>
+            <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+          </button>
+
+          @if (openDropdown === 'pie') {
+            <div class="insert-dropdown-menu absolute left-0 top-full mt-1 w-56 rounded-md shadow-2xl z-50 py-2 text-xs border"
+                 [class.bg-[#252525]]="themeService.isDark()"
+                 [class.border-[#4a4a4a]]="themeService.isDark()"
+                 [class.text-gray-100]="themeService.isDark()"
+                 [class.bg-white]="!themeService.isDark()"
+                 [class.border-slate-200]="!themeService.isDark()"
+                 [class.text-slate-800]="!themeService.isDark()">
+              <div class="px-3 pb-1.5 font-semibold">2-D Pie</div>
+              <div class="px-3 pb-2 flex items-center gap-3 border-b"
+                   [class.border-[#3b3b3b]]="themeService.isDark()"
+                   [class.border-slate-200]="!themeService.isDark()">
+                <!-- 2-D Pie -->
+                <button type="button" title="Pie"
+                        (click)="handleInsert('pie', 'pie2d')"
+                        class="p-1 rounded transition-colors"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg class="w-9 h-9" viewBox="0 0 44 44">
+                    <circle cx="22" cy="22" r="17" fill="#3b82f6" stroke="#94a3b8" stroke-width="1.5" />
+                    <path d="M22 22V5A17 17 0 0 1 35 33L22 22Z" fill="#0284c7" stroke="#ffffff" stroke-width="1" />
+                  </svg>
+                </button>
+                <!-- Doughnut -->
+                <button type="button" title="Doughnut"
+                        (click)="handleInsert('pie', 'doughnut')"
+                        class="p-1 rounded transition-colors"
+                        [class.hover:bg-[#383838]]="themeService.isDark()"
+                        [class.hover:bg-slate-100]="!themeService.isDark()">
+                  <svg class="w-9 h-9" viewBox="0 0 44 44">
+                    <circle cx="22" cy="22" r="17" fill="#0284c7" stroke="#ffffff" stroke-width="1.5" />
+                    <circle cx="22" cy="22" r="8" [attr.fill]="themeService.isDark() ? '#252525' : '#ffffff'" />
+                  </svg>
+                </button>
+              </div>
+
+              <button type="button"
+                      (click)="handleOpenModal('all', 'pie')"
+                      class="w-full pt-1.5 text-left px-3 py-1 underline font-medium transition-colors"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                More Pie Charts...
+              </button>
+            </div>
+          }
+        </div>
+
+        <!-- Row 3, Col 2: Scatter / Bubble -->
+        <button type="button"
+                (click)="handleOpenModal('all', 'scatter')"
+                title="Insert Scatter (X, Y) or Bubble Chart"
+                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="chart-scatter" [size]="15" class="text-sky-400"></svg>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+        </button>
+
+        <!-- Row 3, Col 3: Map / Globe Chart -->
+        <button type="button"
+                (click)="handleOpenModal('all', 'map')"
+                title="Insert Map / Geography Chart"
+                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="globe" [size]="15" class="text-emerald-400"></svg>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400"></svg>
+        </button>
+
+      </div>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Charts</div>
+  </div>
+
+  <!-- 5. Links & Symbols Group -->
+  <div class="flex flex-col justify-between px-2 shrink-0">
+    <div class="flex items-center gap-1.5">
+      <button type="button"
+              (click)="insertEquation.emit()"
+              title="Insertar ecuación matemática"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="sigma" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span>Equation</span>
+      </button>
+
+      <button type="button"
+              (click)="insertSymbol.emit()"
+              title="Insertar símbolo especial"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <span class="text-base font-serif font-bold text-amber-400 leading-tight mb-0.5">Ω</span>
+        <span>Symbol</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Symbols</div>
+  </div>
+
+</div>

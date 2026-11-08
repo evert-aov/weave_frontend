@@ -1,0 +1,524 @@
+<div (click)="$event.stopPropagation()"
+     class="excel-toolbar-panel flex items-stretch gap-2 text-[11px] relative z-40 select-none transition-colors">
+
+  <!-- 1. Themes Group -->
+  <div class="flex flex-col justify-between pr-2.5 border-r shrink-0 relative"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-2">
+      <!-- Main Themes Button -->
+      <div class="relative layout-dropdown-trigger">
+        <button type="button"
+                (click)="toggleMenu('themes', $event)"
+                class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <div class="w-6 h-6 rounded border flex flex-col items-center justify-center mb-0.5"
+               [class.bg-[#262626]]="themeService.isDark()"
+               [class.border-[#4a4a4a]]="themeService.isDark()"
+               [class.bg-slate-50]="!themeService.isDark()"
+               [class.border-slate-300]="!themeService.isDark()">
+            <span class="text-[10px] font-bold text-sky-500 leading-none">Aa</span>
+            <div class="flex gap-0.5 mt-0.5">
+              <span class="w-1 h-1 bg-rose-500 rounded-xs"></span>
+              <span class="w-1 h-1 bg-emerald-500 rounded-xs"></span>
+              <span class="w-1 h-1 bg-amber-500 rounded-xs"></span>
+            </div>
+          </div>
+          <span class="font-medium">Themes</span>
+          <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+        </button>
+
+        <!-- Themes Flyout Menu -->
+        @if (openMenu === 'themes') {
+          <div class="layout-dropdown-menu absolute left-0 top-full mt-1 w-56 rounded shadow-2xl z-50 py-1.5 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border-b"
+                 [class.text-gray-400]="themeService.isDark()"
+                 [class.border-[#333]]="themeService.isDark()"
+                 [class.text-slate-400]="!themeService.isDark()"
+                 [class.border-slate-100]="!themeService.isDark()">
+              Temas de Documento
+            </div>
+            @for (th of themePresets; track th.id) {
+              <button type="button"
+                      (click)="updateConfig.emit({ theme: th.id }); closeMenus()"
+                      class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors"
+                      [class.bg-emerald-500_15]="config.theme === th.id"
+                      [class.text-emerald-400]="config.theme === th.id"
+                      [class.font-medium]="config.theme === th.id"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                <span class="flex items-center gap-2">
+                  <span class="w-3.5 h-3.5 rounded-sm border shadow-xs"
+                        [style.background-color]="th.headerBg"
+                        [class.border-white_30]="themeService.isDark()"
+                        [class.border-slate-400]="!themeService.isDark()"></span>
+                  <span>{{ th.name }}</span>
+                </span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Colors, Fonts, Effects buttons -->
+      <div class="flex flex-col gap-0.5">
+        <button type="button" (click)="toggleMenu('themes', $event)"
+                class="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-left transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="palette" [size]="13" class="text-sky-400"></svg>
+          <span>Colors</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400 ml-auto"></svg>
+        </button>
+        <button type="button" (click)="toggleMenu('themes', $event)"
+                class="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-left transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="type" [size]="13" class="text-amber-400"></svg>
+          <span>Fonts</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400 ml-auto"></svg>
+        </button>
+        <button type="button" (click)="toggleMenu('themes', $event)"
+                class="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-left transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="sparkles" [size]="13" class="text-purple-400"></svg>
+          <span>Effects</span>
+          <svg lucideIcon="chevron-down" [size]="9" class="text-gray-400 ml-auto"></svg>
+        </button>
+      </div>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Themes</div>
+  </div>
+
+  <!-- 2. Page Setup Group -->
+  <div class="flex flex-col justify-between pr-3 border-r shrink-0 relative"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-1.5">
+      
+      <!-- Margins -->
+      <div class="relative layout-dropdown-trigger">
+        <button type="button"
+                (click)="toggleMenu('margins', $event)"
+                class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="layout" [size]="18" class="text-sky-400 mb-0.5"></svg>
+          <span>Margins</span>
+          <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+        </button>
+
+        @if (openMenu === 'margins') {
+          <div class="layout-dropdown-menu absolute left-0 top-full mt-1 w-52 rounded shadow-2xl z-50 py-1.5 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            @for (m of marginsOptions; track m.id) {
+              <button type="button"
+                      (click)="updateConfig.emit({ margins: m.id, showPageBreaks: true }); closeMenus()"
+                      class="w-full px-3 py-1.5 text-left flex flex-col transition-colors"
+                      [class.bg-emerald-500_15]="config.margins === m.id"
+                      [class.text-emerald-400]="config.margins === m.id"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                <span class="font-medium">{{ m.label }}</span>
+                <span class="text-[10px] text-gray-400">{{ m.desc }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Orientation -->
+      <div class="relative layout-dropdown-trigger">
+        <button type="button"
+                (click)="toggleMenu('orientation', $event)"
+                class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="file-text" [size]="18" class="text-sky-400 mb-0.5"></svg>
+          <span>Orientation</span>
+          <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+        </button>
+
+        @if (openMenu === 'orientation') {
+          <div class="layout-dropdown-menu absolute left-0 top-full mt-1 w-44 rounded shadow-2xl z-50 py-1 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            @for (o of orientationOptions; track o.id) {
+              <button type="button"
+                      (click)="updateConfig.emit({ orientation: o.id, showPageBreaks: true }); closeMenus()"
+                      class="w-full px-3 py-1.5 text-left transition-colors"
+                      [class.bg-emerald-500_15]="config.orientation === o.id"
+                      [class.text-emerald-400]="config.orientation === o.id"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                {{ o.label }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Size -->
+      <div class="relative layout-dropdown-trigger">
+        <button type="button"
+                (click)="toggleMenu('size', $event)"
+                class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="maximize-2" [size]="18" class="text-gray-400 mb-0.5"></svg>
+          <span>Size</span>
+          <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+        </button>
+
+        @if (openMenu === 'size') {
+          <div class="layout-dropdown-menu absolute left-0 top-full mt-1 w-48 rounded shadow-2xl z-50 py-1 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            @for (sz of sizeOptions; track sz.id) {
+              <button type="button"
+                      (click)="updateConfig.emit({ size: sz.id, showPageBreaks: true }); closeMenus()"
+                      class="w-full px-3 py-1.5 text-left flex flex-col transition-colors"
+                      [class.bg-emerald-500_15]="config.size === sz.id"
+                      [class.text-emerald-400]="config.size === sz.id"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                <span class="font-medium">{{ sz.label }}</span>
+                <span class="text-[10px] text-gray-400">{{ sz.dim }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Print Area -->
+      <div class="relative layout-dropdown-trigger">
+        <button type="button"
+                (click)="toggleMenu('printArea', $event)"
+                class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+                [class.bg-emerald-600_20]="config.printArea"
+                [class.ring-1]="config.printArea"
+                [class.ring-emerald-500]="config.printArea"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark() && !config.printArea"
+                [class.hover:bg-slate-100]="!themeService.isDark() && !config.printArea">
+          <svg lucideIcon="printer" [size]="18" class="text-sky-400 mb-0.5"></svg>
+          <span class="leading-tight">Print Area</span>
+          <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+        </button>
+
+        @if (openMenu === 'printArea') {
+          <div class="layout-dropdown-menu absolute left-0 top-full mt-1 w-52 rounded shadow-2xl z-50 py-1 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            <button type="button"
+                    (click)="setPrintArea.emit(); closeMenus()"
+                    class="w-full px-3 py-1.5 text-left transition-colors"
+                    [class.hover:bg-[#353535]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              Set Print Area (Establecer selección)
+            </button>
+            <button type="button"
+                    (click)="clearPrintArea.emit(); closeMenus()"
+                    class="w-full px-3 py-1.5 text-left text-rose-400 transition-colors"
+                    [class.hover:bg-[#353535]]="themeService.isDark()"
+                    [class.hover:bg-slate-100]="!themeService.isDark()">
+              Clear Print Area (Borrar área)
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Breaks -->
+      <button type="button"
+              (click)="updateConfig.emit({ showPageBreaks: !config.showPageBreaks })"
+              title="Mostrar u ocultar saltos de página"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.bg-emerald-600_20]="config.showPageBreaks"
+              [class.ring-1]="config.showPageBreaks"
+              [class.ring-emerald-500]="config.showPageBreaks"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark() && !config.showPageBreaks"
+              [class.hover:bg-slate-100]="!themeService.isDark() && !config.showPageBreaks">
+        <svg lucideIcon="scissors" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span>Breaks</span>
+        <svg lucideIcon="chevron-down" [size]="10" class="text-gray-400"></svg>
+      </button>
+
+      <!-- Background -->
+      <div class="relative layout-dropdown-trigger">
+        <button type="button"
+                (click)="toggleMenu('background', $event)"
+                class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+                [class.bg-emerald-600_20]="config.backgroundUrl"
+                [class.ring-1]="config.backgroundUrl"
+                [class.ring-emerald-500]="config.backgroundUrl"
+                [class.hover:bg-[#2d2d2d]]="themeService.isDark() && !config.backgroundUrl"
+                [class.hover:bg-slate-100]="!themeService.isDark() && !config.backgroundUrl">
+          <svg lucideIcon="image" [size]="18" class="text-emerald-400 mb-0.5"></svg>
+          <span>Background</span>
+        </button>
+
+        @if (openMenu === 'background') {
+          <div class="layout-dropdown-menu absolute left-0 top-full mt-1 w-56 rounded shadow-2xl z-50 py-1.5 text-xs border"
+               [class.bg-[#252525]]="themeService.isDark()"
+               [class.border-[#3d3d3d]]="themeService.isDark()"
+               [class.text-gray-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()">
+            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border-b"
+                 [class.text-gray-400]="themeService.isDark()"
+                 [class.border-[#333]]="themeService.isDark()"
+                 [class.text-slate-400]="!themeService.isDark()"
+                 [class.border-slate-100]="!themeService.isDark()">
+              Fondo de Hoja
+            </div>
+            @for (bg of backgroundOptions; track bg.label) {
+              <button type="button"
+                      (click)="updateConfig.emit({ backgroundUrl: bg.url }); closeMenus()"
+                      class="w-full px-3 py-1.5 text-left transition-colors"
+                      [class.bg-emerald-500_15]="config.backgroundUrl === bg.url"
+                      [class.text-emerald-400]="config.backgroundUrl === bg.url"
+                      [class.hover:bg-[#353535]]="themeService.isDark()"
+                      [class.hover:bg-slate-100]="!themeService.isDark()">
+                {{ bg.label }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Print Titles -->
+      <button type="button"
+              (click)="printTitles()"
+              title="Imprimir títulos y página actual"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="table" [size]="18" class="text-rose-400 mb-0.5"></svg>
+        <span class="leading-tight">Print Titles</span>
+      </button>
+    </div>
+
+    <div class="flex items-center justify-center relative mt-1">
+      <span class="text-[10px] text-gray-400">Page Setup</span>
+      <svg lucideIcon="arrow-up-right" [size]="10" class="text-gray-500 absolute right-0 bottom-0"></svg>
+    </div>
+  </div>
+
+  <!-- 3. Scale to Fit Group -->
+  <div class="flex flex-col justify-between pr-3 border-r shrink-0 relative"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex flex-col gap-1 justify-center">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[11px] flex items-center gap-1"
+              [class.text-gray-300]="themeService.isDark()"
+              [class.text-slate-600]="!themeService.isDark()">
+          <span class="text-sky-400 font-bold">↔</span> Width:
+        </span>
+        <select [value]="config.widthPages"
+                (change)="updateConfig.emit({ widthPages: $any($event.target).value })"
+                class="rounded px-1.5 py-0.5 text-[11px] w-24 focus:outline-none border"
+                [class.bg-[#262626]]="themeService.isDark()"
+                [class.border-[#3d3d3d]]="themeService.isDark()"
+                [class.text-gray-200]="themeService.isDark()"
+                [class.bg-slate-50]="!themeService.isDark()"
+                [class.border-slate-300]="!themeService.isDark()"
+                [class.text-slate-800]="!themeService.isDark()">
+          <option value="Automatic">Automatic</option>
+          <option value="1 page">1 page</option>
+          <option value="2 pages">2 pages</option>
+        </select>
+      </div>
+
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[11px] flex items-center gap-1"
+              [class.text-gray-300]="themeService.isDark()"
+              [class.text-slate-600]="!themeService.isDark()">
+          <span class="text-sky-400 font-bold">↕</span> Height:
+        </span>
+        <select [value]="config.heightPages"
+                (change)="updateConfig.emit({ heightPages: $any($event.target).value })"
+                class="rounded px-1.5 py-0.5 text-[11px] w-24 focus:outline-none border"
+                [class.bg-[#262626]]="themeService.isDark()"
+                [class.border-[#3d3d3d]]="themeService.isDark()"
+                [class.text-gray-200]="themeService.isDark()"
+                [class.bg-slate-50]="!themeService.isDark()"
+                [class.border-slate-300]="!themeService.isDark()"
+                [class.text-slate-800]="!themeService.isDark()">
+          <option value="Automatic">Automatic</option>
+          <option value="1 page">1 page</option>
+          <option value="2 pages">2 pages</option>
+        </select>
+      </div>
+
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[11px] flex items-center gap-1"
+              [class.text-gray-300]="themeService.isDark()"
+              [class.text-slate-600]="!themeService.isDark()">
+          <span class="text-sky-400 font-bold">⤢</span> Scale:
+        </span>
+        <div class="flex items-center rounded px-1.5 py-0.5 w-24 justify-between border"
+             [class.bg-[#262626]]="themeService.isDark()"
+             [class.border-[#3d3d3d]]="themeService.isDark()"
+             [class.text-gray-200]="themeService.isDark()"
+             [class.bg-slate-50]="!themeService.isDark()"
+             [class.border-slate-300]="!themeService.isDark()"
+             [class.text-slate-800]="!themeService.isDark()">
+          <span class="text-[11px] font-mono">{{ zoom }}%</span>
+          <div class="flex flex-col">
+            <button type="button" (click)="changeZoom.emit(Math.min(150, zoom + 10))"
+                    class="hover:opacity-100 opacity-60">
+              <svg lucideIcon="chevron-up" [size]="9"></svg>
+            </button>
+            <button type="button" (click)="changeZoom.emit(Math.max(60, zoom - 10))"
+                    class="hover:opacity-100 opacity-60">
+              <svg lucideIcon="chevron-down" [size]="9"></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-center relative mt-1">
+      <span class="text-[10px] text-gray-400">Scale to Fit</span>
+      <svg lucideIcon="arrow-up-right" [size]="10" class="text-gray-500 absolute right-0 bottom-0"></svg>
+    </div>
+  </div>
+
+  <!-- 4. Sheet Options Group -->
+  <div class="flex flex-col justify-between pr-3 border-r shrink-0 relative"
+       [class.border-[#333333]]="themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()">
+    <div class="flex items-center gap-3 pt-0.5">
+      <!-- Gridlines -->
+      <div class="flex flex-col gap-1 pr-2.5 border-r"
+           [class.border-[#333]]="themeService.isDark()"
+           [class.border-slate-200]="!themeService.isDark()">
+        <span class="text-[11px] font-semibold"
+              [class.text-gray-200]="themeService.isDark()"
+              [class.text-slate-700]="!themeService.isDark()">Gridlines</span>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" [checked]="showGridlines"
+                 (change)="toggleGridlines.emit($any($event.target).checked)"
+                 class="accent-emerald-600 rounded" />
+          <span>View</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" [checked]="config.gridlinesPrint"
+                 (change)="updateConfig.emit({ gridlinesPrint: $any($event.target).checked })"
+                 class="accent-emerald-600 rounded" />
+          <span>Print</span>
+        </label>
+      </div>
+
+      <!-- Headings -->
+      <div class="flex flex-col gap-1">
+        <span class="text-[11px] font-semibold"
+              [class.text-gray-200]="themeService.isDark()"
+              [class.text-slate-700]="!themeService.isDark()">Headings</span>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" [checked]="showHeadings"
+                 (change)="toggleHeadings.emit($any($event.target).checked)"
+                 class="accent-emerald-600 rounded" />
+          <span>View</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" [checked]="config.headingsPrint"
+                 (change)="updateConfig.emit({ headingsPrint: $any($event.target).checked })"
+                 class="accent-emerald-600 rounded" />
+          <span>Print</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-center relative mt-1">
+      <span class="text-[10px] text-gray-400">Sheet Options</span>
+      <svg lucideIcon="arrow-up-right" [size]="10" class="text-gray-500 absolute right-0 bottom-0"></svg>
+    </div>
+  </div>
+
+  <!-- 5. Arrange Group -->
+  <div class="flex flex-col justify-between px-1 shrink-0">
+    <div class="flex items-center gap-1.5">
+      <button type="button"
+              [disabled]="!hasSelectedChart"
+              (click)="bringChartForward.emit()"
+              title="Traer gráfico seleccionado al frente"
+              class="flex flex-col items-center px-1.5 py-1 rounded text-center disabled:opacity-40 transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="layers" [size]="18" class="text-amber-400 mb-0.5"></svg>
+        <span class="leading-tight">Bring Forward</span>
+      </button>
+
+      <button type="button"
+              [disabled]="!hasSelectedChart"
+              (click)="sendChartBackward.emit()"
+              title="Enviar gráfico seleccionado atrás"
+              class="flex flex-col items-center px-1.5 py-1 rounded text-center disabled:opacity-40 transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="layers" [size]="18" class="text-amber-500 mb-0.5"></svg>
+        <span class="leading-tight">Send Backward</span>
+      </button>
+
+      <button type="button"
+              (click)="bringChartForward.emit()"
+              class="flex flex-col items-center px-1.5 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="mouse-pointer" [size]="18" class="text-amber-400 mb-0.5"></svg>
+        <span class="leading-tight">Selection Pane</span>
+      </button>
+
+      <button type="button"
+              class="flex flex-col items-center px-1.5 py-1 rounded text-center transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="align-left" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span>Align</span>
+      </button>
+
+      <button type="button"
+              [disabled]="!hasSelectedChart"
+              class="flex flex-col items-center px-1.5 py-1 rounded text-center opacity-40">
+        <svg lucideIcon="group" [size]="18" class="text-gray-400 mb-0.5"></svg>
+        <span>Group</span>
+      </button>
+
+      <button type="button"
+              [disabled]="!hasSelectedChart"
+              class="flex flex-col items-center px-1.5 py-1 rounded text-center opacity-40">
+        <svg lucideIcon="rotate-cw" [size]="18" class="text-gray-400 mb-0.5"></svg>
+        <span>Rotate</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Arrange</div>
+  </div>
+
+</div>

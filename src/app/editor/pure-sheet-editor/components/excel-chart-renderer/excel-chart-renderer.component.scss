@@ -1,0 +1,37 @@
+:host { display: block; width: 100%; height: 100%; }
+.chart-card-root { min-height: 0; }
+.chart-point { transform-box: fill-box; transform-origin: center; transition: transform 150ms; }
+.chart-point:hover { transform: scale(1.35); }
+.animated-line { stroke-dasharray: 1; animation: draw-line 650ms ease-out both; }
+svg rect, svg polygon, svg g > path { animation: reveal-chart 500ms ease-out both; }
+.chart-legend { line-height: 1.15; }
+.legend-marker { width: 12px; height: 6px; border-radius: 0; border-width: 0; border-top-width: 2px; background: transparent !important; }
+.legend-marker > span { width: 5px; height: 5px; margin-top: -2px; }
+@keyframes draw-line { from { stroke-dashoffset: 1; opacity: .2; } to { stroke-dashoffset: 0; opacity: 1; } }
+@keyframes reveal-chart { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { *, svg * { animation: none !important; transition: none !important; } }
+
+/* The SVG follows the available plot size; labels and markers use actual pixels. */
+.chart-plot { min-height: 0; }
+.plot-svg { position: absolute; inset: 0; }
+.plot-svg text { font: 11px Arial, sans-serif; }
+.plot-svg path { vector-effect: non-scaling-stroke; }
+.chart-legend { padding: 4px 0 6px; }
+.compact-chart { padding: 0; }
+.compact-chart .chart-legend { column-gap: 10px; row-gap: 3px; }
+.compact-chart .chart-legend .font-medium { font-size: 11px; max-width: 125px; }
+
+.axis-tooltip { position: absolute; z-index: 10; pointer-events: none; width: 180px; max-width: calc(100% - 8px); padding: 10px; background: #fff; color: #262626; border: 1px solid #d4d4d4; box-shadow: 0 2px 6px #0001; font: 11px Arial, sans-serif; }
+.axis-tooltip-label { margin-bottom: 8px; }
+.axis-tooltip-value { padding: 3px 0; }
+.dark-tooltip { background: #252525; color: #fff; border-color: #444; }
+
+.chart-title { flex-shrink: 0; padding: 2px 8px 6px; text-align: center; font: 600 14px Arial, sans-serif; overflow-wrap: anywhere; }
+.animations-disabled svg * { animation: none !important; }
+
+.chart-title { grid-area: title; }
+.chart-plot, .chart-empty { grid-area: plot; }
+.chart-legend { grid-area: legend; }
+.vertical-legend .chart-legend { flex-direction: column; flex-wrap: nowrap; align-items: flex-start; align-self: center; gap: 10px; padding: 8px; min-width: 0; }
+.vertical-legend .chart-legend > div { max-width: 100%; }
+.vertical-legend .chart-legend span.font-medium { white-space: normal; overflow-wrap: anywhere; }

@@ -1,3 +1,5 @@
+import { DestroyRef } from '@angular/core';
+import { EditorStylesService } from '../../core/services/editor-styles.service';
 import {
   Component,
   Input,
@@ -72,7 +74,14 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnChanges, OnDe
     });
   }
 
-  ngAfterViewInit(): void {
+  private vendorStylesReady = false;
+  private readonly vendorStyles = inject(EditorStylesService);
+  private readonly styleLifetime = inject(DestroyRef);
+
+  async ngAfterViewInit(): Promise<void> {
+    await this.vendorStyles.load('canvas-vendor.css');
+    if (this.styleLifetime.destroyed) return;
+    this.vendorStylesReady = true;
     this.loadedNoteId = this.note?._id || null;
     const mountEl = this.canvasMount.nativeElement;
     this.reactRoot = createRoot(mountEl);
@@ -88,7 +97,7 @@ export class PureCanvasEditorComponent implements AfterViewInit, OnChanges, OnDe
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['note'] && !changes['note'].firstChange) {
+    if (this.vendorStylesReady && changes['note'] && !changes['note'].firstChange) {
       const newId = this.note?._id;
       if (newId && newId !== this.loadedNoteId) {
         this.loadedNoteId = newId;

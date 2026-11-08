@@ -1,0 +1,22 @@
+@use "../excel-ribbon/toolbar-surface";
+
+:host {
+  display: block;
+}
+
+.insert-dropdown-menu {
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chart-types-grid { display: grid; grid-template-columns: repeat(5, max-content); grid-template-rows: repeat(2, 22px); align-items: center; gap: 3px 6px; }

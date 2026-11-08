@@ -1,3 +1,5 @@
+import { DestroyRef } from '@angular/core';
+import { EditorStylesService } from '../../core/services/editor-styles.service';
 import {
   Component,
   Input,
@@ -87,7 +89,12 @@ export class CanvasBlockComponent implements AfterViewInit, OnDestroy {
     });
   }
 
-  ngAfterViewInit(): void {
+  private readonly vendorStyles = inject(EditorStylesService);
+  private readonly styleLifetime = inject(DestroyRef);
+
+  async ngAfterViewInit(): Promise<void> {
+    await this.vendorStyles.load('canvas-vendor.css');
+    if (this.styleLifetime.destroyed) return;
     const mountEl = this.canvasMount.nativeElement;
     this.reactRoot = createRoot(mountEl);
     this.currentElements = this.block.content?.['elements'] || [];

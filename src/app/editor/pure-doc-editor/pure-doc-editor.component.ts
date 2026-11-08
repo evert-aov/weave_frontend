@@ -142,6 +142,20 @@ interface DocDataV2 {
   headingNumbering?: boolean;
 }
 
+interface TableResizeState {
+  pageIndex: number;
+  table: HTMLTableElement;
+  row: HTMLTableRowElement;
+  cell: HTMLTableCellElement;
+  mode: 'row' | 'column';
+  index: number;
+  startX: number;
+  startY: number;
+  tableWidth: number;
+  rowHeight: number;
+  columnWidths: number[];
+}
+
 /**
  * Editor de documento multipágina (Word) standalone para Weave.
  * Orquesta la barra de herramientas, el lienzo multipágina contentEditable,
@@ -230,6 +244,9 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   readonly docxProperties = signal<DocxDocumentProperties | null>(null);
   readonly importedTocEntries = signal<HeadingItem[]>([]);
   readonly activeTab = signal<RibbonTab>('home');
+  readonly pdfExporting = signal(false);
+  readonly pdfExportMessage = signal('');
+  readonly pdfExportFailed = signal(false);
   readonly showFormattingMarks = signal(false);
   readonly headingNumbering = signal(false);
   readonly searchMode = signal<'find' | 'replace' | null>(null);
@@ -378,6 +395,8 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   private flowFrame: number | null = null;
   private pendingRenderPages: DocumentPage[] | null = null;
   private pendingRenderNeedsFlow = false;
+  private tableResizeState: TableResizeState | null = null;
+  private tableResizeAbort: AbortController | null = null;
   private lastFlowPages: DocumentPage[] | null = null;
   private lastFlowGeometry = '';
   private composing = false;
@@ -488,6 +507,10 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.unregisterAi();
     this.captureLatestSave();
     this.destroyed = true;
+    this.tableResizeAbort?.abort();
+    this.tableResizeAbort = null;
+    this.tableResizeState = null;
+    document.body.style.cursor = '';
     this.hydrationVersion++;
     if (this.flowFrame !== null) cancelAnimationFrame(this.flowFrame);
     this.bodyResizeObserver?.disconnect();
@@ -2248,6 +2271,96 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.showToast('Fórmula LaTeX eliminada del documento (Ctrl+Z para restaurar)');
   }
 
+  updateTableResizeCursor(event: PointerEvent): void {
+    if (this.tableResizeState) return;
+    const target = event.target instanceof Element ? event.target.closest('td,th') as HTMLTableCellElement | null : null;
+    if (!target) { document.body.style.cursor = ''; return; }
+    const rect = target.getBoundingClientRect();
+    const nearRight = rect.right - event.clientX <= 7;
+    const nearBottom = rect.bottom - event.clientY <= 7;
+    document.body.style.cursor = nearBottom && (!nearRight || rect.bottom - event.clientY < rect.right - event.clientX)
+      ? 'row-resize' : nearRight ? 'col-resize' : '';
+  }
+
+  startTableResize(event: PointerEvent, pageIndex: number): void {
+    if (event.button !== 0 || this.isReadMode()) return;
+    const target = event.target instanceof Element ? event.target.closest('td,th') as HTMLTableCellElement | null : null;
+    const row = target?.parentElement as HTMLTableRowElement | null;
+    const table = target?.closest('table') as HTMLTableElement | null;
+    if (!target || !row || !table) return;
+    const rect = target.getBoundingClientRect();
+    const rightDistance = rect.right - event.clientX;
+    const bottomDistance = rect.bottom - event.clientY;
+    if (rightDistance > 7 && bottomDistance > 7) return;
+
+    const resizeRow = bottomDistance <= 7 && (rightDistance > 7 || bottomDistance <= rightDistance);
+    const tableRect = table.getBoundingClientRect();
+    if (tableRect.width <= 0) return;
+    const firstRow = table.rows[0];
+    const columnCount = Math.max(1, ...Array.from(table.rows, item => item.cells.length));
+    const columnWidths = Array.from({ length: columnCount }, (_, index) =>
+      ((firstRow?.cells[index]?.getBoundingClientRect().width ?? tableRect.width / columnCount) / tableRect.width) * 100);
+    const cellIndex = Array.from(row.cells).indexOf(target);
+    const resizeIndex = resizeRow ? row.rowIndex : Math.min(cellIndex, columnCount - 1);
+
+    this.pushUndoSnapshot();
+    this.activeTableCell.set(target);
+    this.tableResizeState = {
+      pageIndex, table, row, cell: target, mode: resizeRow ? 'row' : 'column', index: resizeIndex,
+      startX: event.clientX, startY: event.clientY, tableWidth: tableRect.width,
+      rowHeight: row.getBoundingClientRect().height, columnWidths,
+    };
+    event.preventDefault();
+    event.stopPropagation();
+    document.body.style.cursor = resizeRow ? 'row-resize' : 'col-resize';
+    this.tableResizeAbort?.abort();
+    this.tableResizeAbort = new AbortController();
+    document.addEventListener('pointermove', this.moveTableResize, { signal: this.tableResizeAbort.signal });
+    document.addEventListener('pointerup', this.endTableResize, { once: true, signal: this.tableResizeAbort.signal });
+    document.addEventListener('pointercancel', this.endTableResize, { once: true, signal: this.tableResizeAbort.signal });
+  }
+
+  private readonly moveTableResize = (event: PointerEvent): void => {
+    const resize = this.tableResizeState;
+    if (!resize) return;
+    event.preventDefault();
+    if (resize.mode === 'row') {
+      resize.row.style.height = `${Math.max(24, resize.rowHeight + event.clientY - resize.startY)}px`;
+      return;
+    }
+    const count = resize.columnWidths.length;
+    const neighbor = resize.index < count - 1 ? resize.index + 1 : resize.index - 1;
+    if (neighbor < 0) return;
+    const delta = (event.clientX - resize.startX) / resize.tableWidth * 100;
+    const targetWidth = Math.max(4, Math.min(resize.columnWidths[resize.index] + resize.columnWidths[neighbor] - 4,
+      resize.columnWidths[resize.index] + delta));
+    const widths = [...resize.columnWidths];
+    widths[neighbor] += widths[resize.index] - targetWidth;
+    widths[resize.index] = targetWidth;
+    let colgroup = Array.from(resize.table.children).find(child => child.tagName === 'COLGROUP') as HTMLTableColElement | undefined;
+    if (!colgroup) {
+      colgroup = document.createElement('colgroup');
+      resize.table.insertBefore(colgroup, resize.table.firstChild);
+      for (let index = 0; index < count; index++) colgroup.appendChild(document.createElement('col'));
+    }
+    while (colgroup.children.length < count) colgroup.appendChild(document.createElement('col'));
+    widths.forEach((width, index) => (colgroup!.children[index] as HTMLTableColElement).style.width = `${width}%`);
+    resize.table.style.tableLayout = 'fixed';
+    resize.table.style.width = '100%';
+  };
+
+  private readonly endTableResize = (): void => {
+    const resize = this.tableResizeState;
+    if (!resize) return;
+    this.tableResizeState = null;
+    this.tableResizeAbort?.abort();
+    this.tableResizeAbort = null;
+    document.body.style.cursor = '';
+    this.commitPageDomToState(resize.pageIndex);
+    this.scheduleAutoSave(this.collectDocData());
+    this.scheduleDocumentFlow();
+  };
+
   modifyActiveTable(action: 'addRow' | 'addCol' | 'delRow' | 'delCol' | 'delTable'): void {
     const activeTableCell = this.activeTableCell();
     if (!activeTableCell) return;
@@ -2554,15 +2667,42 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.searchStatus.set(`${replacements.length} reemplazos realizados`);
   }
 
-  printDoc(): void {
-    window.print();
+  async exportWord(): Promise<void> {
+    this.showToast('Exportando a Microsoft Word (.docx)...');
+    const snapshot = this.getLivePagesSnapshot();
+    await this.wordCompat.exportToDocxFile(this.docTitle(), snapshot, this.layoutConfig());
+    this.showToast(`Exportado como "${this.docTitle()}.docx" (${this.activePaperPreset().name})`);
   }
 
-  async exportWord(): Promise<void> {
-    this.showToast('Exportando a Microsoft Word (.doc)...');
+  async exportLegacyDoc(): Promise<void> {
+    this.showToast('Exportando documento compatible con Word (.doc)...');
     const snapshot = this.getLivePagesSnapshot();
     await this.wordCompat.exportToWordDoc(this.docTitle(), snapshot, this.layoutConfig());
     this.showToast(`Exportado como "${this.docTitle()}.doc" (${this.activePaperPreset().name})`);
+  }
+
+  async exportPdf(): Promise<void> {
+    if (this.pdfExporting()) return;
+    this.pdfExporting.set(true);
+    this.pdfExportFailed.set(false);
+    this.pdfExportMessage.set('Preparando las hojas…');
+    this.showToast('Generando el archivo PDF...');
+    try {
+      if (!['print', 'read'].includes(this.viewMode())) {
+        throw new Error('Abre la vista de páginas para exportar con las dimensiones del documento.');
+      }
+      const sheets = this.liveBodies().map(body => body.closest<HTMLElement>('.word-page-sheet')).filter((sheet): sheet is HTMLElement => !!sheet);
+      await this.wordCompat.exportToPdf(this.docTitle(), sheets, message => this.pdfExportMessage.set(message));
+      this.pdfExportMessage.set('PDF generado. Descarga iniciada.');
+      this.showToast(`Exportado como "${this.docTitle()}.pdf" (${this.activePaperPreset().name})`);
+    } catch (error) {
+      this.pdfExportFailed.set(true);
+      const message = error instanceof Error ? `No se pudo exportar el PDF: ${error.message}` : 'No se pudo exportar el PDF';
+      this.pdfExportMessage.set(message);
+      this.showToast(message);
+    } finally {
+      this.pdfExporting.set(false);
+    }
   }
 
   async exportHtml(): Promise<void> {
@@ -2590,11 +2730,11 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   }
 
   async exportWordFromHeader(): Promise<void> {
-    this.showToast('Preparando archivo .DOC multipágina para descarga...');
+    this.showToast('Preparando archivo .DOCX multipágina para descarga...');
     const snapshot = this.getLivePagesSnapshot();
-    await this.wordCompat.exportToWordDoc(this.docTitle(), snapshot, this.layoutConfig());
+    await this.wordCompat.exportToDocxFile(this.docTitle(), snapshot, this.layoutConfig());
     this.showToast(
-      `Documento "${this.docTitle()}.doc" (${this.activePaperPreset().name}, ${snapshot.length} pág.) exportado para Word`
+      `Documento "${this.docTitle()}.docx" (${this.activePaperPreset().name}, ${snapshot.length} pág.) exportado para Word`
     );
   }
 

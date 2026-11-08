@@ -29,26 +29,28 @@ El indicador de guardado habitual sigue siendo la confirmación de persistencia 
 | Bloques | Texto enriquecido y tablas (contenido de celdas), código, fórmulas LaTeX, Mermaid, celdas de hojas y nuevos bloques de texto. |
 | Word | Texto existente y nuevos párrafos por página; conserva estilos, tablas e imágenes. Participa del flujo de páginas y del historial deshacer de Word. |
 | LaTeX | Reemplazos de código y adición de fuente; requiere recompilar para actualizar el PDF. |
-| Hoja de cálculo | Valores y fórmulas mediante la fachada viva de Univer; conserva formato de celda. |
-| Presentación | Texto de cajas/formas, segmentos enriquecidos y nuevas cajas de texto mediante la API del visor PPTX. |
+| Hoja de cálculo | Valores y fórmulas sobre `SheetGrid` mediante `sheetAiAdapter`; conserva formato de celda. |
+| Presentación | Editor temporalmente deshabilitado; conserva el archivo guardado. |
 | Lienzo | Conversación sin edición automática. |
 
 Esta versión modifica contenido textual, no diseña temas o estructuras arbitrarias de Word/PPTX,
-no transforma imágenes y no cambia objetos de lienzo. Las celdas con documentos enriquecidos
-internos de Univer se omiten para no sustituirlos por valores vacíos. Las hojas exponen celdas
-pobladas y un área inicial vacía de 12 × 8 para agregar datos, dentro del presupuesto general.
+no transforma imágenes y no cambia objetos de lienzo. El adaptador de hojas admite el modelo Angular y mantiene una rama de compatibilidad para
+fachadas anteriores; solo en esa rama omite celdas enriquecidas del antiguo motor. Para el modelo
+actual expone celdas existentes y, si hay pocas, posiciones vacías de un área inicial de 10 × 6,
+con un máximo de 250 destinos. Ver [Hojas de cálculo](18-HOJAS-DE-CALCULO.md).
 
 ## Adaptadores y conflictos
 
 [AiDocumentService](../src/app/core/services/ai-document.service.ts) es un registro ligero de
 adaptadores. Cada editor registra `owner`, `fields` y `apply` al montarse y se retira al destruirse.
-El chat no importa Monaco, Univer ni el visor PPTX: esos motores siguen en sus chunks diferidos.
+El chat no importa los editores especializados; sus adaptadores operan sobre el estado del documento.
 El adaptador de texto obtiene el contenido vivo, incluso antes del debounce del autoguardado.
 
 Un destino expone `{ id, text }`. Word y Tiptap usan nodos de texto, sin atributos ni imágenes.
 Cada cambio contiene `{ target, before, after }`: reemplazo literal único, o adición si `before`
-está vacío. Los destinos `:append` añaden párrafos, bloques o cajas de texto. Las coordenadas
-`cell:<sheetId>:<row>:<column>` empiezan en 1. Nunca se inserta HTML crudo del modelo: Word y
+está vacío. Los destinos `:append` añaden párrafos, bloques o cajas de texto. El modelo de hojas actual usa
+`cell:<sheetId>:<cellId>`, por ejemplo `cell:sheet1:B3`. La fachada anterior mantiene el formato
+`cell:<sheetId>:<row>:<column>` con coordenadas desde 1. Nunca se inserta HTML crudo del modelo: Word y
 Tiptap convierten estructura Markdown residual en nodos DOM semánticos nativos, mientras que
 Excel, PowerPoint, LaTeX, código y Mermaid normalizan el contenido a su formato propio.
 Mermaid se renderiza con `securityLevel: strict`.
