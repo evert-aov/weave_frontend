@@ -34,6 +34,9 @@
   <!-- Main Ribbon Toolbar (Hidden in Focus Mode or Read Mode) -->
   @if (!focusMode() && !isReadMode()) {
     <app-word-ribbon
+      (openAcademic)="academic.show($event)"
+      (updateAcademic)="academic.update()"
+      (insertBibliography)="academic.show(); academic.bibliography()"
       [activeTab]="activeTab()"
       (setActiveTab)="activeTab.set($event)"
       [formats]="formats()"
@@ -51,6 +54,7 @@
       (applyHeading)="handleApplyHeading($event)"
       (applyFontSizePt)="handleApplyFontSizePt($event.pt, $event.cmd)"
       (insertTable)="handleInsertTable($event.rows, $event.cols)"
+      (updateToc)="handleUpdateToc()"
       (insertToc)="handleInsertToc()"
       (insertPageBreak)="handleInsertPageBreak()"
       (addNewPage)="handleAddNewPageAt(activePageIndex())"
@@ -114,7 +118,7 @@
       [showTocSidebar]="showTocSidebar()"
       (setShowTocSidebar)="showTocSidebar.set($event)"
       [zoom]="zoom()"
-      (setZoom)="zoom.set($event)"
+      (setZoom)="setDocumentZoom($event)"
       [pdfExporting]="pdfExporting()"
     ></app-word-ribbon>
   }
@@ -143,6 +147,11 @@
     >
       <span class="font-semibold mr-2">{{ i18n.t('word.table.tools') }} ({{ i18n.t('word.status.page') }} {{ activePageIndex() + 1 }}):</span>
       <span class="text-[10px] opacity-70">Arrastra los bordes de las celdas para cambiar filas y columnas</span>
+      <button type="button" (mousedown)="$event.preventDefault()" (click)="combineTableCells()"
+              [disabled]="!canMergeTableCells()" [title]="i18n.t('word.table.merge_hint')"
+              class="px-2.5 py-1 rounded border border-blue-300 bg-blue-600 text-white disabled:opacity-40 disabled:cursor-default">
+        {{ i18n.t('word.table.merge_cells') }}
+      </button>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
@@ -204,6 +213,20 @@
       (mousedown)="rememberRibbonSelection()" (change)="updateSearchConfig($event)" (action)="handleSearchAction($event)" />
   }
 
+  @if (!isReadMode() && imageResizeBox(); as box) {
+    <div class="word-image-resize-box no-print" [style.left.px]="box.left" [style.top.px]="box.top"
+         [style.width.px]="box.width" [style.height.px]="box.height">
+      <button type="button" class="word-image-resize-handle" (pointerdown)="startImageResize($event)"
+              [attr.aria-label]="i18n.t('word.image.resize')" [title]="i18n.t('word.image.resize')"></button>
+      <button type="button" class="word-image-resize-close" (click)="clearObjectSelection()"
+              [attr.aria-label]="i18n.t('word.image.deselect')">×</button>
+    </div>
+  }
+  @if (!isReadMode() && tableMergeBox(); as box) {
+    <div class="word-table-merge-box no-print" [style.left.px]="box.left" [style.top.px]="box.top"
+         [style.width.px]="box.width" [style.height.px]="box.height"></div>
+  }
+
   <!-- Workspace Body: Fixed Left TOC Sidebar + Continuous Multi-Page Desk -->
   <div class="flex-1 min-h-0 flex overflow-hidden">
     @if (!focusMode()) {
@@ -216,6 +239,7 @@
         (jumpToPage)="jumpToPage($event)"
         (selectHeading)="handleSelectHeadingInSidebar($event.id, $event.pageIndex)"
         (selectTable)="handleSelectTableInSidebar($event)"
+        (updateTocInDocument)="handleUpdateToc()"
         (insertTocInDocument)="handleInsertToc()"
         (addNewPage)="handleAddNewPageAt(pages().length - 1)"
         [isOpen]="showTocSidebar()"
@@ -226,6 +250,7 @@
     <!-- Continuous Scrollable Multi-Page Desk -->
     <main
       #mainScroll
+      (wheel)="onPageWheel($event)"
       data-document-scroll
       [attr.data-word-ready]="documentReady()"
       class="flex-1 min-h-0 overflow-y-auto p-6 sm:p-10 flex flex-col items-center transition-colors"
@@ -318,9 +343,9 @@
               [style.paddingBottom.px]="pagePaddingBottom()"
               [style.paddingLeft.px]="pagePaddingLeft()"
               [style.backgroundColor]="layoutConfig().pageColor || null"
-              class="word-page-sheet group/page relative bg-white rounded-xs shadow-lg transition-all flex flex-col justify-between box-border"
+              class="word-page-sheet group/page relative bg-white rounded-xs shadow-lg transition-shadow flex flex-col justify-between box-border"
               [ngClass]="{
-                'word-dark-sheet': darkMode() && darkCanvas(),
+                'word-dark-sheet': darkMode() && darkCanvas() && !layoutConfig().apa,
                 'word-gridlines-bg': showGridlines(),
                 'ring-2 ring-blue-500/60 border border-blue-400': isCurrentPage,
                 'border border-slate-700/80 hover:border-slate-600': !isCurrentPage && darkMode(),
@@ -371,7 +396,7 @@
                 [style.right.px]="layoutConfig().margins.rightPx"
                 class="absolute top-3 flex items-center justify-between text-[11px] text-slate-400 select-none no-print"
               >
-                <span class="font-serif text-xs text-slate-500">{{ pageIndex + 1 }}</span>
+                <span class="font-serif text-xs text-slate-500">{{ layoutConfig().apa ? '' : pageIndex + 1 }}</span>
                 <div class="flex items-center gap-1.5 opacity-0 group-hover/page:opacity-100 transition-opacity">
                   <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
                     {{ activePaperPreset().name.split(' ')[0] }} · Hoja {{ pageIndex + 1 }} de
@@ -390,13 +415,22 @@
                 </div>
               </div>
 
+              @if (layoutConfig().apa; as apa) {
+                <header class="word-apa-header absolute flex justify-between gap-3 text-black pointer-events-none"
+                  [style.top.px]="48" [style.left.px]="layoutConfig().margins.leftPx" [style.right.px]="layoutConfig().margins.rightPx"
+                  [style.font-family]="apa.fontFamily" [style.font-size.pt]="apa.fontSizePt" style="line-height:1">
+                  <span>{{ apa.mode === 'professional' ? apa.runningHead : '' }}</span><span>{{ pageIndex + 1 }}</span>
+                </header>
+              }
+
               <!-- Editable Document Header Region -->
-              @if (layoutConfig().showHeaderFooter && viewMode() === 'print') {
+              @if (layoutConfig().showHeaderFooter && !layoutConfig().apa && viewMode() === 'print') {
                 <div class="shrink-0 mb-3 pb-1.5 border-b border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 group/header relative transition-colors">
                   <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/header:opacity-100 focus-within:opacity-100 transition-opacity no-print">
                     {{ i18n.t('word.canvas.header_title') }}
                   </span>
                   <div
+                    appProofreading
                     #headerEl
                     [attr.data-page-header-id]="page.id"
                     [attr.contenteditable]="documentReady() && !isReadMode()"
@@ -409,8 +443,9 @@
 
               <!-- Editable Page Body Canvas -->
               <div
+                appProofreading
                 #pageBody
-                [attr.data-page-body-id]="page.id"
+                [attr.data-page-body-id]="page.id" [attr.data-break-before]="page.breakBefore || null"
                 [attr.contenteditable]="documentReady() && !isReadMode()"
                 (focus)="activePageIndex.set(pageIndex)"
                 (blur)="commitPageDomToState(pageIndex)"
@@ -421,11 +456,15 @@
                 (input)="onPageInput($event, pageIndex)"
                 (keyup)="updateSelectionFormats()"
                 (mouseup)="handleEditorMouseUp($event)"
-                (pointerdown)="startTableResize($event, pageIndex)"
+                (pointerdown)="onPagePointerDown($event, pageIndex)"
                 (pointermove)="updateTableResizeCursor($event)"
                 (paste)="onPagePaste($event, pageIndex)"
                 (dragover)="onPageDragOver($event)"
                 (drop)="onPageDrop($event, pageIndex)"
+                [class.word-apa-body]="!!layoutConfig().apa"
+                [style.font-family]="layoutConfig().apa?.fontFamily || null"
+                [style.font-size.pt]="layoutConfig().apa?.fontSizePt || null"
+                [style.line-height]="layoutConfig().apa ? '2' : null"
                 [style.hyphens]="layoutConfig().hyphenation ? 'auto' : 'manual'"
                 class="word-editor-canvas flex-1 min-h-0 focus:outline-none"
                 [class.word-show-formatting-marks]="showFormattingMarks()"
@@ -433,12 +472,13 @@
               ></div>
 
               <!-- Editable Document Footer Region -->
-              @if (layoutConfig().showHeaderFooter && viewMode() === 'print') {
+              @if (layoutConfig().showHeaderFooter && !layoutConfig().apa && viewMode() === 'print') {
                 <div class="shrink-0 mt-4 pt-2 border-t border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 flex items-center justify-between gap-4 group/footer relative transition-colors">
                   <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/footer:opacity-100 focus-within:opacity-100 transition-opacity no-print">
                     {{ i18n.t('word.canvas.footer_title') }}
                   </span>
                   <div
+                    appProofreading
                     #footerEl
                     [attr.data-page-footer-id]="page.id"
                     [attr.contenteditable]="documentReady() && !isReadMode()"
@@ -485,6 +525,7 @@
     [ngClass]="darkMode() ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'"
   >
     <div class="flex items-center gap-3 flex-wrap">
+      @if (!isReadMode()) { <app-proofreading-control /> }
       <div class="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-slate-800">
         <button
           type="button"
@@ -624,3 +665,11 @@
 
 
 </div>
+
+@if (academic.open() && !isReadMode()) {
+  <app-word-academic-panel [notes]="academic.notes.items()" [issues]="academic.issues()"
+    (sectionChanged)="academic.show($event)" (insertSection)="academic.insertSection($event)" (saveNote)="academic.saveNote($event)" (removeNote)="academic.notes.remove($event)" (objectReference)="academic.objectReference($event)" [sources]="bibliographicSources()" [objects]="academic.objects()"
+    [pageConfig]="layoutConfig().apa" (pageSettings)="academic.pageSettings($event)" [section]="academic.section()" [error]="academic.error()" [darkMode]="darkMode()"
+    (close)="academic.close()" (saveSource)="academic.save($event)" (removeSource)="academic.remove($event)"
+    (cite)="academic.cite($event)" (bibliography)="academic.bibliography()" (caption)="academic.caption($event)" />
+}

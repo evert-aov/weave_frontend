@@ -65,6 +65,8 @@
         />
       </div>
 
+      <button type="button" (mousedown)="onMouseDown($event)" (click)="updateTocInDocument.emit()"
+        class="w-full mb-2 px-3 py-1.5 rounded border text-xs font-medium" [title]="t('word.toc.update')">{{ t('word.toc.update') }}</button>
       <div class="flex items-center gap-1.5">
         <button
           type="button"

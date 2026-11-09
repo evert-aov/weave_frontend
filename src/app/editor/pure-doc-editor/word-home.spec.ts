@@ -1,3 +1,4 @@
+import { emptySource } from './models/academic.model';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PureDocEditorComponent } from './pure-doc-editor.component';
@@ -9,6 +10,9 @@ import { ImageStoreService } from './services/image-store.service';
 import { DocumentPage } from './models/word-document.model';
 import { BUILTIN_STYLE_TEMPLATES } from './constants/word-document.constants';
 import { findDocumentText, selectedParagraphs } from './utils/document-formatting';
+import { WordStyleTemplatesModalComponent } from './components/word-style-templates-modal/word-style-templates-modal.component';
+import type { DocDataV2 } from './models/word-editor-state.model';
+import type { WordFlowController } from './controllers/word-flow.controller';
 import { Note } from '../../core/models/note.model';
 
 interface Internals {
@@ -27,7 +31,7 @@ describe('Word Home and document-wide styles', () => {
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
     TestBed.configureTestingModule({ providers: [
       { provide: NotesService, useValue: { updateDocData: vi.fn() } },
-      { provide: I18nService, useValue: {} },
+      { provide: I18nService, useValue: { t: (key: string) => key } },
       { provide: WordCompatibilityService, useValue: {} },
       { provide: LatexRendererService, useValue: {} },
       { provide: ImageStoreService, useValue: { resolveImages: async (html: string) => html, externalizeImages: async (html: string) => html } },
@@ -61,12 +65,478 @@ describe('Word Home and document-wide styles', () => {
   function command(command: string, value?: string): void { editor.onRibbonCommand({ command, value }); }
   function activeRule() { return editor.styleTemplates().find(t => t.id === editor.activeTemplateId())!.rules.H1; }
 
+  it('applies the remaining APA paragraph and heading rules including run-in H4/H5', () => {
+    render([{ id: 'a', html: '<h1>Principal</h1><h4>Procedimiento</h4><p>El estudio <strong>continúa</strong> aquí.</p>' }]);
+    editor.headingNumbering.set(true); editor.layoutConfig.update(layout => ({ ...layout, hyphenation: true }));
+    editor.handleApplyTemplateToDocument(BUILTIN_STYLE_TEMPLATES.find(t => t.id === 'apa-times-12')!);
+    expect(editor.headingNumbering()).toBe(false); expect(editor.layoutConfig().hyphenation).toBe(false);
+    expect(node('[data-apa-run-in="4"]').textContent).toBe('Procedimiento. El estudio continúa aquí.');
+    expect(node('h1').style.marginBottom).toBe('0pt');
+    expect(node('[data-apa-run-in] strong').style.fontWeight).toBe('bold');
+    expect(editor.headings().some(h => h.level === 4 && h.text === 'Procedimiento.')).toBe(true);
+  });
+
+  it('inserts a long direct quotation as an APA block and requires a locator', () => {
+    render([{ id: 'a', html: '<p>Antes. Después.</p>' }]);
+    const source = { ...emptySource(), id: 'quote', title: 'Libro', year: '2024', authors: [{ family: 'Autor', given: 'Ana' }] };
+    editor.academic.save(source); select(node('p'), 7); editor.academic.show();
+    const quoteText = Array.from({ length: 42 }, (_, i) => `palabra${i}`).join(' ');
+    editor.academic.cite({ sourceId: 'quote', narrative: false, locator: '', quoteText });
+    expect(editor.academic.error()).toBeTruthy(); expect(document.querySelector('blockquote')).toBeNull();
+    editor.academic.cite({ sourceId: 'quote', narrative: false, locator: 'p. 8', quoteText });
+    expect(node('blockquote').style.marginLeft).toBe('36pt');
+    expect(node('blockquote').textContent).toContain('palabra41. (Autor, 2024, p. 8)');
+    expect(document.body.textContent).toContain('Antes.'); expect(document.body.textContent).toContain('Después.');
+    expect(node('blockquote p').style.lineHeight).toBe('2');
+  });
+
+  it('inserts, edits and removes notes with one reversible document operation', () => {
+    render([{ id: 'a', html: '<p>Texto.</p>' }]); select(node('p'), 6); editor.academic.show('notes');
+    editor.academic.saveNote({ kind: 'footnote', text: 'Aclaración importante.' });
+    const ref = node('[data-word-note-id]');
+    expect(ref.textContent).toBe('1'); expect(ref.dataset['noteContent']).toBe('Aclaración importante.');
+    const id = ref.dataset['wordNoteId']!;
+    editor.academic.notes.save({ id, kind: 'footnote', text: 'Nota editada.' });
+    expect(ref.dataset['noteContent']).toBe('Nota editada.');
+    editor.handleGlobalUndo(); expect(editor.pages()[0].html).toContain('Aclaración importante.');
+    editor.academic.notes.remove(id); expect(editor.pages()[0].html).not.toContain('data-word-note-id');
+  });
+
+  it('applies APA page geometry and restores layout together with styles on undo and redo', () => {
+    render([{ id: 'a', html: '<h1>Título</h1><p>Texto</p>' }]);
+    const original = { ...editor.layoutConfig(), margins: { topPx: 40, rightPx: 50, bottomPx: 60, leftPx: 70, label: 'Custom' }, headerHtml: '<p>Anterior</p>' };
+    editor.layoutConfig.set(original);
+    editor.handleApplyTemplateToDocument(BUILTIN_STYLE_TEMPLATES.find(t => t.id === 'apa-arial-11')!);
+    expect(editor.layoutConfig().apa).toMatchObject({ mode: 'student', fontFamily: 'Arial', fontSizePt: 11 });
+    expect(editor.layoutConfig().margins.leftPx).toBe(96);
+    expect(editor.maxBodyContentHeightPx()).toBe(editor.sheetHeightPx() - 192);
+    expect(dom.collectDocData().layoutConfig.apa.mode).toBe('student');
+    editor.handleGlobalUndo(); expect(editor.layoutConfig()).toEqual(original);
+    editor.handleGlobalRedo(); expect(editor.layoutConfig().margins.leftPx).toBe(96);
+  });
+
+  it('supports professional APA running heads without replacing previous header content', () => {
+    render([{ id: 'a', html: '<p>Texto</p>' }]);
+    editor.layoutConfig.update(layout => ({ ...layout, headerHtml: '<p>Conservar</p>' }));
+    editor.academic.pageSettings({ mode: 'professional', runningHead: 'Mi trabajo profesional' });
+    expect(editor.layoutConfig().apa?.runningHead).toBe('MI TRABAJO PROFESIONAL');
+    expect(editor.layoutConfig().headerHtml).toBe('<p>Conservar</p>');
+    editor.handleGlobalUndo(); expect(editor.layoutConfig().apa).toBeUndefined();
+  });
+
+  it('updates an existing TOC from live headings and page positions, and supports undo', () => {
+    const compatibility = TestBed.inject(WordCompatibilityService);
+    compatibility.formatCleanHeadingTitle = WordCompatibilityService.prototype.formatCleanHeadingTitle;
+    compatibility.buildSingleTocEntryHtml = WordCompatibilityService.prototype.buildSingleTocEntryHtml;
+    compatibility.buildPaginatedTocPagesHtml = WordCompatibilityService.prototype.buildPaginatedTocPagesHtml;
+    render([{ id: 'toc', html: '<div class="word-toc-page-section">Índice viejo</div>' }, { id: 'body', html: '<h1 id="intro">Introducción</h1>' }]);
+    node('[data-page-body-id="body"]').insertAdjacentHTML('beforeend', '<h2>Nuevo apartado</h2>');
+    editor.handleUpdateToc();
+    expect(editor.pages()).toHaveLength(2);
+    expect(editor.pages()[0].html).toContain('Nuevo apartado');
+    expect(editor.pages()[0].html).toContain('data-toc-page="1"');
+    expect(editor.pages()[0].html).not.toContain('Índice viejo');
+    expect(editor.importedTocEntries()).toEqual([]);
+    editor.handleGlobalUndo(); expect(editor.pages()[0].html).toContain('Índice viejo');
+    expect(editor.pages()[1].html).toContain('Nuevo apartado');
+  });
+
+  it('refreshes and styles an existing TOC when applying APA within the same undo step', () => {
+    const compatibility = TestBed.inject(WordCompatibilityService);
+    compatibility.formatCleanHeadingTitle = WordCompatibilityService.prototype.formatCleanHeadingTitle;
+    compatibility.buildSingleTocEntryHtml = WordCompatibilityService.prototype.buildSingleTocEntryHtml;
+    compatibility.buildPaginatedTocPagesHtml = WordCompatibilityService.prototype.buildPaginatedTocPagesHtml;
+    render([{ id: 'toc', html: '<div class="word-toc-page-section">Índice viejo</div>' }, { id: 'body', html: '<h1 id="intro">Introducción</h1><h2>Nuevo apartado</h2>' }]);
+    editor.activePageIndex.set(1);
+    editor.handleApplyTemplateToDocument(BUILTIN_STYLE_TEMPLATES.find(t => t.id === 'apa-arial-11')!);
+    const toc = document.createElement('div'); toc.innerHTML = editor.pages()[0].html;
+    const header = toc.querySelector<HTMLElement>('.word-toc-header')!;
+    expect(header.textContent).toBe('Índice de contenido');
+    expect(header.style.fontFamily).toBe('Arial');
+    expect(header.style.fontSize).toBe('11pt');
+    expect(header.style.lineHeight).toBe('2');
+    expect(header.style.textTransform).toBe('none');
+    expect(header.style.marginBottom).toBe('0pt');
+    expect(toc.textContent).toContain('Nuevo apartado');
+    expect(editor.pages()[0].html).toContain('data-toc-page="1"');
+    expect(editor.activePageIndex()).toBe(1);
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toContain('Índice viejo');
+    expect(editor.layoutConfig().apa).toBeUndefined();
+  });
+
+  it('does not create a TOC when applying APA to a document without one', () => {
+    render([{ id: 'body', html: '<h1>Introducción</h1><p>Texto</p>' }]);
+    editor.handleApplyTemplateToDocument(BUILTIN_STYLE_TEMPLATES.find(t => t.id === 'apa-times-12')!);
+    expect(editor.pages()).toHaveLength(1);
+    expect(editor.pages()[0].html).not.toContain('word-toc-page-section');
+  });
+
+  it('exposes later chapter headings before the AI target limit without changing node IDs', () => {
+    render([{ id: 'first', html: '<h1>CAPÍTULO II</h1>' + '<p>Contenido extenso</p>'.repeat(2100) },
+      { id: 'last', html: '<h2><b>2.4 </b>ANÁLISIS DE LA OFERTA</h2><h1>CAPÍTULO III</h1><p>Contenido final</p>' }]);
+    const fields = [...(editor as unknown as { aiTextFields(): Generator<{ id: string; text: string }> }).aiTextFields()];
+    expect(fields.slice(0, 2000).map(field => field.text)).toContain('CAPÍTULO III');
+    expect(fields.find(field => field.text === '2.4 ')?.id).toBe('page:last:text:0');
+    expect(fields.find(field => field.text === 'ANÁLISIS DE LA OFERTA')?.id).toBe('page:last:text:1');
+    expect(new Set(fields.map(field => field.id)).size).toBe(fields.length);
+  });
+
+  it('automatically updates an imported index after a new heading without adding an undo step', () => {
+    const compatibility = TestBed.inject(WordCompatibilityService);
+    compatibility.formatCleanHeadingTitle = WordCompatibilityService.prototype.formatCleanHeadingTitle;
+    compatibility.buildSingleTocEntryHtml = WordCompatibilityService.prototype.buildSingleTocEntryHtml;
+    compatibility.buildPaginatedTocPagesHtml = WordCompatibilityService.prototype.buildPaginatedTocPagesHtml;
+    render([{ id:'toc',html:'<div data-native-word-toc="true"><div class="word-toc-entry" style="font-family:Arial;font-size:12pt">Anterior</div></div>' }, {id:'body',html:'<h1 id="intro">Introducción</h1>'}]);
+    const toc=(editor as unknown as {tocController:{afterFlow():void}}).tocController;
+    toc.afterFlow();
+    node('[data-page-body-id="body"]').insertAdjacentHTML('beforeend','<h2>Nuevo apartado</h2>');
+    editor.commitPageDomToState(1);editor.activePageIndex.set(1);
+    const undo=vi.spyOn(editor,'pushUndoSnapshot');toc.afterFlow();
+    expect(editor.pages()[0].html).toContain('Nuevo apartado');
+    expect(editor.pages()[0].html).toContain('Arial');expect(editor.activePageIndex()).toBe(1);
+    expect(undo).not.toHaveBeenCalled();
+  });
+
+  it('checks Enter immediately instead of waiting for the ordinary typing debounce', () => {
+    render([{id:'a',html:'<ul><li>Primero</li><li><br></li></ul>'}]);
+    const scheduling=vi.spyOn(editor as unknown as {scheduleDocumentFlow(defer?:boolean):void},'scheduleDocumentFlow');
+    editor.onPageInput(new InputEvent('input',{inputType:'insertParagraph'}),0);
+    expect(scheduling).toHaveBeenCalledWith(false);
+  });
+
+  it('persists bibliographic sources, inserts citations at the saved cursor and undoes metadata changes', () => {
+    render([{ id: 'a', html: '<p>Texto inicial.</p>' }]);
+    select(node('p'), 6, 6); editor.academic.show();
+    const source = { ...emptySource(), id: 'source', title: 'Investigación', year: '2024', authors: [{ family: 'García', given: 'Ana' }] };
+    editor.academic.save(source);
+    expect(dom.collectDocData().bibliographicSources).toEqual([source]);
+    // Focus has left the editor; citation still uses the position captured by the ribbon.
+    window.getSelection()?.removeAllRanges();
+    editor.academic.cite({ sourceId: source.id, narrative: false, locator: 'p. 8' });
+    expect(node('p').textContent).toBe('Texto (García, 2024, p. 8)inicial.');
+    expect(document.activeElement).toBe(node('[data-page-body-id]'));
+    expect(editor.pages()[0].html).toContain('data-word-source-id="source"');
+    editor.academic.save({ ...source, year: '2025' });
+    expect(node('[data-word-citation]').textContent).toBe('(García, 2025, p. 8)');
+    editor.handleGlobalUndo();
+    expect(editor.bibliographicSources()[0].year).toBe('2024');
+    expect(editor.pages()[0].html).toContain('(García, 2024, p. 8)');
+    editor.handleGlobalRedo();
+    expect(editor.bibliographicSources()[0].year).toBe('2025');
+  });
+
+  it('generates references on a new manual page using cited sources only and prevents deleting used sources', () => {
+    render([{ id: 'a', html: '<p>Texto.</p>' }]);
+    const source = { ...emptySource(), id: 'used', title: 'Investigación', year: '2024', authors: [{ family: 'García', given: 'Ana' }] };
+    editor.academic.save(source); editor.academic.save({ ...source, id: 'unused', title: 'Sin citar' });
+    select(node('p'), 6); editor.academic.show();
+    editor.academic.cite({ sourceId: source.id, narrative: true, locator: '' });
+    editor.academic.remove('used');
+    expect(editor.academic.error()).toBeTruthy(); expect(editor.bibliographicSources()).toHaveLength(2);
+    editor.academic.bibliography();
+    expect(editor.pages()).toHaveLength(2); expect(editor.pages()[1].breakBefore).toBe('manual');
+    expect(editor.pages()[1].html).toContain('Referencias');
+    expect(editor.pages()[1].html).toContain('text-indent: -36pt');
+    expect(editor.pages()[1].html).toContain('Investigación'); expect(editor.pages()[1].html).not.toContain('Sin citar');
+    editor.handleGlobalUndo(); expect(editor.pages()).toHaveLength(1);
+  });
+
+  it('restores sources on reopening and clears them when opening another document', async () => {
+    const sources = [{ ...emptySource(), id: 'source', title: 'Libro' }];
+    editor.note = { _id: 'academic', title: 'Trabajo', docData: { v: 2, pages: [{ id: 'a', html: '<p>Texto</p>' }], bibliographicSources: sources } } as Note;
+    await dom.hydrateFromNote(); expect(editor.bibliographicSources()).toEqual(sources);
+    editor.note = { _id: 'other', title: 'Otro', docData: { v: 2, pages: [{ id: 'b', html: '<p>Otro</p>' }] } } as Note;
+    await dom.hydrateFromNote(); expect(editor.bibliographicSources()).toEqual([]);
+  });
+
+  it('resizes a selected image proportionally at document zoom and saves one undo step', () => {
+    const original = '<p><img src="/uploads/example.jpg" style="width:100px;height:50px"></p>';
+    render([{ id: 'a', html: original }]);
+    editor.zoom.set(150);
+    const image = node('img');
+    Object.defineProperty(image.parentElement!, 'clientWidth', { value: 600 });
+    image.getBoundingClientRect = () => ({ left: 10, top: 10, width: parseFloat(image.style.width) * 1.5, height: parseFloat(image.style.height) * 1.5 } as DOMRect);
+    const select = new MouseEvent('pointerdown', { button: 0, bubbles: true, cancelable: true });
+    image.dispatchEvent(select); editor.onPagePointerDown(select as PointerEvent, 0);
+    expect(editor.imageResizeBox()!.width).toBe(150);
+    editor.startImageResize(new MouseEvent('pointerdown', { button: 0, clientX: 0, clientY: 0, cancelable: true }) as PointerEvent);
+    document.dispatchEvent(new MouseEvent('pointermove', { clientX: 75, clientY: 37.5, cancelable: true }));
+    document.dispatchEvent(new MouseEvent('pointerup'));
+    expect(image.style.width).toBe('150px');
+    expect(image.style.height).toBe('75px');
+    expect(editor.pages()[0].html).toContain('150px');
+    expect(editor.pages()[0].html).not.toContain('resize-handle');
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toBe(original);
+  });
+
+  it('merges a rectangular Shift-click selection and preserves all cell content and undo', () => {
+    const original = '<table><tbody><tr><td>A</td><td><b>B</b></td></tr><tr><td><a href="#source">C</a></td><td>D</td></tr></tbody></table>';
+    render([{ id: 'a', html: original }]);
+    const cells = Array.from(node('table').querySelectorAll('td'));
+    editor.activeTableCell.set(cells[0]);
+    const event = new MouseEvent('pointerdown', { button: 0, shiftKey: true, bubbles: true, cancelable: true });
+    cells[3].dispatchEvent(event); editor.onPagePointerDown(event as PointerEvent, 0);
+    expect(editor.canMergeTableCells()).toBe(true);
+    editor.combineTableCells();
+    const cell = node('td') as HTMLTableCellElement;
+    expect(cell.colSpan).toBe(2); expect(cell.rowSpan).toBe(2);
+    expect(cell.textContent).toBe('ABCD');
+    expect(cell.querySelector('a')!.getAttribute('href')).toBe('#source');
+    expect(node('table').querySelectorAll('td')).toHaveLength(1);
+    expect(editor.pages()[0].html).toContain('rowspan="2"');
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toBe(original);
+  });
+
+  it('selects empty cells by mouse drag without requiring a native text range', () => {
+    render([{ id: 'a', html: '<table><tbody><tr><td><br></td><td><br></td></tr><tr><td><br></td><td><br></td></tr></tbody></table>' }]);
+    const cells = Array.from(node('table').querySelectorAll('td'));
+    const down = new MouseEvent('pointerdown', { button: 0, bubbles: true, cancelable: true });
+    cells[0].dispatchEvent(down); editor.onPagePointerDown(down as PointerEvent, 0);
+    expect(editor.canMergeTableCells()).toBe(false);
+    cells[3].dispatchEvent(new MouseEvent('pointermove', { buttons: 1, bubbles: true }));
+    cells[3].dispatchEvent(new MouseEvent('pointerup', { button: 0, bubbles: true }));
+    expect(window.getSelection()?.isCollapsed).toBe(true);
+    expect(editor.canMergeTableCells()).toBe(true);
+    editor.combineTableCells();
+    const merged = node('td') as HTMLTableCellElement;
+    expect(merged.colSpan).toBe(2); expect(merged.rowSpan).toBe(2);
+    expect(node('table').querySelectorAll('td')).toHaveLength(1);
+  });
+
+  it('merges a native multi-cell text selection and disables merging in read mode', () => {
+    render([{ id: 'a', html: '<table><tbody><tr><td>A</td><td>B</td></tr></tbody></table>' }]);
+    select(node('table'));
+    expect(editor.canMergeTableCells()).toBe(true);
+    editor.viewMode.set('read');
+    expect(editor.canMergeTableCells()).toBe(false);
+    editor.combineTableCells();
+    expect(node('table').querySelectorAll('td')).toHaveLength(2);
+    editor.viewMode.set('print');
+    editor.combineTableCells();
+    expect((node('td') as HTMLTableCellElement).colSpan).toBe(2);
+  });
+
+  it.each(['addRow', 'addCol'] as const)('%s creates completely empty table cells and supports undo', action => {
+    const original = '<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr id="source-row"><td id="source-cell" style="background-color:yellow"><a href="#ref">Existing</a></td><td>Value</td></tr></tbody></table>';
+    render([{ id: 'a', html: original }]);
+    editor.activeTableCell.set(node('tbody td') as HTMLTableCellElement);
+    editor.modifyActiveTable(action);
+    const table = node('table') as HTMLTableElement;
+    const inserted = action === 'addRow' ? Array.from(table.rows[2].cells) : Array.from(table.rows).map(row => row.cells[1]);
+    expect(inserted.every(cell => cell.textContent === '')).toBe(true);
+    expect(inserted.every(cell => !cell.querySelector('a,img'))).toBe(true);
+    expect(table.querySelectorAll('#source-cell')).toHaveLength(1);
+    expect(table.querySelector('a')!.textContent).toBe('Existing');
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toBe(original);
+  });
+
+  it.each(['ol', 'ul'])('removes %s markers while keeping one paragraph per imported item', tag => {
+    const first = '<strong><span>Comprobantes</span><span> </span><span>y</span><span> </span><span>transferencias QR falsificadas:</span></strong><span> Vendedores que entregan sus productos.</span>';
+    const original = `<${tag} style="font-family:Times New Roman;font-size:12pt;line-height:2"><li>${first}</li><li><b>Entregas:</b> artículos <a href="#source">defectuosos o robados.</a></li><li>Robos y asaltos.</li></${tag}>`;
+    render([{ id: 'a', html: original }]);
+    const body = node('[data-page-body-id]');
+    const text = body.textContent;
+    select(node(tag));
+    command(tag === 'ol' ? 'insertOrderedList' : 'insertUnorderedList');
+    expect(body.querySelectorAll('ol,ul')).toHaveLength(0);
+    expect(body.querySelectorAll(':scope > p')).toHaveLength(3);
+    expect(body.textContent).toBe(text);
+    expect(body.querySelector('p')!.textContent).toContain('Comprobantes y transferencias QR falsificadas: Vendedores');
+    expect(body.querySelector('strong')!.textContent).toBe('Comprobantes y transferencias QR falsificadas:');
+    expect(body.querySelector('a')!.getAttribute('href')).toBe('#source');
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toBe(original);
+    editor.handleGlobalRedo();
+    expect(body.querySelectorAll(':scope > p')).toHaveLength(3);
+  });
+
+  it('splits a partially unlisted numbered list without changing the remaining items', () => {
+    render([{ id: 'a', html: '<ol start="4"><li>First</li><li id="chosen"><p>Second <b>item.</b></p></li><li>Third</li></ol>' }]);
+    select(node('#chosen p'));
+    command('insertOrderedList');
+    const body = node('[data-page-body-id]');
+    expect(body.querySelectorAll(':scope > p')).toHaveLength(1);
+    expect(body.querySelector('p')!.textContent).toBe('Second item.');
+    const lists = body.querySelectorAll<HTMLOListElement>('ol');
+    expect(lists).toHaveLength(2);
+    expect(lists[0].start).toBe(4);
+    expect(lists[1].start).toBe(6);
+    expect(lists[0].textContent).toBe('First');
+    expect(lists[1].textContent).toBe('Third');
+  });
+
+  it.each(['Backspace', 'Delete'])('%s joins imported paragraph runs without removing their spaces', key => {
+    const prefix = 'demanda de servicios de seguridad y logística para el comercio ';
+    const following = 'digital en Bolivia ha presentado una tendencia fuertemente positiva en los últimos años, impulsada por:';
+    const runs = following.split(' ').map((word, index) => `${index ? '<span> </span>' : ''}<span>${word}</span>`).join('');
+    const original = `<p id="before">${prefix}</p><p id="after">${runs}</p>`;
+    render([{ id: 'a', html: original }]);
+    if (key === 'Backspace') select(node('#after span'), 0, 0);
+    else select(node('#before'), prefix.length, prefix.length);
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    editor.onPageKeyDown(event, 0);
+    expect(event.defaultPrevented).toBe(true);
+    expect(node('[data-page-body-id]').textContent).toBe(prefix + following);
+    expect(node('[data-page-body-id]').querySelectorAll('p')).toHaveLength(1);
+    expect(node('[data-page-body-id]').querySelectorAll('span span')).toHaveLength(0);
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toBe(original);
+    editor.handleGlobalRedo();
+    expect(node('[data-page-body-id]').textContent).toBe(prefix + following);
+  });
+
+  it('preserves spaces, links and emphasis when merging list items through beforeinput', () => {
+    const original = '<ul><li id="before">comercio </li><li id="after"><b>digital</b><span> </span><a href="#ref">en Bolivia</a><span> </span>ha presentado una tendencia positiva.</li></ul>';
+    render([{ id: 'a', html: original }]);
+    select(node('#after b'), 0, 0);
+    const event = new InputEvent('beforeinput', { inputType: 'deleteContentBackward', cancelable: true });
+    editor.onPageBeforeInput(event, 0);
+    expect(event.defaultPrevented).toBe(true);
+    expect(node('ul').querySelectorAll('li')).toHaveLength(1);
+    expect(node('ul').textContent).toBe('comercio digital en Bolivia ha presentado una tendencia positiva.');
+    expect(node('a').getAttribute('href')).toBe('#ref');
+    expect(node('b').textContent).toBe('digital');
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toBe(original);
+  });
+
+  it('does not serialize unchanged page DOM on repeated Angular checks', () => {
+    render([{ id: 'a', html: '<p>First</p>' }, { id: 'b', html: '<p>Second</p>' }]);
+    dom.syncInnerHtml();
+    const other = node('[data-page-body-id="b"]');
+    const reads = vi.spyOn(other, 'innerHTML', 'get');
+    dom.syncInnerHtml(); dom.syncInnerHtml();
+    editor.pages.update(pages => pages.map((page, index) => index ? page : { ...page, html: '<p>Edited</p>' }));
+    dom.syncInnerHtml();
+    expect(reads).not.toHaveBeenCalled();
+    expect(other.textContent).toBe('Second');
+  });
+
+  it('groups continuous Backspace into one undo step', () => {
+    render([{ id: 'a', html: '<p>abcdef</p>' }]);
+    select(node('p'), 6, 6);
+    const snapshots = vi.spyOn(editor, 'pushUndoSnapshot');
+    editor.onPageBeforeInput(new InputEvent('beforeinput', { inputType: 'deleteContentBackward' }), 0);
+    (node('p').firstChild as Text).deleteData(5, 1);
+    editor.onPageBeforeInput(new InputEvent('beforeinput', { inputType: 'deleteContentBackward' }), 0);
+    (node('p').firstChild as Text).deleteData(4, 1);
+    editor.commitPageDomToState(0);
+    expect(snapshots).toHaveBeenCalledTimes(1);
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toBe('<p>abcdef</p>');
+  });
+
+  it('coalesces typing layout with a bounded wait and cancels pending layout', () => {
+    vi.useFakeTimers();
+    const flow = (editor as unknown as { flowController: WordFlowController }).flowController;
+    const frames = vi.fn(() => 1);
+    vi.stubGlobal('requestAnimationFrame', frames);
+    flow.cancelScheduledFlow(); frames.mockClear();
+    try {
+      for (let i = 0; i < 20; i++) { flow.scheduleDocumentFlow(true); vi.advanceTimersByTime(20); }
+      expect(frames).toHaveBeenCalledTimes(1);
+      flow.cancelScheduledFlow(); frames.mockClear();
+      flow.scheduleDocumentFlow(true);
+      flow.cancelScheduledFlow();
+      vi.advanceTimersByTime(500);
+      expect(frames).not.toHaveBeenCalled();
+    } finally { flow.cancelScheduledFlow(); vi.useRealTimers(); }
+  });
+
+  it('externalizes images again only for a changed page when saving', async () => {
+    const persistence = (editor as unknown as { persistenceController: { buildSlimDocData(doc: DocDataV2): Promise<DocDataV2> } }).persistenceController;
+    const externalize = vi.spyOn(TestBed.inject(ImageStoreService), 'externalizeImages');
+    const first = { id: 'a', html: '<p>First</p>' }, other = { id: 'b', html: '<p>Other</p>' };
+    await persistence.buildSlimDocData({ v: 2, pages: [first, other] });
+    externalize.mockClear();
+    const saved = await persistence.buildSlimDocData({ v: 2, pages: [{ ...first, html: '<p>Edited</p>' }, other] });
+    expect(externalize).toHaveBeenCalledTimes(1);
+    expect(saved.pages![1].html).toBe('<p>Other</p>');
+  });
+
+  it('isolates styles, DOM transactions and undo history between editor instances', () => {
+    render([{ id: 'a', html: '<p>Documento uno.</p>' }]);
+    const second = TestBed.runInInjectionContext(() => new PureDocEditorComponent());
+    const secondDom = second as unknown as Internals;
+    const secondBody = document.createElement('div');
+    secondBody.dataset['pageBodyId'] = 'other';
+    secondBody.innerHTML = '<p>Documento dos.</p>';
+    document.body.appendChild(secondBody);
+    second.pages.set([{ id: 'other', html: secondBody.innerHTML }]);
+    secondDom.pageBodyMap.set('other', secondBody);
+    secondDom.documentReady.set(true);
+    try {
+      select(node('[data-page-body-id="a"] p'));
+      editor.handleApplyTemplateToDocument(BUILTIN_STYLE_TEMPLATES.find(template => template.id === 'apa-georgia-11')!);
+      expect(second.activeTemplateId()).toBe('corporate-modern');
+      expect(secondBody.innerHTML).toBe('<p>Documento dos.</p>');
+      second.pushUndoSnapshot();
+      secondBody.innerHTML = '<p>Edición del segundo documento.</p>';
+      second.commitPageDomToState(0);
+      second.handleGlobalUndo();
+      expect(second.pages()[0].html).toBe('<p>Documento dos.</p>');
+      expect(editor.activeTemplateId()).toBe('apa-georgia-11');
+      editor.handleGlobalUndo();
+      expect(editor.pages()[0].html).toBe('<p>Documento uno.</p>');
+      expect(secondBody.textContent).toBe('Documento dos.');
+    } finally {
+      second.ngOnDestroy();
+    }
+  });
+
+  it('preserves APA list rules when duplicating or saving a template', () => {
+    const modal = TestBed.runInInjectionContext(() => new WordStyleTemplatesModalComponent());
+    modal.templates = BUILTIN_STYLE_TEMPLATES;
+    modal.activeTemplateId = 'apa-times-12';
+    modal.ngOnInit();
+    const duplicate = vi.spyOn(modal.saveCustomTemplate, 'emit');
+    modal.handleCreateNewCustomTemplate();
+    expect(duplicate.mock.calls[0][0]!.listRules).toEqual(BUILTIN_STYLE_TEMPLATES[0].listRules);
+    expect(duplicate.mock.calls[0][0]!.listRules).not.toBe(BUILTIN_STYLE_TEMPLATES[0].listRules);
+    const apply = vi.spyOn(modal.applyTemplateToDocument, 'emit');
+    modal.handleSaveAndApplyAll();
+    expect(apply.mock.calls[0][0]!.listRules?.ordered.marker).toBe('decimal');
+  });
+
+  it('keeps double spacing and zero paragraph indent for a new APA list item after Enter', () => {
+    render([{ id: 'a', html: '<ul><li>frase corta</li></ul>' }]);
+    editor.activeTemplateId.set('apa-times-12');
+    node('ul').insertAdjacentHTML('beforeend', '<li><p style="text-indent:36pt;margin-bottom:8pt">otra frase</p></li>');
+    select(node('ul li:last-child p'));
+    const event = new InputEvent('input', { inputType: 'insertParagraph' });
+    Object.defineProperty(event, 'currentTarget', { value: node('[data-page-body-id]') });
+    editor.onPageInput(event, 0);
+    expect(node('li:last-child').style.lineHeight).toBe('2');
+    expect(node('li:last-child p').style.textIndent).toBe('0pt');
+    expect(editor.pages()[0].html).toContain('word-list-indent');
+  });
+
+  it('applies APA lists across pages, preserves punctuation and supports undo', () => {
+    render([{ id: 'a', html: '<p>Introducción.</p><ol start="4"><li>Primera oración.</li></ol>' },
+      { id: 'b', html: '<ul><li>frase corta (Autor, 2020)</li></ul>' }]);
+    const apa = BUILTIN_STYLE_TEMPLATES.find(template => template.id === 'apa-times-12')!;
+    select(node('li'));
+    editor.handleApplyTemplateToDocument(apa);
+    expect(node('ol').style.listStyleType).toBe('decimal');
+    expect(node('ul').style.listStyleType).toBe('disc');
+    expect(node('li').style.lineHeight).toBe('2');
+    expect(node('ul li').textContent).toBe('frase corta (Autor, 2020)');
+    expect(editor.pages()[1].html).toContain('line-height: 2');
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toContain('<ol start="4">');
+    expect(editor.pages()[1].html).not.toContain('word-list-indent');
+  });
+
   it('updates every H1 from formatted selected text, removes nested overrides, and keeps other levels and references', () => {
     render([
       { id:'a', html:'<h1 id="first" style="font-family:Times New Roman;font-size:12pt;font-weight:700"><font face="Times New Roman" size="3"><b>First</b></font></h1><p id="source"><span style="font-family:Arial Black;font-size:20pt;font-weight:900;color:rgb(180, 20, 40)">New appearance</span></p>' },
       { id:'b', breakBefore:'manual', html:'<h1 id="second"><span style="font-size:12pt;font-family:Times New Roman"><a href="/?document=other"><i>Second</i></a></span></h1><h2 id="untouched">Another level</h2>' },
     ]);
-    const originalRule = JSON.stringify(BUILTIN_STYLE_TEMPLATES[1].rules.H1);
+    const originalRule = JSON.stringify(BUILTIN_STYLE_TEMPLATES.find(template => template.id === 'corporate-modern')!.rules.H1);
     select(node('#source span')); editor.handleUpdateStyleFromSelection('H1');
     expect(activeRule().fontFamily).toBe('Arial Black'); expect(activeRule().fontSizePt).toBe(20);
     expect(activeRule().bold).toBe(true);
@@ -81,7 +551,7 @@ describe('Word Home and document-wide styles', () => {
     expect(window.getSelection()!.toString()).toBe('New appearance');
     expect(editor.pages()[1].breakBefore).toBe('manual');
     expect(dom.collectDocData().customTemplates).toHaveLength(1);
-    expect(JSON.stringify(BUILTIN_STYLE_TEMPLATES[1].rules.H1)).toBe(originalRule);
+    expect(JSON.stringify(BUILTIN_STYLE_TEMPLATES.find(template => template.id === 'corporate-modern')!.rules.H1)).toBe(originalRule);
     expect(JSON.stringify(dom.collectDocData())).not.toContain('weave-selection');
   });
 

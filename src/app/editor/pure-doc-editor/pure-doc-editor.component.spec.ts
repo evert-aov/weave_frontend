@@ -20,6 +20,8 @@ interface EditorDom {
   reflowDocument(): void;
   invalidateDocumentFlow(): void;
   observeBodySize(): void;
+  renderDocumentPages(pages: DocumentPage[], reflow?: boolean): void;
+  getLivePagesSnapshot(): DocumentPage[];
   bodyResizeObserver: ResizeObserver;
 }
 
@@ -103,6 +105,61 @@ describe('Word editing across pages', () => {
     window.getSelection()!.removeAllRanges();
     window.getSelection()!.addRange(range);
   }
+
+  it('shrinks a focused page immediately while newly paginated page hosts are still being created', () => {
+    render([{ id: 'a', html: '<p>Primera parte. Segunda parte.</p>' }]);
+    const first = editor.getPageBody('a')!;
+    first.focus();
+    const pages = [{ id: 'a', html: '<p>Primera parte.</p>' }, { id: 'new', html: '<p>Segunda parte.</p>' }];
+    dom.renderDocumentPages(pages, false);
+    expect(first.innerHTML).toBe('<p>Primera parte.</p>');
+    expect(dom.getLivePagesSnapshot()).toEqual(pages);
+    updateBodies();
+    expect(editor.getPageBody('new')!.textContent).toBe('Segunda parte.');
+    expect(editor.getPageBody('a')!.textContent).toBe('Primera parte.');
+  });
+
+  it('repairs stale focused DOM even when the resulting pagination already matches the saved model', () => {
+    const pages = [{ id: 'a', html: '<p>Primera parte.</p>' }, { id: 'b', html: '<p>Segunda parte.</p>' }];
+    render(pages);
+    const first = editor.getPageBody('a')!;
+    first.focus();
+    first.innerHTML = '<p>Primera parte. Segunda parte.</p>';
+    Object.defineProperties(first, { clientWidth: { value: 300 }, clientHeight: { value: 200 } });
+    dom.documentReady.set(true);
+    vi.spyOn(TestBed.inject(DocumentFlowService), 'paginate').mockReturnValue(pages);
+    dom.reflowDocument();
+    expect(first.textContent).toBe('Primera parte.');
+    expect(editor.getPageBody('b')!.textContent).toBe('Segunda parte.');
+  });
+
+  it.each(['Backspace', 'Delete'])('%s pulls the next page into free space without publishing an overflowing merged page', key => {
+    const rightText = ' world one two three four five six seven eight nine ten eleven twelve';
+    const initial = [{ id: 'a', html: '<p>Hello</p>' }, { id: 'b', html: `<p>${rightText}</p>` }];
+    render(initial);
+    const first = editor.getPageBody('a')!;
+    Object.defineProperties(first, { clientWidth: { value: 300 }, clientHeight: { value: 30 } });
+    dom.documentReady.set(true);
+    const flow = TestBed.inject(DocumentFlowService);
+    const paginate = flow.paginate.bind(flow);
+    vi.spyOn(flow, 'paginate').mockImplementation((pages, canvas, height) => {
+      // The complete merged text must only exist on the detached measuring canvas.
+      expect(first.textContent).toBe('Hello');
+      return paginate(pages, canvas, height, () => Math.ceil((canvas.textContent?.length || 0) / 10) * 10);
+    });
+    caret(key === 'Delete' ? 'a' : 'b', key === 'Backspace');
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    editor.onPageKeyDown(event, key === 'Delete' ? 0 : 1);
+    expect(event.defaultPrevented).toBe(true);
+    expect(first.textContent!.length).toBeLessThanOrEqual(30);
+    expect(editor.pages().length).toBeGreaterThan(1);
+    updateBodies();
+    const joined = editor.pages().map(page => editor.getPageBody(page.id)!.textContent).join('');
+    expect(joined).toBe('Hello' + rightText);
+    expect(window.getSelection()?.anchorNode?.parentElement?.closest('[data-page-body-id]')).toBe(first);
+    editor.handleGlobalUndo(); updateBodies();
+    expect(editor.pages().map(page => page.html)).toEqual(initial.map(page => page.html));
+  });
 
   function tablePaste(html: string, text: string, items: unknown[] = []): ClipboardEvent {
     const event = new Event('paste', { cancelable: true }) as ClipboardEvent;
@@ -220,6 +277,45 @@ describe('Word editing across pages', () => {
     expect(editor.getPageBody('a')!.textContent).toBe('HelloWorld');
   });
 
+  it.each([
+    ['Backspace', '<ul><li><p>Hello</p></li></ul>', '<p>World</p>'],
+    ['Delete', '<ul><li><p>Hello</p></li></ul>', '<p>World</p>'],
+    ['Backspace', '<p>Hello</p>', '<ul><li><p>World</p></li><li>Keep</li></ul>'],
+    ['Delete', '<p>Hello</p>', '<ul><li><p>World</p></li><li>Keep</li></ul>'],
+    ['Backspace', '<ul><li>Hello</li></ul>', '<ol><li>World</li><li>Keep</li></ol>'],
+    ['Delete', '<ul><li>Hello</li></ul>', '<ol><li>World</li><li>Keep</li></ol>'],
+  ])('%s merges a list/paragraph page boundary without getting stuck', (key, left, right) => {
+    render([{ id: 'a', html: left }, { id: 'b', html: right }]);
+    const backwards = key === 'Backspace';
+    caret(backwards ? 'b' : 'a', backwards);
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    editor.onPageKeyDown(event, backwards ? 1 : 0);
+    updateBodies();
+    expect(event.defaultPrevented).toBe(true);
+    const body = editor.getPageBody('a')!;
+    expect(body.textContent).toBe('HelloWorld' + (right.includes('Keep') ? 'Keep' : ''));
+    expect(body.querySelector('p,li')!.textContent).toContain('HelloWorld');
+    editor.handleGlobalUndo(); updateBodies();
+    expect(editor.pages().map(page => page.html)).toEqual([left, right]);
+  });
+
+  it.each(['Backspace', 'Delete'])('%s at a table boundary moves the caret and permits native deletion on the next key', key => {
+    const table = '<table><tbody><tr><td>Cell</td></tr></tbody></table>';
+    const backwards = key === 'Backspace';
+    const initial = [{ id: 'a', html: backwards ? table : '<p>Hello</p>' }, { id: 'b', html: backwards ? '<p>World</p>' : table }];
+    render(initial);
+    caret(backwards ? 'b' : 'a', backwards);
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    editor.onPageKeyDown(event, backwards ? 1 : 0);
+    expect(event.defaultPrevented).toBe(true);
+    const target = editor.getPageBody(backwards ? 'a' : 'b')!;
+    expect(target.contains(window.getSelection()!.anchorNode)).toBe(true);
+    const next = new KeyboardEvent('keydown', { key, cancelable: true });
+    editor.onPageKeyDown(next, backwards ? 0 : 1);
+    expect(next.defaultPrevented).toBe(false);
+    expect(editor.pages()).toEqual(initial);
+  });
+
   it.each(['Backspace', 'Delete'])('%s removes one character at an automatic paragraph continuation', (keyName) => {
     render([
       { id: 'a', html: '<p data-word-flow="paragraph">Hello</p>' },
@@ -284,8 +380,11 @@ describe('Word editing across pages', () => {
     window.getSelection()!.addRange(range);
     const key = new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true });
     editor.onPageKeyDown(key, 1);
-    expect(key.defaultPrevented).toBe(false);
+    expect(key.defaultPrevented).toBe(true);
     expect(editor.pages()).toHaveLength(2);
+    expect(editor.getPageBody('a')!.textContent).toBe('Previous page');
+    expect(editor.getPageBody('b')!.innerHTML).toBe('<p>Text</p>');
+    expect(editor.getPageBody('b')!.contains(window.getSelection()!.anchorNode)).toBe(true);
   });
 
   it('Enter in a continued list item creates a distinct item instead of rejoining it', () => {

@@ -62,7 +62,7 @@ export function applyHomeCommand(command: string, value: string | undefined, bod
     case 'textEffect':
       applyInlineProperties(bodies, range, { textShadow: value === 'shadow' ? '1px 2px 3px #64748b' : 'none', webkitTextStroke: value === 'outline' ? '0.5px currentColor' : '0px' });
       return !range.collapsed;
-    case 'lineHeight': paragraphs.forEach(el => el.style.lineHeight = value || '1.15'); break;
+    case 'lineHeight': paragraphs.forEach(el => { el.style.lineHeight = value || '1.15'; el.dataset['wordLineSpacing'] = value || '1.15'; }); break;
     case 'spaceBefore': paragraphs.forEach(el => el.style.marginTop = `${Number(value) || 0}pt`); break;
     case 'spaceAfter': paragraphs.forEach(el => el.style.marginBottom = `${Number(value) || 0}pt`); break;
     case 'paragraphShading': paragraphs.forEach(el => el.style.backgroundColor = value || 'transparent'); break;

@@ -78,7 +78,7 @@ export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
   }
 
   readonly Number = Number;
-  readonly targetTags = TARGET_TAGS;
+  get targetTags(): StyleTargetTag[] { return this.draftAcademicStyle() === 'apa7' ? TARGET_TAGS.filter(tag => tag !== 'H6') : TARGET_TAGS; }
   readonly fontFamilies = FONT_FAMILIES;
   readonly alignOptions: { id: TextAlignment; icon: string; labelKey: string; fallback: string }[] = [
     { id: 'left', icon: 'align-left', labelKey: 'word.style.align_left', fallback: 'Izquierda' },
@@ -89,6 +89,8 @@ export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
 
   readonly selectedTemplateId = signal<string>('');
   readonly editingTarget = signal<StyleTargetTag>('H1');
+  readonly draftAcademicStyle = signal<StyleTemplate['academicStyle']>(undefined);
+  readonly draftListRules = signal<StyleTemplate['listRules']>(undefined);
   readonly draftName = signal<string>('');
   readonly draftDescription = signal<string>('');
   readonly draftRules = signal<Record<StyleTargetTag, ElementStyleRule>>(
@@ -115,6 +117,8 @@ export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
     this.draftName.set(currentInitial.name);
     this.draftDescription.set(currentInitial.description);
     this.draftRules.set(JSON.parse(JSON.stringify(currentInitial.rules)));
+    this.draftAcademicStyle.set(currentInitial.academicStyle);
+    this.draftListRules.set(currentInitial.listRules ? structuredClone(currentInitial.listRules) : undefined);
   }
 
   get previewStyle(): Record<string, string | number> {
@@ -143,6 +147,8 @@ export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
     this.draftName.set(tpl.name);
     this.draftDescription.set(tpl.description);
     this.draftRules.set(JSON.parse(JSON.stringify(tpl.rules)));
+    this.draftAcademicStyle.set(tpl.academicStyle);
+    this.draftListRules.set(tpl.listRules ? structuredClone(tpl.listRules) : undefined);
   }
 
   updateCurrentRule(patch: Partial<ElementStyleRule>): void {
@@ -162,7 +168,9 @@ export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
       name: `${this.draftName()} (Personalizada)`,
       description: 'Plantilla de estilos personalizada para encabezados H1–H6 y párrafos.',
       isCustom: true,
+      academicStyle: this.draftAcademicStyle(),
       rules: JSON.parse(JSON.stringify(this.draftRules())),
+      ...(this.draftListRules() ? { listRules: structuredClone(this.draftListRules()) } : {}),
     };
     this.saveCustomTemplate.emit(newTpl);
     this.selectedTemplateId.set(newId);
@@ -177,7 +185,9 @@ export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
       name: this.draftName().trim() || 'Mi Plantilla de Estilos',
       description: this.draftDescription().trim() || 'Plantilla personalizada',
       isCustom: true,
+      academicStyle: this.draftAcademicStyle(),
       rules: JSON.parse(JSON.stringify(this.draftRules())),
+      ...(this.draftListRules() ? { listRules: structuredClone(this.draftListRules()) } : {}),
     };
     this.applyTemplateToDocument.emit(updatedTpl);
     this.close.emit();

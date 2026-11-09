@@ -82,6 +82,15 @@
 
         <!-- Right Column: Rule Customizer for H1..H6 & P -->
         <div class="rules-editor md:col-span-8 p-5 space-y-4">
+          @if (draftListRules()) {
+            <aside class="rounded-lg border p-3 text-xs space-y-2" [ngClass]="darkMode ? 'border-slate-600 bg-slate-800 text-slate-200' : 'border-blue-200 bg-blue-50 text-slate-700'">
+              <strong>{{ t('word.style.apa_lists_title', 'Listas APA 7') }}</strong>
+              <p>{{ t('word.style.apa_lists_format', 'Fuente del párrafo normal, alineación izquierda, interlineado doble y sin espacio adicional entre elementos. Marcador a 1,27 cm; texto a 1,905 cm con sangría francesa de 0,635 cm.') }}</p>
+              <p>{{ t('word.style.apa_lists_numbered', 'Numeradas: números arábigos seguidos de punto (1., 2., 3.) para oraciones o pasos en una secuencia.') }}</p>
+              <p>{{ t('word.style.apa_lists_bullets', 'Viñetas: para elementos sin orden. Las oraciones completas empiezan con mayúscula y terminan con puntuación; las palabras o frases empiezan con minúscula, salvo nombres propios.') }}</p>
+              <p>{{ t('word.style.apa_lists_punctuation', 'Las frases cortas pueden ir sin puntuación final; las largas pueden puntuarse como partes de una oración. El formato no modifica tu texto, citas ni puntuación.') }}</p>
+            </aside>
+          }
           <!-- Template Name -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

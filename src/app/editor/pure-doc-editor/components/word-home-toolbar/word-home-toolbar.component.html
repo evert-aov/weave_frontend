@@ -50,7 +50,7 @@
         @if (menu() === 'list') { <div class="home-menu">@for (item of listStyles; track item.value) { <button type="button" (click)="run('listStyle', item.value)">{{ item.label }}</button> }</div> }
       </div>
       <div class="menu-anchor">
-        <button type="button" [title]="t('word.paragraph.multilevel')" [attr.aria-label]="t('word.paragraph.multilevel')" [attr.aria-expanded]="menu() === 'outline'" [class.active]="headingNumbering" (click)="toggle('outline')"><svg lucideIcon="list-tree" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        <button type="button" [title]="t('word.paragraph.multilevel')" [attr.aria-label]="t('word.paragraph.multilevel')" [attr.aria-expanded]="menu() === 'outline'" [class.active]="headingNumbering" [disabled]="template.academicStyle === 'apa7'" (click)="toggle('outline')"><svg lucideIcon="list-tree" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
         @if (menu() === 'outline') { <div class="home-menu">
           <button type="button" (click)="run('headingNumbering','on')">{{ t('word.paragraph.h_numbered') }}</button>
           <button type="button" (click)="run('headingNumbering','off')">{{ t('word.paragraph.h_unnumbered') }}</button>

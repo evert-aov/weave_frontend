@@ -124,7 +124,7 @@ export function selectionStyle(range: Range, base: ElementStyleRule): ElementSty
     color,
     backgroundColor: text.backgroundColor === 'rgba(0, 0, 0, 0)' ? 'transparent' : text.backgroundColor || 'transparent',
     align: ['left','center','right','justify'].includes(align) ? align as ElementStyleRule['align'] : 'left',
-    lineHeight: Number.isFinite(lineHeight) ? Math.round((paragraph.lineHeight.endsWith('px') ? lineHeight / fontPx : lineHeight) * 100) / 100 : base.lineHeight,
+    lineHeight: Number(block.dataset['wordLineSpacing']) || (Number.isFinite(lineHeight) ? Math.round((paragraph.lineHeight.endsWith('px') ? lineHeight / fontPx : lineHeight) * 100) / 100 : base.lineHeight),
     spaceBeforePt: cssPoints(paragraph.marginTop), spaceAfterPt: cssPoints(paragraph.marginBottom),
     firstLineIndentPt: cssPoints(paragraph.textIndent),
     indentLeftPt: cssPoints(paragraph.marginLeft), indentRightPt: cssPoints(paragraph.marginRight),
@@ -154,6 +154,7 @@ export function applyStyleRule(element: HTMLElement, rule: ElementStyleRule): vo
   style.textTransform = rule.uppercase ? 'uppercase' : 'none';
   style.textAlign = rule.align;
   style.lineHeight = String(rule.lineHeight);
+  element.dataset['wordLineSpacing'] = String(rule.lineHeight);
   style.marginTop = `${rule.spaceBeforePt}pt`;
   style.marginBottom = `${rule.spaceAfterPt}pt`;
   style.textIndent = `${rule.firstLineIndentPt}pt`;

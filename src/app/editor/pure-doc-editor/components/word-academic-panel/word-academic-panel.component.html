@@ -1,0 +1,102 @@
+<div class="academic-backdrop no-print" (keydown.escape)="close.emit()">
+  <section #dialog class="academic-dialog" [class.dark]="darkMode" role="dialog" aria-modal="true" aria-labelledby="academic-heading" (keydown)="trapFocus($event)">
+    <header><h2 id="academic-heading">{{ t('heading') }}</h2><button type="button" (click)="close.emit()" [attr.aria-label]="t('close')">×</button></header>
+    <nav>
+      <button type="button" [class.active]="section === 'sources'" (click)="switchSection('sources')">{{ t('sources') }}</button>
+      <button type="button" [class.active]="section === 'objects'" (click)="switchSection('objects')">{{ t('objects') }}</button>
+      <button type="button" [class.active]="section === 'pages'" (click)="switchSection('pages')">{{ t('page_settings') }}</button>
+      <button type="button" [class.active]="section === 'structure'" (click)="switchSection('structure')">{{ t('structure') }}</button>
+      <button type="button" [class.active]="section === 'notes'" (click)="switchSection('notes')">{{ t('notes') }}</button>
+      <button type="button" [class.active]="section === 'review'" (click)="switchSection('review')">{{ t('review') }}</button>
+    </nav>
+    @if (error) { <p role="alert" class="error">{{ error }}</p> }
+    <div class="academic-body">
+      @if (section === 'sources') {
+        <div class="source-tools">
+          <label>{{ t('saved_sources') }}<select [(ngModel)]="selectedSource" [attr.aria-label]="t('saved_sources')">
+            <option value="">{{ t('choose') }}</option>
+            @for (source of sources; track source.id) { <option [value]="source.id">{{ source.title }} ({{ source.year || t('no_date') }})</option> }
+          </select></label>
+          <button type="button" (click)="edit()">{{ t('new') }}</button>
+          @for (source of sources; track source.id) {
+            @if (source.id === selectedSource) {
+              <button type="button" (click)="edit(source)">{{ t('edit') }}</button>
+              <button type="button" (click)="removeSource.emit(source.id)">{{ t('delete') }}</button>
+            }
+          }
+        </div>
+        <div class="citation-tools">
+          <label><input type="checkbox" [(ngModel)]="narrative" [disabled]="!!quoteText.trim() || additionalIds.length > 0">{{ t('narrative') }}</label>
+          <label>{{ t('locator') }}<input [(ngModel)]="locator" placeholder="p. 25 / pp. 25–28"></label>
+          <button type="button" class="primary" [disabled]="!selectedSource" (click)="insertCitation()">{{ t('insert_citation') }}</button>
+          <button type="button" (click)="bibliography.emit()">{{ t('bibliography') }}</button>
+        </div>
+        <details class="mb-4"><summary>{{ t('citation_options') }}</summary>
+          <label>{{ t('additional_sources') }}<select multiple [(ngModel)]="additionalIds" [disabled]="!!quoteText.trim() || !!secondaryAuthor.trim()">@for(source of sources; track source.id){@if(source.id !== selectedSource){<option [value]="source.id">{{ source.title }}</option>}}</select></label>
+          <label>{{ t('secondary_author') }}<input [(ngModel)]="secondaryAuthor"></label>
+          <label>{{ t('secondary_year') }}<input [(ngModel)]="secondaryYear"></label>
+          <label>{{ t('quote_text') }}<textarea [(ngModel)]="quoteText" rows="5"></textarea></label>
+          <label><span><input type="checkbox" [(ngModel)]="quoteEnding"> {{ t('quote_ending') }}</span></label>
+          <p class="hint">{{ t('quote_hint') }}</p>
+        </details>
+        <form (ngSubmit)="save()">
+          <div class="form-grid">
+            <label>{{ t('kind') }}<select [(ngModel)]="draft.kind" name="kind">@for (kind of kinds; track kind) { <option [value]="kind">{{ t(kind) }}</option> }</select></label>
+            <label>{{ t('authors') }}<textarea name="authors" [(ngModel)]="authors" rows="3" [placeholder]="t('authors_hint')"></textarea></label>
+            @for (field of fields; track field) {
+              <label>{{ t(field) }}{{ field === 'title' ? ' *' : '' }}
+                @if(field === 'editors' || field === 'translators'){<textarea [name]="field" [(ngModel)]="draft[field]" rows="2"></textarea>}
+                @else{<input [name]="field" [(ngModel)]="draft[field]" [required]="field === 'title'" [maxlength]="field === 'url' || field === 'doi' ? 2048 : 500">}
+              </label>
+            }
+          </div>
+          <p class="hint">{{ t('metadata_hint') }}</p>
+          @if (draft.title) { <div class="preview" [innerHTML]="preview()"></div> }
+          <button type="submit" class="primary" [disabled]="!draft.title.trim()">{{ t('save') }}</button>
+        </form>
+      } @else if (section === 'objects') {
+        @if (!objects.length) { <p>{{ t('no_objects') }}</p> }
+        @else {
+          <p class="hint">{{ t('objects_hint') }}</p>
+          <form (ngSubmit)="caption.emit({id: objectId, title, note, sourceId: objectSource, attribution})">
+            <label>{{ t('object') }}<select name="object" [(ngModel)]="objectId" (ngModelChange)="chooseObject()">
+              @for (object of objects; track object.id; let index = $index) { <option [value]="object.id">{{ index + 1 }} · {{ t(object.kind) }} {{ object.prefix || '' }}{{ object.number || '' }}{{ object.title ? ': ' + object.title : '' }}</option> }
+            </select></label>
+            <label>{{ t('caption_title') }} *<input name="title" [(ngModel)]="title" required maxlength="500"></label>
+            <label>{{ t('note') }}<textarea name="note" [(ngModel)]="note" rows="3"></textarea></label>
+            <label>{{ t('source') }}<select name="source" [(ngModel)]="objectSource"><option value="">{{ t('own_work') }}</option>
+              @for (source of sources; track source.id) { <option [value]="source.id">{{ source.title }}</option> }
+            </select></label>
+            <label>{{ t('attribution') }}<textarea name="attribution" [(ngModel)]="attribution" rows="3" [placeholder]="t('attribution_hint')"></textarea></label>
+            <button type="submit" class="primary" [disabled]="!title.trim()">{{ t('apply_caption') }}</button>
+            <button type="button" (click)="objectReference.emit(objectId)">{{ t('insert_object_reference') }}</button>
+          </form>
+        }
+      } @else if (section === 'pages') {
+        <p class="hint">{{ t('page_hint') }}</p>
+        <form (ngSubmit)="pageSettings.emit({mode: pageMode, runningHead})">
+          <label>{{ t('paper_mode') }}<select name="pageMode" [(ngModel)]="pageMode"><option value="student">{{ t('student') }}</option><option value="professional">{{ t('professional') }}</option></select></label>
+          @if (pageMode === 'professional') {
+            <label>{{ t('running_head') }}<input name="runningHead" [(ngModel)]="runningHead" required maxlength="50" style="text-transform:uppercase"></label>
+          }
+          <button type="submit" class="primary" [disabled]="pageMode === 'professional' && !runningHead.trim()">{{ t('apply_pages') }}</button>
+        </form>
+      } @else if (section === 'structure') {
+        <app-word-academic-structure [objects]="objects" (insertSection)="insertSection.emit($event)" />
+      } @else if (section === 'notes') {
+        <label>{{ t('saved_notes') }}<select [(ngModel)]="noteId" (ngModelChange)="chooseNote()"><option value="">{{ t('new_note') }}</option>@for(note of notes; track note.id){<option [value]="note.id">{{ t(note.kind) }} {{ note.number }} · {{ note.text.slice(0, 70) }}</option>}</select></label>
+        <form (ngSubmit)="saveNote.emit({id: noteId || undefined, kind: noteKind, text: noteText})">
+          <label>{{ t('note_type') }}<select name="noteKind" [(ngModel)]="noteKind"><option value="footnote">{{ t('footnote') }}</option><option value="endnote">{{ t('endnote') }}</option></select></label>
+          <label>{{ t('note_content') }}<textarea name="noteText" [(ngModel)]="noteText" required rows="7" maxlength="4000"></textarea></label>
+          <p class="hint">{{ t('notes_hint') }}</p>
+          <button type="submit" class="primary" [disabled]="!noteText.trim()">{{ noteId ? t('save') : t('insert_note') }}</button>
+          @if(noteId){<button type="button" (click)="removeNote.emit(noteId); noteId = ''; chooseNote()">{{ t('delete') }}</button>}
+        </form>
+      } @else {
+        @if(!issues.length){<p>{{ t('audit_clear') }}</p>}
+        @for(issue of issues; track $index){<p class="preview">{{ t('audit_page_label') }} {{ issue.page + 1 }} · {{ t(issue.message) }}</p>}
+        <p class="hint">{{ t('audit_hint') }}</p>
+      }
+    </div>
+  </section>
+</div>

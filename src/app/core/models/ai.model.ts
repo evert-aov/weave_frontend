@@ -18,6 +18,7 @@ export interface DocumentContextPayload {
 
 export interface AiChatRequest {
   conversationId?: string;
+  model?: string;
   editTargets?: EditTarget[];
   message: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;

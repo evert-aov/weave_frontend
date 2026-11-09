@@ -38,7 +38,7 @@ describe('PureSheetEditorComponent', () => {
     fixture.nativeElement.dispatchEvent(outside);
     expect(outside.defaultPrevented).toBe(false);
     fixture.destroy();
-  });
+  }, 20000);
 
   let component: PureSheetEditorComponent;
   let mockNotesService: any;

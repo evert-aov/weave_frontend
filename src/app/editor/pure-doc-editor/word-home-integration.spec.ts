@@ -1,3 +1,4 @@
+import { ProofreadingService } from '../../core/services/proofreading.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PureDocEditorComponent } from './pure-doc-editor.component';
@@ -45,6 +46,57 @@ describe('Word Home through its real ribbon and editor template', () => {
     const range = document.createRange(); range.selectNodeContents(sample);
     window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
   }
+  it('saves autocorrected text through Word input and preserves formatting and undo', () => {
+    const editor = fixture.componentInstance;
+    const writing = TestBed.inject(ProofreadingService); writing.setLanguage('es'); writing.enabled.set(true);
+    const sample = fixture.nativeElement.querySelector('#sample') as HTMLElement;
+    const body = sample.closest<HTMLElement>('[data-page-body-id]')!;
+    sample.textContent = 'informacion'; editor.commitPageDomToState(0);
+    body.focus(); window.getSelection()?.collapse(sample.firstChild, 11);
+    body.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
+    sample.textContent += ' '; window.getSelection()?.collapse(sample.firstChild, 12);
+    body.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ' ' }));
+    expect(sample.textContent).toBe('información ');
+    expect(sample.style.fontFamily).toContain('Arial Black');
+    expect(editor.pages()[0].html).toContain('información ');
+    writing.undo(); expect(editor.pages()[0].html).toContain('informacion ');
+    editor.handleGlobalUndo(); expect(editor.pages()[0].html).toContain('informacion</p>');
+  });
+  it('resumes an inactive Word session without rehydrating pages or resetting view state', async () => {
+    const editor = fixture.componentInstance;
+    const images = TestBed.inject(ImageStoreService);
+    const resolve = vi.spyOn(images, 'resolveImages');
+    const body = fixture.nativeElement.querySelector('[data-page-body-id="a"]');
+    editor.activePageIndex.set(1); editor.zoom.set(130);
+    fixture.componentRef.setInput('active', false); fixture.detectChanges();
+    for (let i = 0; i < 25; i++) await Promise.resolve();
+    expect(editor.documentReady()).toBe(true);
+    const update = vi.spyOn(editor, 'updateSelectionFormats');
+    document.dispatchEvent(new Event('selectionchange')); expect(update).not.toHaveBeenCalled();
+    fixture.componentRef.setInput('active', true); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-page-body-id="a"]')).toBe(body);
+    expect(editor.activePageIndex()).toBe(1); expect(editor.zoom()).toBe(130);
+    expect(resolve).not.toHaveBeenCalled();
+  });
+  it('exports using the current tab name instead of the imported file title', async () => {
+    const editor = fixture.componentInstance;
+    editor.note = { ...editor.note, title:'cmake' }; editor.docTitle.set('GRUPO8 PREPA cap1-6.docx');
+    const compatibility=TestBed.inject(WordCompatibilityService);
+    compatibility.exportToDocxFile=vi.fn().mockResolvedValue(undefined);
+    await editor.exportWord();
+    expect(compatibility.exportToDocxFile).toHaveBeenCalledWith('cmake',expect.any(Array),expect.any(Object));
+  });
+  it('creates a list without invoking native formatting that drops imported space-only runs', () => {
+    const sample=fixture.nativeElement.querySelector('#sample') as HTMLElement;
+    sample.innerHTML='<strong>No es una plataforma: </strong><span>comprador</span><span> </span><span>y</span><span> </span><span>vendedor</span>';
+    const before=sample.textContent;selectSample();
+    const old=document.execCommand, native=vi.fn();document.execCommand=native;
+    try { fixture.componentInstance.executeCommand('insertUnorderedList'); }
+    finally { document.execCommand=old; }
+    expect(native).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('li #sample')?.textContent).toBe(before);
+    expect(fixture.componentInstance.pages()[0].html).toContain('<span> </span>');
+  });
   it('updates H1 from the gallery menu and applies the same definition to another paragraph', () => {
     selectSample(); click('Opciones de H1');
     const update = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(button => button.textContent?.includes('Actualizar H1'))!;
@@ -106,7 +158,7 @@ describe('Word Home through its real ribbon and editor template', () => {
     for (const [selector,expected] of [['font','Georgia'],['span','Courier New']]) {
       const range = document.createRange(); range.selectNodeContents(sample.querySelector(selector)!); range.collapse(false);
       window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
-      document.dispatchEvent(new Event('selectionchange')); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      document.dispatchEvent(new Event('selectionchange')); const frames = vi.mocked(requestAnimationFrame).mock.calls.slice(); vi.mocked(requestAnimationFrame).mockClear(); frames.forEach(([callback]) => callback(0)); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
       const font = fixture.nativeElement.querySelector('select[aria-label="Familia tipográfica"]') as HTMLSelectElement;
       expect(font.selectedOptions[0].textContent).toBe(expected);
     }

@@ -19,15 +19,7 @@
         <app-lazy-load-state [failed]="true"></app-lazy-load-state>
       }
     }
-    @case ('doc') {
-      @defer (on immediate) {
-        <app-pure-doc-editor [note]="note"></app-pure-doc-editor>
-      } @placeholder {
-        <app-lazy-load-state></app-lazy-load-state>
-      } @error {
-        <app-lazy-load-state [failed]="true"></app-lazy-load-state>
-      }
-    }
+    @case ('doc') { <!-- Word mantiene su sesión en el contenedor de abajo. --> }
     @case ('canvas') {
       @defer (on immediate) {
         <app-pure-canvas-editor [note]="note"></app-pure-canvas-editor>
@@ -215,3 +207,12 @@
     </button>
   </div>
 }
+
+@defer (when wordSessions().length > 0) {
+  @for (session of wordSessions(); track session._id) {
+    <section class="word-session" [style.display]="notesService.currentNote()?._id === session._id ? 'block' : 'none'"
+      [attr.inert]="notesService.currentNote()?._id === session._id ? null : ''">
+      <app-pure-doc-editor [note]="session" [active]="notesService.currentNote()?._id === session._id" />
+    </section>
+  }
+} @placeholder { @if (notesService.currentNote()?.docType === 'doc') { <app-lazy-load-state /> } } @error { <app-lazy-load-state [failed]="true" /> }

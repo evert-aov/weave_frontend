@@ -48,13 +48,13 @@ export class AiDocumentService {
     if (!note || (!readOnly && this.isReadingLocked())) throw new Error('Activa la edición del documento antes de pedir cambios.');
     const fields: EditSnapshot['fields'] = new Map();
     const targets: EditTarget[] = [];
-    let budget = 24_000; let truncated = false;
+    let budget = 400_000; let truncated = false;
     for (const adapter of this.adapters) {
       if (adapter.owner() !== note._id) continue;
-      if (targets.length >= 200 || budget <= 0) { truncated = true; break; }
+      if (targets.length >= 2000 || budget <= 0) { truncated = true; break; }
       for (const field of adapter.fields()) {
         if (fields.has(field.id)) throw new Error('Destino de edición duplicado.');
-        if (targets.length >= 200 || budget <= field.id.length) { truncated = true; break; }
+        if (targets.length >= 2000 || budget <= field.id.length) { truncated = true; break; }
         const text = field.text.slice(0, Math.min(15_000, budget - field.id.length));
         truncated ||= text.length !== field.text.length;
         fields.set(field.id, { text: field.text, adapter });
@@ -66,7 +66,7 @@ export class AiDocumentService {
   }
   apply(snapshot: EditSnapshot, edits: DocumentEdit[]): void {
     if (!edits.length) return;
-    if (edits.length > 30 || edits.reduce((n, e) => n + e.before.length + e.after.length, 0) > 30_000) throw new Error('Los cambios superan el límite permitido.');
+    if (edits.length > 100 || edits.reduce((n, e) => n + e.before.length + e.after.length, 0) > 80_000) throw new Error('Los cambios superan el límite permitido.');
     if (this.isReadingLocked() || this.notes.currentNote()?._id !== snapshot.noteId) throw new Error('Cambiaste de documento o activaste la lectura. No se aplicaron cambios.');
     const groups = new Map<AiEditorAdapter, Map<string, string>>();
     const current = new Map<AiEditorAdapter, Map<string, string>>();
@@ -79,7 +79,7 @@ export class AiDocumentService {
       const value = values.get(edit.target) ?? field.text;
       if (edit.before && (value.indexOf(edit.before) < 0 || value.indexOf(edit.before) !== value.lastIndexOf(edit.before))) throw new Error('El fragmento a reemplazar no es único. No se aplicaron cambios.');
       const next = edit.before ? value.replace(edit.before, () => edit.after) : value + edit.after;
-      if (next.length > 300_000) throw new Error('El resultado supera el tamaño permitido.');
+      if (next.length > 1_000_000) throw new Error('El resultado supera el tamaño permitido.');
       values.set(edit.target, next);
     }
     // Todos los destinos y conflictos se validan antes de modificar el primer motor.

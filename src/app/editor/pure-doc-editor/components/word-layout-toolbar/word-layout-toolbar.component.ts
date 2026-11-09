@@ -233,10 +233,10 @@ export class WordLayoutToolbarComponent implements OnInit, OnChanges {
   private syncCustomMargins(): void {
     const m = this.layoutConfig?.margins;
     if (!m) return;
-    this.customMarginTopCm.set(Number(((m.topPx / 96) * 2.54).toFixed(1)));
-    this.customMarginBottomCm.set(Number(((m.bottomPx / 96) * 2.54).toFixed(1)));
-    this.customMarginLeftCm.set(Number(((m.leftPx / 96) * 2.54).toFixed(1)));
-    this.customMarginRightCm.set(Number(((m.rightPx / 96) * 2.54).toFixed(1)));
+    this.customMarginTopCm.set(Number(((m.topPx / 96) * 2.54).toFixed(2)));
+    this.customMarginBottomCm.set(Number(((m.bottomPx / 96) * 2.54).toFixed(2)));
+    this.customMarginLeftCm.set(Number(((m.leftPx / 96) * 2.54).toFixed(2)));
+    this.customMarginRightCm.set(Number(((m.rightPx / 96) * 2.54).toFixed(2)));
   }
 
   @HostListener('document:mousedown', ['$event'])

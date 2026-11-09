@@ -15,7 +15,9 @@ mediante un `@defer` por tipo. El shell y las notas comunes no importan sus moto
 ## Editor Word
 
 `pure-doc-editor.component` coordina el documento; los controles de cinta y modales viven en
-`components/`. `models/` y `constants/` describen páginas y configuración. `services/` separa
+`components/`. `controllers/` divide persistencia, paginación, formato, entrada, diseño, inserción,
+medios, redimensionado de imágenes, tablas, navegación, búsqueda y archivos por instancia. `models/` y `constants/` describen
+páginas y configuración. `services/` separa
 parseo DOCX, compatibilidad, fórmulas, imágenes y generación asistida; `utils/` contiene cálculo
 y análisis de páginas. Mantener nuevas operaciones en la responsabilidad correspondiente.
 
@@ -32,6 +34,10 @@ se detallan en [Home y estilos Word](12-HOME-Y-ESTILOS-WORD.md).
 El servicio de imágenes transforma referencias a archivos servidos por el backend y conserva
 compatibilidad con referencias anteriores. No reemplazar archivos persistidos por URLs Blob
 temporales al guardar un documento.
+Si un `/uploads/img-…` existe en disco pero devuelve 404, revisar el controlador de respaldo del
+backend: sus rutas pueden adelantarse a `ServeStaticModule`. Debe entregar primero el archivo
+local y usar R2 solo si no existe. No reemplazar una imagen válida por un placeholder ni volver
+a importar el documento para compensar un error de entrega HTTP.
 
 ## Hojas de cálculo
 
@@ -66,3 +72,7 @@ ni debe iniciar lecturas de todos los documentos desde el servidor.
 El tipo `latex` usa un editor diferido de código y vista previa PDF. Persiste
 `docData: {version: 1, source: string}` en Mongo a través de NestJS y comparte autocompletado
 con los bloques. Ver [LaTeX avanzado](13-LATEX-AVANZADO.md).
+
+Word incluye gestión de fuentes bibliográficas por documento, citas y lista de referencias
+APA, además de títulos y notas de tablas y figuras. Véase
+[APA: tablas, figuras y referencias](13-APA-TABLAS-FIGURAS-Y-REFERENCIAS.md).

@@ -67,7 +67,7 @@ export class WordHomeToolbarComponent {
   readonly fonts = FONT_FAMILIES;
   readonly colors = TEXT_COLORS;
   readonly highlights = HIGHLIGHT_COLORS;
-  readonly tags: StyleTargetTag[] = ['P','H1','H2','H3','H4','H5','H6'];
+  get tags(): StyleTargetTag[] { return this.template?.academicStyle === 'apa7' ? ['P','H1','H2','H3','H4','H5'] : ['P','H1','H2','H3','H4','H5','H6']; }
   readonly styleMenuPosition = signal<{ top: number; left: number } | null>(null);
   readonly activeStyleTag = () => {
     const m = this.menu();

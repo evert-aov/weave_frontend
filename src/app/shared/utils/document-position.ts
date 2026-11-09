@@ -3,7 +3,7 @@ import { DocumentCaretPoint, DocumentPosition } from '../../core/services/docume
 function editableForPoint(host: HTMLElement, point: DocumentCaretPoint): HTMLElement | null {
   const selector = point.kind === 'page' ? '[data-page-body-id]' : '[data-block-id]';
   const attribute = point.kind === 'page' ? 'data-page-body-id' : 'data-block-id';
-  const container = Array.from(host.querySelectorAll<HTMLElement>(selector)).find((el) => el.getAttribute(attribute) === point.id);
+  const container = Array.from(host.querySelectorAll<HTMLElement>(selector)).find((el) => el.getAttribute(attribute) === point.id && !el.closest('[inert]'));
   if (!container) return null;
   return point.kind === 'page' ? container : container.querySelector<HTMLElement>('[contenteditable]');
 }
@@ -13,7 +13,7 @@ function caretPoint(host: HTMLElement, node: Node | null, offset: number): Docum
   const page = element?.closest<HTMLElement>('[data-page-body-id]');
   const block = element?.closest<HTMLElement>('[data-block-id]');
   const container = page ?? block;
-  if (!node || !container || !host.contains(container)) return undefined;
+  if (!node || !container || !host.contains(container) || container.closest('[inert]')) return undefined;
   const editable = page ?? block?.querySelector<HTMLElement>('[contenteditable]');
   if (!editable?.contains(node)) return undefined;
   const prefix = document.createRange();
@@ -23,7 +23,7 @@ function caretPoint(host: HTMLElement, node: Node | null, offset: number): Docum
 
 export function captureDocumentPosition(host: HTMLElement): DocumentPosition {
   const selection = window.getSelection();
-  const scroller = host.querySelector<HTMLElement>('[data-document-scroll]');
+  const scroller = Array.from(host.querySelectorAll<HTMLElement>('[data-document-scroll]')).find(el => !el.closest('[inert]'));
   return {
     anchor: caretPoint(host, selection?.anchorNode ?? null, selection?.anchorOffset ?? 0),
     focus: caretPoint(host, selection?.focusNode ?? null, selection?.focusOffset ?? 0),
@@ -45,7 +45,7 @@ function resolvePoint(element: HTMLElement, offset: number): { node: Node; offse
 
 /** Devuelve false mientras Angular o el motor del documento todavía no montaron el destino. */
 export function restoreDocumentPosition(host: HTMLElement, position: DocumentPosition): boolean {
-  const scroller = host.querySelector<HTMLElement>('[data-document-scroll]');
+  const scroller = Array.from(host.querySelectorAll<HTMLElement>('[data-document-scroll]')).find(el => !el.closest('[inert]'));
   if (!scroller || scroller.getAttribute('data-word-ready') === 'false') return false;
   if (position.anchor && position.focus) {
     const anchor = editableForPoint(host, position.anchor);
@@ -66,5 +66,5 @@ export function documentAnchorAtSelection(host: HTMLElement): HTMLAnchorElement 
   const node = selection.anchorNode;
   const element = node instanceof Element ? node : node?.parentElement;
   const anchor = element?.closest<HTMLAnchorElement>('a[href]');
-  return anchor && host.contains(anchor) ? anchor : null;
+  return anchor && host.contains(anchor) && !anchor.closest('[inert]') ? anchor : null;
 }

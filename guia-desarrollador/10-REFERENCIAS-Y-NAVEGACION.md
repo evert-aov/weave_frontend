@@ -95,3 +95,39 @@ Comprobar manualmente con dos documentos: crear una referencia, seguirla con cli
 Ctrl+I y repetir con Ctrl+O. Probar desde edición y lectura, desde carpetas distintas y después
 de recargar la URL. La interacción con un navegador real y los atajos reservados por el sistema
 no se deducen de la compilación ni de JSDOM.
+
+
+## Actualizar la tabla de contenido de Word
+
+En **Referencias → Actualizar índice completo**, o desde el botón del panel lateral del
+índice, se reconstruyen los H1–H6 y sus páginas. **Insertar índice** crea uno si falta y
+actualiza el existente si ya está presente. Actualizar sin un índice muestra un aviso.
+
+`controllers/word-toc.controller.ts` solicita primero la repaginación del documento y lee
+el HTML vivo, incluyendo ediciones todavía no publicadas en las señales. La utilidad
+`utils/table-of-contents.ts` retira las páginas del índice anterior, conserva el texto que
+comparta esas páginas, asigna IDs estables a los títulos y calcula el desplazamiento por
+el número de páginas del índice nuevo. Añade títulos nuevos, elimina entradas de H que ya
+no existen y conserva los enlaces al cambiar la paginación. No usa las entradas extraídas
+del índice antiguo como fuente de títulos. También reconoce el bloque nativo importado
+`data-native-word-toc="true"`.
+
+Las páginas del índice y el comienzo del contenido posterior quedan delimitados por saltos
+manuales para que el paginador no mezcle el índice con el texto. Las continuaciones de un
+mismo H se excluyen. Si cambia la cantidad de páginas del índice, se recalculan las páginas
+de los títulos posteriores. La operación se guarda y se puede deshacer/rehacer, junto con
+las entradas importadas del panel lateral. La tipografía APA seleccionada se aplica al
+índice generado.
+
+### Actualización del índice con APA
+
+Al aplicar una plantilla APA o pulsar **Actualizar APA**, un índice existente se
+reconstruye desde los encabezados actuales (incluidos los niveles 4 y 5 en línea).
+Adopta la fuente y tamaño de la variante elegida, interlineado doble, texto negro
+y un título centrado en negrita, sin mayúsculas forzadas, subrayado decorativo ni
+espaciado adicional. Conserva las sangrías de jerarquía y los enlaces de navegación.
+Después de repaginar se recalculan los números de página. La operación forma parte
+del mismo paso de deshacer y mantiene la página activa; no crea un índice donde
+no lo había ni lo reconstruye en cada pulsación. Estas decisiones visuales dan
+coherencia a la plantilla: la guía APA aportada no prescribe un formato universal
+de tabla de contenido y pueden existir requisitos institucionales distintos.

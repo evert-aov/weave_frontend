@@ -1,3 +1,5 @@
+import { DocxTocImport, groupImportedToc, importedTocRuns } from './docx-toc-import';
+import { DocxNoteImport, detectImportedApa } from './docx-note-import';
 import { Injectable } from '@angular/core';
 import {
   DocxDocumentProperties,
@@ -218,6 +220,7 @@ export class DocxParserService {
       name === 'word/styles.xml' ||
       name === 'word/numbering.xml' ||
       name === 'word/fontTable.xml' ||
+      name === 'word/footnotes.xml' || name === 'word/endnotes.xml' ||
       name === 'word/_rels/document.xml.rels' ||
       name === 'docProps/app.xml' ||
       name === 'docProps/core.xml' ||
@@ -1197,6 +1200,9 @@ export class DocxParserService {
       return base;
     };
 
+    const noteImport = new DocxNoteImport(xmlFiles);
+    const tocImport = new DocxTocImport(bodyEl);
+    detectImportedApa(detectedLayout, xmlFiles, defaultFontFamily, defaultFontSizePt);
     const parseParagraphElement = (
       pEl: Element,
       insideTocSdt: boolean = false,
@@ -1325,6 +1331,7 @@ export class DocxParserService {
       let maxImageHeightPxInParagraph = 0;
       let paragraphHasTocFieldInstruction = false;
       let paragraphHasPagerefField = false;
+      let importedRunInLevel = 0, runInBookmarkId = '';
 
       const extractImageFromDrawingOrPict = (container: Element): string | null => {
         const blipEl = this.findFirstDescendant(container, 'blip');
@@ -1340,14 +1347,17 @@ export class DocxParserService {
           const cxEmu = Number(this.getAttrByLocalName(extentEl, 'cx') || 0);
           const cyEmu = Number(this.getAttrByLocalName(extentEl, 'cy') || 0);
 
-          const widthPx = cxEmu > 0 ? Math.min(650, Math.max(32, Math.round(cxEmu / 9525))) : 220;
-          const heightPx = cyEmu > 0 ? Math.min(740, Math.max(32, Math.round(cyEmu / 9525))) : 220;
+          const rawWidth = cxEmu > 0 ? cxEmu / 9525 : 220, rawHeight = cyEmu > 0 ? cyEmu / 9525 : 220;
+          const fit = Math.min(1, (matchedSize.widthPx - extractedMargins.leftPx - extractedMargins.rightPx) / rawWidth, maxPageContentHeightPx / rawHeight);
+          const widthPx = Math.max(1, Math.round(rawWidth * fit)), heightPx = Math.max(1, Math.round(rawHeight * fit));
+          const docPr = this.findFirstDescendant(container, 'docPr');
+          const altText = this.getAttrByLocalName(docPr, 'descr') || this.getAttrByLocalName(docPr, 'title') || 'Imagen del documento';
           if (heightPx > maxImageHeightPxInParagraph) {
             maxImageHeightPxInParagraph = heightPx;
           }
           const heightStyle = cyEmu > 0 ? `height: ${heightPx}px;` : 'height: auto;';
 
-          return `<img src="${relIdToBlobUrl[rId]}" alt="Imagen del documento" style="width: ${widthPx}px; ${heightStyle} max-width: 100%; display: inline-block; margin: 4pt auto;" />`;
+          return `<img src="${relIdToBlobUrl[rId]}" alt="${this.escapeHtml(altText)}" style="width: ${widthPx}px; ${heightStyle} max-width: 100%; display: inline-block; margin: 4pt auto;" />`;
         }
         return null;
       };
@@ -1453,6 +1463,11 @@ export class DocxParserService {
 
           if (ln === 't') {
             textSegmentBuffer += cEl.textContent || '';
+          } else if (ln === 'footnoteReference' || ln === 'endnoteReference') {
+            flushTextSegment();
+            const id = this.getAttrByLocalName(cEl, 'id') || '';
+            const note = noteImport.reference(ln === 'footnoteReference' ? 'footnote' : 'endnote', id, runFont || defaultFontFamily, runSizePt || defaultFontSizePt);
+            if (note) { hasTextRuns = true; runBuckets[runBuckets.length - 1].push(note); }
           } else if (ln === 'instrText') {
             const instr = (cEl.textContent || '').toUpperCase();
             if (instr.includes('TOC ')) {
@@ -1510,7 +1525,13 @@ export class DocxParserService {
         for (let i = 0; i < pChildren.length; i++) {
           const el = pChildren[i];
           const ln = el.localName;
-          if (ln === 'r') {
+          if (ln === 'bookmarkStart') {
+            const name = this.getAttrByLocalName(el, 'name') || '';
+            const match = /^APA_RUNIN_([45])_/.exec(name);
+            if (match) { importedRunInLevel = Number(match[1]); runInBookmarkId = this.getAttrByLocalName(el, 'id') || ''; runBuckets[runBuckets.length - 1].push(`<span data-apa-heading-level="${importedRunInLevel}" id="${this.escapeHtml(name)}" style="font-weight:bold;font-style:${importedRunInLevel === 5 ? 'italic' : 'normal'}">`); }
+          } else if (ln === 'bookmarkEnd' && runInBookmarkId && this.getAttrByLocalName(el, 'id') === runInBookmarkId) {
+            runBuckets[runBuckets.length - 1].push('</span>'); runInBookmarkId = '';
+          } else if (ln === 'r') {
             processRunNode(el);
           } else if (ln === 'hyperlink') {
             const anchor = this.getAttrByLocalName(el, 'anchor') || '';
@@ -1536,7 +1557,8 @@ export class DocxParserService {
 
       walkParagraphChildren(pEl);
 
-      const plainParagraphText = (pEl.textContent || '').trim();
+      const plainParagraphText = tocImport.visibleText(pEl).trim();
+      if (!plainParagraphText && !hasImageInParagraph && tocImport.isControl(pEl)) return {fragmentsWithHeight:[],breakBefore,hasSectBreakAfter};
 
       if (
         !insideTableCell &&
@@ -1552,8 +1574,9 @@ export class DocxParserService {
 
       if (
         !insideTableCell &&
-        (paragraphHasTocFieldInstruction ||
-          paragraphHasPagerefField ||
+        (tocImport.inField(pEl) ||
+          paragraphHasTocFieldInstruction ||
+          (paragraphHasPagerefField && (insideTocSdt || resolvedStyle?.tocLevel || directPPrMetrics.hasDotLeaderTab)) ||
           tocLevel ||
           insideTocSdt ||
           (directPPrMetrics.hasDotLeaderTab && /\d+\s*$/.test(plainParagraphText)))
@@ -1570,14 +1593,15 @@ export class DocxParserService {
 
       if (!insideTableCell && tocLevel && plainParagraphText.length > 1 && !isTocHeading) {
         tocEntriesCount++;
-        const pageNumMatch = plainParagraphText.match(/^(.*?)(?:[\s.\t]+)(\d+)\s*$/);
-        const rawTitle = (pageNumMatch ? pageNumMatch[1] : plainParagraphText).trim();
+        const importedEntry = tocImport.entry(pEl);
+        const pageNumMatch = /^\d+$/.test(importedEntry.page) ? [null,null,importedEntry.page] : null;
+        const rawTitle = importedEntry.title;
         const cleanTitle = rawTitle.replace(/^(\d+(?:\.\d+)*\.?)(?=[A-Za-zÁÉÍÓÚÑáéíóúñ])/, '$1 ');
-        const targetPageNum = pageNumMatch ? Math.max(1, parseInt(pageNumMatch[2], 10)) : pagesHtmlChunks.length;
+        const targetPageNum = pageNumMatch ? Math.max(1, Number(importedEntry.page)) : pagesHtmlChunks.length;
 
         if (cleanTitle) {
           extractedTocHeadings.push({
-            id: `toc-entry-${tocEntriesCount}`,
+            id: importedEntry.target || `toc-entry-${tocEntriesCount}`,
             text: cleanTitle,
             level: tocLevel,
             pageIndex: targetPageNum - 1,
@@ -1650,6 +1674,7 @@ export class DocxParserService {
         pLevelFontSizePt ||
         resolvedStyle?.fontSizePt ||
         (insideTableCell ? 9.5 : defaultFontSizePt);
+      if (importedRunInLevel) headingLevel = undefined;
       const effectiveFontFamily =
         firstRunFontInParagraph || pLevelFontFamily || resolvedStyle?.fontFamily || defaultFontFamily;
 
@@ -1723,18 +1748,16 @@ export class DocxParserService {
         }
 
         if (tocLevel && !isTocHeading) {
-          const indentPx = Math.max((tocLevel - 1) * 18, leftIndentPt ? leftIndentPt * 1.33 : 0);
-          return `<div class="docx-toc-row" style="display: flex; align-items: baseline; justify-content: space-between; margin-left: ${indentPx}px; margin-bottom: 4px; font-family: '${effectiveFontFamily}', serif; font-size: ${
-            effectiveHeadingSizePt || 11
-          }pt;">${trimmed}</div>`;
+          const entry = tocImport.entry(pEl);
+          const runs = importedTocRuns(trimmed, entry);
+          const indent = Math.max((tocLevel - 1) * 14,leftIndentPt || 0);
+          const target = entry.target ? ` data-toc-target-id="${this.escapeHtml(entry.target)}"` : '';
+          const page = /^\d+$/.test(entry.page) ? ` data-toc-page="${Math.max(0,Number(entry.page)-1)}"` : '';
+          return `<div class="word-toc-entry" contenteditable="false"${target}${page} style="text-align:left;text-indent:0;padding-left:${indent}pt;font-family:'${this.escapeHtml(effectiveFontFamily)}',serif;font-size:${effectiveHeadingSizePt || 11}pt;line-height:${lineHeightCss};margin-top:${spaceBeforePt}pt;margin-bottom:${spaceAfterPt}pt;"><span class="word-toc-title">${runs.title}</span><span class="word-toc-dots"></span><span class="word-toc-page">${runs.page}</span></div>`;
         }
+        if (isTocHeading) return `<div class="word-toc-header" contenteditable="false" style="font-family:'${this.escapeHtml(effectiveFontFamily)}',serif;font-size:${effectiveHeadingSizePt || 16}pt;text-align:${textAlign || 'left'};font-weight:bold;text-transform:none;line-height:${lineHeightCss};margin-top:${spaceBeforePt}pt;margin-bottom:${spaceAfterPt}pt;">${trimmed}</div>`;
 
-        if (isTocHeading) {
-          headingSeqCounter++;
-          return `<h1 id="docx-h-toc-${headingSeqCounter}" style="font-family: '${effectiveFontFamily}', serif; font-size: ${
-            effectiveHeadingSizePt || 16
-          }pt; text-align: ${textAlign || 'center'}; font-weight: bold; margin-bottom: 12pt;">${trimmed}</h1>`;
-        }
+        if (importedRunInLevel) return `<p data-apa-run-in="${importedRunInLevel}" style="${blockStyles.join('; ')}">${trimmed}</p>`;
 
         if (headingLevel && headingLevel >= 1 && headingLevel <= 6) {
           if (effectiveHeadingSizePt) {
@@ -1751,7 +1774,7 @@ export class DocxParserService {
           const key = `h${headingLevel}` as keyof typeof headingCounts;
           headingCounts[key]++;
           headingSeqCounter++;
-          const headingId = `docx-h-${headingSeqCounter}`;
+          const headingId = tocImport.target(pEl) || `docx-h-${headingSeqCounter}`;
 
           headingStyleSummarySet.add(
             `H${headingLevel}: ${effectiveFontFamily} ${effectiveHeadingSizePt}pt${
@@ -1768,7 +1791,7 @@ export class DocxParserService {
           return `<${listTagType}><li${styleAttr}>${trimmed}</li></${listTagType}>`;
         }
 
-        return `<p${styleAttr}>${trimmed}</p>`;
+        return `<p${tocImport.target(pEl) ? ` id="${tocImport.target(pEl)}"` : ''}${styleAttr}>${trimmed}</p>`;
       };
 
       const fragmentsWithHeight = runBuckets
@@ -2004,23 +2027,11 @@ export class DocxParserService {
           }
           const sdtContent = this.findDirectChild(el, 'sdtContent');
           if (sdtContent) {
-            if (isToc && !insideTocSdt) {
-              const beforePageIdx = pagesHtmlChunks.length - 1;
-              const beforeLen = pagesHtmlChunks[beforePageIdx].length;
-              walkBodyContainer(sdtContent, true);
-              const afterPageIdx = pagesHtmlChunks.length - 1;
-              if (beforePageIdx === afterPageIdx && pagesHtmlChunks[beforePageIdx].length > beforeLen) {
-                const tocItems = pagesHtmlChunks[beforePageIdx].splice(beforeLen);
-                pagesHtmlChunks[beforePageIdx].push(
-                  `<div class="toc-block" data-native-word-toc="true">${tocItems.join('\n')}</div>`
-                );
-              }
-            } else {
-              walkBodyContainer(sdtContent, isToc);
-            }
+            walkBodyContainer(sdtContent, isToc);
           }
-        } else if (ln === 'sdtContent' || ln === 'ins' || ln === 'customXml') {
-          walkBodyContainer(el, insideTocSdt);
+        } else if (ln === 'sdtContent' || ln === 'ins' || ln === 'customXml' || ln === 'fldSimple') {
+          const fieldToc = ln === 'fldSimple' && /^\s*TOC(?:\s|$)/i.test(this.getAttrByLocalName(el,'instr') || '');
+          walkBodyContainer(el, insideTocSdt || fieldToc);
         }
       }
     };
@@ -2043,13 +2054,15 @@ export class DocxParserService {
       }
     }
 
-    const finalPagesHtml: string[] = pagesHtmlChunks.map((c) => c.join('\n'));
+    const finalPagesHtml: string[] = pagesHtmlChunks.map((c) => groupImportedToc(c.join('\n')));
 
     const pages: DocumentPage[] = finalPagesHtml.map((html, idx) => ({
       id: `docx-page-${idx + 1}-${Date.now().toString(36)}`,
       html,
       ...(manualPageStarts.has(idx) ? { breakBefore: 'manual' as const } : {}),
     }));
+
+    noteImport.finish(pages, defaultFontFamily, defaultFontSizePt);
 
     extractedTocHeadings.forEach((h) => {
       h.pageIndex = Math.max(0, Math.min(pages.length - 1, h.pageIndex));

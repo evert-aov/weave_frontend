@@ -46,6 +46,16 @@ export function analyzePageHtmlFast(
     });
   }
 
+  if (html.includes('data-apa-heading-level')) {
+    // Only pages with run-in headings need DOM parsing; other pages retain the fast path.
+    const root = document.createElement('div'); root.innerHTML = html; headings.length = 0;
+    root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,[data-apa-heading-level]').forEach((heading, index) => {
+      if (heading.closest('[data-word-continuation],.word-toc-page-section,[data-native-word-toc]')) return;
+      const text = formatCleanHeadingTitle(heading.textContent || '');
+      if (text) headings.push({ id: heading.id || `doc-heading-p${pageIndex + 1}-${index + 1}`, text, level: Number(heading.dataset['apaHeadingLevel'] || heading.tagName.slice(1)), pageIndex });
+    });
+  }
+
   const tables: TableItem[] = [];
   const tableRegex = /<table[^>]*>([\s\S]*?)<\/table>/gi;
   let tMatch: RegExpExecArray | null;

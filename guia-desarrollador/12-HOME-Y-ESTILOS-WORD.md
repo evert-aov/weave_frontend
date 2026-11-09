@@ -1,5 +1,10 @@
 # Home y estilos del documento Word
 
+La cinta agrupa la importación y todas las exportaciones en **Archivo / File**, antes de Home.
+Conserva importar Word/HTML/Markdown/TXT y exportar DOCX, DOC, HTML, Markdown, TXT y PDF.
+Los grupos comparten un contenedor con scroll horizontal cuando no caben; las pestañas
+Importar y Exportar ya no se muestran por separado. Los eventos y motores siguen siendo los mismos.
+
 Home reúne los grupos Formato, Fuente, Párrafo, Estilos y Edición. La galería incluye
 Normal y Título 1–6. El botón principal aplica el estilo a los párrafos seleccionados;
 la flecha de cada tarjeta, o su menú contextual, ofrece **Actualizar para que coincida
@@ -30,7 +35,28 @@ CSS; seleccionar una fuente no instala sus archivos.
 | `utils/document-formatting.ts` | Captura del estilo, aplicación uniforme, párrafos seleccionados e índice de búsqueda. |
 | `utils/heading-numbering.ts` | Contador jerárquico H1–H6 y prefijos generados, continuaciones y títulos importados. |
 | `utils/home-editing.ts` | Transformaciones de texto y formato de párrafos conservando el DOM. |
-| `pure-doc-editor.component.ts` | Selección, transacciones, historial, paginación y autoguardado. |
+| `pure-doc-editor.component.ts` | Coordinación Angular, señales compartidas, ciclo de vida, puente de IA y delegación de eventos. |
+| `controllers/word-formatting.controller.ts` | Selección, comandos de Home, estilos, plantillas y formato pendiente. |
+| `controllers/word-persistence.controller.ts` | Hidratación, autoguardado, serialización y deshacer/rehacer. |
+| `controllers/word-flow.controller.ts` | Mapas DOM, medición, publicación de páginas y repaginación. |
+| `controllers/word-input.controller.ts` | Entrada, composición, teclado y borrado en los límites entre páginas. |
+| `controllers/word-layout.controller.ts` | Columnas, configuración de página, saltos, encabezados y pies. |
+| `controllers/word-insert.controller.ts` | Inserción de texto, enlaces, referencias y bloques HTML. |
+| `controllers/word-media.controller.ts` | Imágenes, pegado, arrastre, formas, iconos y fórmulas LaTeX. |
+| `controllers/word-tables.controller.ts` | Inserción, selección, modificación y redimensionado de tablas. |
+| `controllers/word-navigation.controller.ts` | Índice, navegación, lectura en voz alta y controles de vista. |
+| `controllers/word-search.controller.ts` | Búsqueda y reemplazo, con estado por editor. |
+| `controllers/word-files.controller.ts` | Importación y exportaciones de Archivo. |
+| `controllers/word-editor-hooks.ts` | Contrato tipado de operaciones y recursos privados compartidos. |
+| `models/word-editor-state.model.ts` | Estado persistido v2, instantáneas de historial y estado de redimensionado. |
+
+Los controladores se componen por instancia; no son servicios globales ni clases base. Cada uno
+declara un `Pick` del contrato público del coordinador y de sus hooks privados, con importaciones
+de tipo que no crean ciclos en ejecución. Los callbacks y getters consultan el estado vigente:
+no capturan copias antiguas de las páginas ni de la selección. Historial, cachés, temporizadores,
+rangos y transacciones DOM pertenecen a su controlador. El componente sigue gestionando los
+listeners, observers y cancelaciones en su ciclo de vida, sin cambiar el contrato de la plantilla.
+El registro de IA conserva su propietario y la persistencia permanece en las capas existentes.
 
 No se añade otro motor ni dependencias de ejecución. Los componentes siguen dentro del
 editor Word cargado de forma diferida.
@@ -74,6 +100,66 @@ Párrafo incorpora listas, variantes de viñetas/numeración, listas multinivel 
 alineación, interlineado, espaciados, sombreado y bordes. Ordenar actúa sobre párrafos
 hermanos de una misma sección para conservar la estructura de tablas y columnas. Las
 marcas de párrafo son presentación mediante CSS: no se guardan ni exportan o imprimen.
+
+Al desactivar numeración o viñetas, `utils/list-editing.ts` convierte los elementos seleccionados
+sin delegar su reconstrucción a `execCommand`. Todos los runs inline y espacios de cada `li`
+se mantienen en un párrafo, con sus enlaces y énfasis. Los párrafos internos ya existentes y las
+sublistas conservan su estructura. Una selección parcial divide el contenedor de lista, respeta
+los elementos no seleccionados y conserva sus números iniciales. El cambio mantiene la selección
+y se deshace/rehace como una sola operación; no crea un párrafo por palabra del DOCX importado.
+
+## Listas de la plantilla APA 7
+
+Las seis variantes APA 7 incluyen `StyleTemplate.listRules`, opcional para mantener compatibles
+las plantillas antiguas. Sus reglas de listas ordenadas y no ordenadas heredan la fuente y tamaño
+de Normal (Times New Roman 12 pt por defecto), alinean a la izquierda y aplican interlineado doble
+sin espacios adicionales entre elementos. La implementación elige un marcador a 36 pt y texto a
+54 pt, con 18 pt de sangría francesa; estas medidas son el preset visual del editor, no una
+exigencia de medida única de APA. Las listas numeradas usan números arábigos con punto y las
+viñetas usan disco por defecto; los símbolos elegidos después desde Home se conservan.
+
+`utils/list-formatting.ts` aplica las reglas al elegir la plantilla, crear listas, cambiar su tipo
+y continuar con Enter. El formato de párrafo dentro de `li` no añade otra sangría de primera línea.
+Se conservan `ol`/`ul`/`li`, listas anidadas, inicios de numeración, citas y texto.
+El formato normaliza también las fuentes/tamaños internos de `span` y `font` importados y los
+párrafos dentro de cada elemento: una lista Times New Roman no conserva tramos Arial directos.
+Se preservan énfasis, citas y caracteres; no se intentan reconstruir espacios ausentes del texto
+ya guardado. DOCX resuelve la herencia de esos tramos sin exportar `inherit` como nombre de fuente.
+El diseñador muestra una guía ES/EN: números para secuencias; viñetas para elementos sin orden; oraciones completas con
+mayúscula y puntuación final; palabras o frases con minúscula salvo nombres propios, con puntuación
+opcional según la estructura. No se corrigen automáticamente mayúsculas, citas ni puntuación.
+Ver las guías de [listas numeradas](https://apastyle.apa.org/style-grammar-guidelines/lists/numbered)
+y [viñetas](https://apastyle.apa.org/style-grammar-guidelines/lists/bulleted) de APA Style.
+
+Duplicar y guardar plantillas conserva estas reglas; el historial y `customTemplates` las incluyen.
+La exportación DOCX usa `services/docx-list-numbering.ts` y `word/numbering.xml` para listas nativas,
+en lugar de números/viñetas escritos como texto. Conserva sangría, interlineado, inicio de numeración
+y elementos anidados, también en tablas. DOC/PDF conservan el HTML con estilos de lista.
+
+`utils/list-formatting.spec.ts` comprueba el DOM y el OOXML exportado; `word-home.spec.ts` cubre
+aplicación entre páginas, deshacer, duplicación y continuación con Enter.
+
+### Variantes tipográficas APA 7
+
+`constants/apa-style-templates.ts` genera seis plantillas independientes a partir de las reglas
+comunes, según la página 26 de `Guia-Normas-APA-7ma-edicion.pdf` proporcionada para este proyecto:
+
+| Identificador | Fuente | Tamaño |
+| --- | --- | --- |
+| `apa-times-12` | Times New Roman | 12 pt |
+| `apa-calibri-11` | Calibri | 11 pt |
+| `apa-arial-11` | Arial | 11 pt |
+| `apa-lucida-10` | Lucida Sans Unicode | 10 pt |
+| `apa-georgia-11` | Georgia | 11 pt |
+| `apa-computer-modern-10` | Computer Modern | 10 pt |
+
+El selector de plantillas muestra todas las variantes. P y todos los niveles H del editor
+usan la misma familia y tamaño; las listas heredan esa tipografía. Se conserva `apa-times-12`
+para documentos anteriores, las reglas compartidas no comparten objetos mutables y las plantillas
+corporativa y técnica siguen disponibles. Lucida Sans Unicode y Computer Modern también aparecen
+en el selector de fuentes. El navegador y Word necesitan la fuente instalada para su representación
+exacta; el proyecto no incorpora los binarios ni descarga nuevas fuentes al arrancar. DOCX conserva
+la familia y tamaño solicitados. Las pruebas parametrizadas cubren cada variante y su exportación.
 
 ## Estado real de la fuente y subíndices
 
@@ -128,6 +214,19 @@ Por ejemplo, un H1 que comienza por `5. ` hace que el siguiente H2 automático s
 Esos números manuales conservan su valor al reordenarlos; para una numeración enteramente
 automática, los títulos deben contener el nombre sin un prefijo numérico escrito.
 
+## Zoom y celdas nuevas de tablas
+
+El deslizador, los controles de la cinta y Ctrl + rueda usan `WordNavigationController.setDocumentZoom`.
+Se conserva la posición relativa de un punto de la página visible y se compensa el scroll tras el
+cambio de escala; no se navega a otra hoja por conservar un desplazamiento en píxeles de otra escala.
+Ctrl + rueda se intercepta solo dentro de `.word-page-sheet` (50–160 %), incluso al alcanzar los
+límites; sin Ctrl y fuera del papel se mantiene el comportamiento normal del navegador. El ajuste
+de scroll pendiente y la desactivación temporal de scroll anchoring se limpian al destruir el editor.
+
+Añadir filas o columnas deja todas las celdas nuevas sin contenido, con un `<br>` editable en lugar
+de «Dato», «Columna» o contenido clonado. Las filas mantienen el formato y eliminan identificadores
+copiados. Insertar columnas recorre las filas de la tabla activa sin alterar tablas anidadas.
+
 ## Buscar y reemplazar
 
 Buscar funciona con texto literal, distinguiendo opcionalmente mayúsculas o palabras
@@ -141,6 +240,25 @@ hacia adelante, usa nodos de texto para el reemplazo y crea una sola operación 
 Un reemplazo vacío elimina la coincidencia; el texto con `<` o `>` nunca se interpreta como
 HTML. Ctrl+F y Ctrl+H abren los paneles dentro del editor. Ctrl+O y Ctrl+I mantienen la
 [navegación de referencias](10-REFERENCIAS-Y-NAVEGACION.md).
+
+## Imágenes y combinación de celdas
+
+Al pulsar una imagen aparece un marco con un tirador inferior derecho. Arrastrarlo cambia
+su tamaño manteniendo la proporción y respetando el zoom del documento. La operación
+crea un único paso de deshacer; las dimensiones se guardan en el HTML de la imagen.
+Los controles quedan fuera del contenido editable y no se guardan ni imprimen.
+
+Para combinar celdas, arrastrar el ratón desde la primera hasta la última celda (también
+funciona con celdas vacías), seleccionar su contenido o pulsar la primera celda y,
+con Shift, la última. La barra contextual ofrece **Combinar celdas** y resalta el rectángulo
+afectado. Se conserva el contenido, sus formatos y enlaces en orden de lectura. También
+se admiten celdas previamente combinadas. Si la selección cruza encabezado y cuerpo,
+se unifican sus grupos de filas, conservando los elementos TH, para permitir el rowspan.
+La exportación DOCX representa las combinaciones mediante gridSpan y vMerge.
+
+`word-images.controller.ts` gestiona la selección y el arrastre; `word-tables.controller.ts`
+gestiona la selección rectangular. `utils/table-cell-grid.ts` calcula la cuadrícula lógica
+compartida con la exportación y la paginación, incluyendo rowspan y colspan.
 
 ## Verificación
 
@@ -160,3 +278,25 @@ npm run build
 
 Las pruebas DOM no sustituyen la revisión de tipografías instaladas, renderizado visual,
 entrada por composición y comandos nativos de edición en los navegadores admitidos.
+
+La pestaña Referencias incorpora fuentes bibliográficas, citas y leyendas APA. Véase
+[APA: tablas, figuras y referencias](13-APA-TABLAS-FIGURAS-Y-REFERENCIAS.md).
+
+## Revisión de escritura en español e inglés
+
+`appProofreading` activa revisión nativa en el cuerpo, encabezado y pie de Word. El control
+**ES/EN · ABC** de la barra inferior selecciona idioma y activa/desactiva la autocorrección.
+Estas preferencias son locales al navegador y no guardan texto del documento.
+
+La corrección local usa una lista conservadora de erratas frecuentes (`proofreading.ts`):
+se ejecuta al terminar una palabra con espacio, conserva mayúsculas, formato y cursor y
+permite revertir la última corrección si su texto sigue intacto. No procesa pegados, composición
+IME ni código/enlaces/regiones protegidas, ni recorre el documento completo en cada pulsación.
+Las palabras ambiguas no se cambian automáticamente. Las repeticiones consecutivas generan
+un aviso sin eliminar texto. El cambio emite `input` para participar del guardado y flujo de Word.
+
+Para errores fuera de la lista, se usa el subrayado y menú contextual del corrector nativo.
+Su disponibilidad y diccionarios español/inglés dependen del navegador; no hay un diccionario
+completo propio ni revisión gramatical remota. El texto no se envía a IA para esta función;
+la configuración de revisión del navegador puede usar sus propios servicios. El panel de chat
+no utiliza esta autocorrección.

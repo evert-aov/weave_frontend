@@ -52,9 +52,9 @@ describe('document edits from the main assistant', () => {
     body.innerHTML = '<p>Texto legible</p><span contenteditable="false">Fórmula protegida</span>';
     expect([...domTextFields(body, 'page')].map(field => field.text)).toEqual(['Texto legible', '']);
     service.register({ owner: () => 'a', fields: function* () {
-      yield { id: 'one', text: 'a'.repeat(15_000) };
-      yield { id: 'two', text: 'b'.repeat(15_000) };
-      yield { id: 'three', text: '' };
+      for (let i = 0; i < 30; i++) {
+        yield { id: `field-${i}`, text: 'a'.repeat(15_000) };
+      }
       throw new Error('Unnecessary page extraction');
     }, apply: () => {} });
     expect(service.capture().truncated).toBe(true);

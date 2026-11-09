@@ -1,3 +1,5 @@
+import type { Note } from '../../core/models/note.model';
+import { retainWordSessions } from './utils/word-sessions';
 import { AiDocumentService } from '../../core/services/ai-document.service';
 import { richTextHtml } from '../../core/utils/ai-edit-text';
 import { DestroyRef } from '@angular/core';
@@ -8,6 +10,7 @@ import {
   ViewChild,
   inject,
   signal,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -74,7 +77,13 @@ export class DocumentEditorComponent {
   private readonly actions = inject(WorkspaceActionsService);
 
   private readonly aiDocuments = inject(AiDocumentService);
+  readonly wordSessions = signal<Note[]>([]);
   constructor() {
+    effect(() => {
+      const current = this.notesService.currentNote();
+      const openIds = new Set(this.notesService.openTabs().map(tab => tab.noteId));
+      this.wordSessions.update(previous => retainWordSessions(previous, current, openIds));
+    });
     inject(DestroyRef).onDestroy(this.aiDocuments.register({
       owner: () => { const note = this.notesService.currentNote(); return note && (!note.docType || note.docType === 'block') ? note._id : undefined; },
       fields: () => [{ id: 'document:append', text: '' }],

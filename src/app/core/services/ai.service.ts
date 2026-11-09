@@ -40,6 +40,27 @@ export class AiService {
   // Estado de generación en curso
   readonly isGenerating = signal<boolean>(false);
   readonly documentContextTruncated = signal(false);
+  readonly activeModel = signal<string>('gemini-3.8-flash');
+
+  readonly availableModels = [
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Recomendado', desc: 'Rápido, multimodal y contexto de 1M tokens' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Ligero', desc: 'Respuestas veloces y eficientes' },
+    { id: 'gemini-4-argon', name: 'Gemini 4 Argon', tag: 'Razonamiento', desc: 'Modelo frontera para razonamiento profundo' },
+  ] as const;
+
+  readonly selectedModel = signal<string>(
+    this.readStringPreference('weave_ai_selected_model', 'gemini-3.8-flash')
+  );
+
+  setSelectedModel(modelId: string): void {
+    this.selectedModel.set(modelId);
+    this.activeModel.set(modelId);
+    try {
+      localStorage.setItem('weave_ai_selected_model', modelId);
+    } catch {
+      // Ignorar fallo de almacenamiento local
+    }
+  }
 
   readonly messages = signal<AiChatMessage[]>([]);
   readonly isLoadingHistory = signal(false);
@@ -260,11 +281,12 @@ export class AiService {
 
     // Preparar el contexto del documento activo
     const docContext = this.includeDocumentContext()
-      ? this.extractCurrentDocumentContext()
+      ? this.extractCurrentDocumentContext(editSnapshot)
       : undefined;
 
     const requestPayload: AiChatRequest = {
       message: trimmed,
+      model: this.selectedModel(),
       conversationId: this.activeConversationId(),
       ...(editSnapshot ? { editTargets: editSnapshot.targets } : {}),
       persistHistory: true,
@@ -278,6 +300,7 @@ export class AiService {
       .pipe(
         tap((res) => {
           if (version !== this.sessionVersion) return;
+          if (res.model) this.activeModel.set(res.model);
           if (res.edits?.length && editSnapshot) {
             try {
               this.documents.apply(editSnapshot, res.edits);
@@ -307,7 +330,9 @@ export class AiService {
             ? 'La solicitud es demasiado grande. Desactiva el contexto del documento o divide el mensaje e inténtalo de nuevo.'
             : err.status === 400
               ? 'La consulta no cumple los límites del chat. Reduce el mensaje y vuelve a intentarlo.'
-              : 'No se pudo completar la respuesta de IA. Verifica la conexión o inténtalo de nuevo.');
+              : err.status === 502 || err.status === 503
+                ? 'El servicio de IA no pudo completar la generación o validar sus cambios. No se aplicaron cambios de esta respuesta. Intenta de nuevo o divide la petición en secciones.'
+                : 'No se pudo completar la respuesta de IA. Verifica la conexión o inténtalo de nuevo.');
           return of(null);
         }),
         finalize(() => { if (version === this.sessionVersion) this.isGenerating.set(false); })
@@ -319,7 +344,7 @@ export class AiService {
   /**
    * Extrae el contenido representativo legible del documento actualmente abierto.
    */
-  extractCurrentDocumentContext(): DocumentContextPayload | undefined {
+  extractCurrentDocumentContext(editSnapshot?: EditSnapshot): DocumentContextPayload | undefined {
     this.documentContextTruncated.set(false);
     const note = this.notesService.currentNote();
     if (!note) return undefined;
@@ -346,11 +371,14 @@ export class AiService {
     const docType = note.docType || 'block';
     if (this.documents.supported()) {
       try {
-        const snapshot = this.documents.capture(true);
+        const snapshot = editSnapshot ?? this.documents.capture(true);
         for (const target of snapshot.targets) if (!append(`${target.id}: ${target.text}`)) break;
         truncated ||= snapshot.truncated;
         this.documentContextTruncated.set(truncated);
-        return { title: boundedAiText(note.title, AI_REQUEST_LIMITS.title), docType, content: parts.join('') };
+        const coverage = truncated
+          ? '[COBERTURA PARCIAL: hay contenido omitido. No se puede concluir que una sección no exista por no aparecer en este extracto.]\n'
+          : '[Contenido disponible del documento activo.]\n';
+        return { title: boundedAiText(note.title, AI_REQUEST_LIMITS.title), docType, content: boundedAiText(coverage + parts.join(''), AI_REQUEST_LIMITS.document) };
       } catch { /* Durante la carga se conserva el extractor de datos persistidos. */ }
     }
     if (docType === 'block') {
@@ -396,6 +424,14 @@ export class AiService {
     this.messages.update((messages) => [...messages, {
       id: `err-${Date.now()}`, role: 'assistant', content, timestamp: new Date(), error: true,
     }]);
+  }
+
+  private readStringPreference(key: string, fallback: string): string {
+    try {
+      return localStorage.getItem(key) || fallback;
+    } catch {
+      return fallback;
+    }
   }
 
   private readPreference(key: string, fallback: boolean): boolean {

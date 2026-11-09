@@ -516,3 +516,44 @@ app-pure-doc-editor {
     border-color: #2563eb !important;
   }
 }
+
+.word-image-resize-box, .word-table-merge-box {
+  position: fixed;
+  z-index: 44;
+  pointer-events: none;
+  border: 2px solid #2563eb;
+  box-sizing: border-box;
+}
+.word-table-merge-box { background: rgb(37 99 235 / .08); }
+.word-image-resize-handle {
+  position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px;
+  background: #fff; border: 2px solid #2563eb; pointer-events: auto; cursor: nwse-resize;
+  touch-action: none;
+}
+.word-image-resize-close {
+  position: absolute; right: -2px; top: -26px; width: 24px; height: 24px;
+  background: #fff; color: #1e40af; border: 1px solid #93c5fd; border-radius: 4px;
+  pointer-events: auto; cursor: pointer;
+}
+
+// Notes are measured in normal flow on the off-screen canvas, then placed at
+// the bottom of their actual page body without consuming the page margin.
+.word-editor-canvas[data-page-body-id] {
+  position: relative;
+  > [data-word-note-list='footnote'] {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+}
+
+.word-editor-canvas.word-apa-body {
+  p { margin-top: 0; margin-bottom: 0; line-height: 2; }
+  > p:not([data-apa-role]):not([data-word-continuation]) { text-indent: 36pt; }
+}
+/* Los índices nativos conservan títulos largos y mantienen los números a la derecha. */
+.word-editor-canvas .word-toc-page-section[data-native-word-toc] {
+  .word-toc-entry { align-items:flex-end; }
+  .word-toc-title { white-space:normal; overflow:visible; text-overflow:clip; min-width:0; }
+}

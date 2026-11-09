@@ -1,3 +1,5 @@
+import { escapeAcademicHtml } from '../utils/apa-references';
+import { apaHeaderHtml } from '../utils/apa-layout';
 import { Injectable, inject } from '@angular/core';
 import {
   DocxDocumentProperties,
@@ -7,7 +9,7 @@ import {
 } from '../models/word-document.model';
 import { DEFAULT_LAYOUT_CONFIG, PAPER_FORMAT_PRESETS } from '../constants/word-document.constants';
 import { DocxParserService } from './docx-parser.service';
-import { createDocxBlob } from './docx-export';
+import { createDocxFile } from './docx-export';
 import { snapshotWordSheets } from './word-pdf-export';
 
 
@@ -47,10 +49,10 @@ export class WordCompatibilityService {
   buildSingleTocEntryHtml(h: HeadingItem, pageNumberOffset: number = 0): string {
     const indentPt = Math.max(0, (h.level - 1) * 14);
     const isTopLevel = h.level === 1;
-    const cleanTitle = this.formatCleanHeadingTitle(h.text);
+    const cleanTitle = escapeAcademicHtml(this.formatCleanHeadingTitle(h.text));
     const displayPageNum = h.pageIndex + 1 + pageNumberOffset;
 
-    return `<div class="word-toc-entry" contenteditable="false" data-toc-target-id="${h.id}" data-toc-page="${
+    return `<div class="word-toc-entry" contenteditable="false" data-toc-target-id="${escapeAcademicHtml(h.id)}" data-toc-page="${
       displayPageNum - 1
     }" style="padding-left: ${indentPt}pt; font-weight: ${
       isTopLevel ? '700' : '400'
@@ -85,14 +87,12 @@ export class WordCompatibilityService {
 
     while (cursor < headings.length) {
       // First TOC page has the main title header so it fits slightly fewer rows than continuation pages
-      const limit = pageSeq === 0 ? Math.max(16, entriesPerPage - 2) : entriesPerPage;
+      const limit = pageSeq === 0 ? Math.max(1, entriesPerPage - 2) : entriesPerPage;
       const slice = headings.slice(cursor, cursor + limit);
       cursor += limit;
 
-      const headerMarkup =
-        pageSeq === 0
-          ? `<div class="word-toc-header" contenteditable="false">ÍNDICE DE CONTENIDO</div>`
-          : `<div class="word-toc-header" contenteditable="false" style="font-size: 11pt; color: #475569; margin-bottom: 10pt;">ÍNDICE DE CONTENIDO (CONTINUACIÓN — PÁG. ${pageSeq + 1})</div>`;
+      const headerMarkup = pageSeq === 0
+        ? `<div class="word-toc-header" contenteditable="false">ÍNDICE DE CONTENIDO</div>` : '';
 
       const rowsMarkup = slice
         .map((h) => this.buildSingleTocEntryHtml(h, extraPagesInsertedShift))
@@ -143,16 +143,16 @@ export class WordCompatibilityService {
       const p = pages[idx];
       const htmlWithEmbeddedImages = await this.docxParser.convertBlobUrlsInHtmlToBase64(p.html);
       const headerBlock =
-        layout.showHeaderFooter && layout.headerHtml
+        layout.apa ? apaHeaderHtml(layout, idx + 1) : layout.showHeaderFooter && layout.headerHtml
           ? `<div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 6pt; margin-bottom: 14pt;">${layout.headerHtml}</div>`
           : '';
       const footerBlock =
-        layout.showHeaderFooter && layout.footerHtml
+        !layout.apa && layout.showHeaderFooter && layout.footerHtml
           ? `<div style="border-top: 1px solid #e2e8f0; padding-top: 6pt; margin-top: 18pt;">${layout.footerHtml} <div style="text-align:right;font-size:8.5pt;color:#94a3b8;">Página ${
               idx + 1
             } de ${pages.length}</div></div>`
           : '';
-      resolvedPagesHtml.push(`<div style="${borderCss}">${headerBlock}${htmlWithEmbeddedImages}${footerBlock}</div>`);
+      resolvedPagesHtml.push(`<div style="position:relative;${borderCss}">${headerBlock}${htmlWithEmbeddedImages}${footerBlock}</div>`);
     }
 
     const multiPageHtmlContent = resolvedPagesHtml.join(
@@ -293,9 +293,9 @@ export class WordCompatibilityService {
   }
 
   async exportToDocxFile(title: string, pages: DocumentPage[], layout: DocumentLayoutConfig = DEFAULT_LAYOUT_CONFIG): Promise<void> {
-    const sanitizedTitle = (title || 'Documento').replace(/[^a-z0-9-_áéíóúñ\s]/gi, '').trim() || 'Documento';
+    const sanitizedTitle = (title || 'Documento').replace(/(?:\.docx?)+$/i, '').replace(/[^a-z0-9-_áéíóúñ\s]/gi, '').trim() || 'Documento';
     const embedded = await Promise.all(pages.map(async page => ({ ...page, html: await this.docxParser.convertBlobUrlsInHtmlToBase64(page.html) })));
-    this.triggerDownload(createDocxBlob(embedded, layout), `${sanitizedTitle}.docx`);
+    this.triggerDownload(await createDocxFile(embedded, layout), `${sanitizedTitle}.docx`);
   }
 
   async exportToPdf(title: string, sheets: HTMLElement[], progress?: (message: string) => void): Promise<void> {
@@ -320,9 +320,9 @@ export class WordCompatibilityService {
       const htmlWithEmbedded = await this.docxParser.convertBlobUrlsInHtmlToBase64(pages[idx].html);
       sections.push(
         `<section class="page" data-page="${idx + 1}" data-break-before="${pages[idx].breakBefore ?? 'auto'}">
-          ${layout.showHeaderFooter ? `<header class="page-header">${layout.headerHtml}</header>` : ''}
+          ${layout.apa ? apaHeaderHtml(layout, idx + 1) : layout.showHeaderFooter ? `<header class="page-header">${layout.headerHtml}</header>` : ''}
           <div class="page-body">${htmlWithEmbedded}</div>
-          ${layout.showHeaderFooter ? `<footer class="page-footer">${layout.footerHtml}</footer>` : ''}
+          ${!layout.apa && layout.showHeaderFooter ? `<footer class="page-footer">${layout.footerHtml}</footer>` : ''}
         </section>`
       );
     }
@@ -334,9 +334,10 @@ export class WordCompatibilityService {
     <title>${sanitizedTitle}</title>
     <style>
       body { background: #f1f5f9; font-family: 'Times New Roman', system-ui, serif; margin: 0; padding: 32px 16px; line-height: 1.5; color: #0f172a; }
-      .page { background: #ffffff; max-width: ${wPx}px; min-height: ${hPx}px; margin: 0 auto 28px auto; padding: ${layout.margins.topPx}px ${layout.margins.rightPx}px ${layout.margins.bottomPx}px ${layout.margins.leftPx}px; box-shadow: 0 4px 16px rgba(15,23,42,0.08); box-sizing: border-box; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; }
+      .page { position: relative; background: #ffffff; max-width: ${wPx}px; min-height: ${hPx}px; margin: 0 auto 28px auto; padding: ${layout.margins.topPx}px ${layout.margins.rightPx}px ${layout.margins.bottomPx}px ${layout.margins.leftPx}px; box-shadow: 0 4px 16px rgba(15,23,42,0.08); box-sizing: border-box; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; }
       .page-header { border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 16px; }
-      .page-body { flex: 1; }
+      .page-body { flex: 1; position: relative; }
+      .page-body > [data-word-note-list="footnote"] { position:absolute; bottom:0; left:0; right:0; }
       .page-footer { border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 16px; }
       .word-toc-header { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 14pt; }
       .word-toc-entry { display: flex; align-items: baseline; width: 100%; margin-bottom: 4pt; }

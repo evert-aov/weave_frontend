@@ -289,16 +289,17 @@ function isSoleParagraphText(node: Text): HTMLParagraphElement | null {
 }
 
 /** Campos de texto con IDs estables por nodo; no expone atributos ni binarios al proveedor. */
-export function* domTextFields(body: HTMLElement, prefix: string): Generator<{ id: string; text: string }> {
+export function* domTextFields(body: HTMLElement, prefix: string, scope: 'all' | 'headings' | 'body' = 'all'): Generator<{ id: string; text: string }> {
   const walk = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
   let node: Node | null; let index = 0;
   while ((node = walk.nextNode())) {
     const id = `${prefix}:text:${index++}`;
     const protectedParent = node.parentElement?.closest('script,style,svg,math,[contenteditable=false]');
     const excluded = protectedParent && protectedParent !== body && body.contains(protectedParent);
-    if (!excluded && node.textContent?.trim()) yield { id, text: node.textContent };
+    const heading = !!node.parentElement?.closest('h1,h2,h3,h4,h5,h6,[data-apa-heading-level]');
+    if (!excluded && node.textContent?.trim() && (scope === 'all' || heading === (scope === 'headings'))) yield { id, text: node.textContent };
   }
-  yield { id: `${prefix}:append`, text: '' };
+  if (scope !== 'headings') yield { id: `${prefix}:append`, text: '' };
 }
 
 export function htmlTextFields(html: string, prefix: string): { id: string; text: string }[] {

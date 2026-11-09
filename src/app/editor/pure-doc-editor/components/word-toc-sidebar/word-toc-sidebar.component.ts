@@ -57,6 +57,7 @@ export class WordTocSidebarComponent {
   @Output() jumpToPage = new EventEmitter<number>();
   @Output() selectHeading = new EventEmitter<{ id: string; pageIndex: number }>();
   @Output() selectTable = new EventEmitter<TableItem>();
+  @Output() updateTocInDocument = new EventEmitter<void>();
   @Output() insertTocInDocument = new EventEmitter<void>();
   @Output() addNewPage = new EventEmitter<void>();
   @Output() close = new EventEmitter<void>();

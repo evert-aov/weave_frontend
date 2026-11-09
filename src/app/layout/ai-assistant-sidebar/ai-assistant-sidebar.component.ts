@@ -5,6 +5,7 @@ import {
   inject,
   signal,
   effect,
+  computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -37,6 +38,16 @@ export class AiAssistantSidebarComponent {
   private readonly sanitizer = inject(DomSanitizer);
 
   @ViewChild('messagesContainer') private messagesContainer?: ElementRef<HTMLDivElement>;
+
+  readonly chatsOpen = signal(false);
+  readonly chatSearch = signal('');
+  readonly activeChatTitle = computed(() => this.aiService.conversations().find(chat => chat.id === this.aiService.activeConversationId())?.title || '');
+  readonly filteredChats = computed(() => {
+    const query = this.chatSearch().trim().toLocaleLowerCase();
+    return this.aiService.conversations().filter(chat => !query || chat.title.toLocaleLowerCase().includes(query));
+  });
+  newChat(): void { this.aiService.createConversation(); this.chatsOpen.set(false); }
+  selectChat(id: string): void { this.aiService.selectConversation(id); this.chatsOpen.set(false); }
 
   readonly inputText = signal<string>('');
   readonly copiedMessageId = signal<string | null>(null);

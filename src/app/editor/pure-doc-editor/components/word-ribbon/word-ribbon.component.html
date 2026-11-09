@@ -64,10 +64,39 @@
   @if (!isCollapsed()) {
   <!-- Rounded Ribbon Pill Container -->
   <div
+    [class.file-panel]="activeTab === 'file'"
     class="ribbon-pill-container rounded-xl shadow-sm border px-3 py-1.5 flex items-center flex-nowrap gap-1 min-h-[82px] h-[82px] overflow-visible relative z-40 transition-colors"
     [ngClass]="darkMode ? 'bg-[#202024]/95 border-[#323238] text-[#f4f4f5] shadow-md dark-mode' : 'bg-white border-slate-200/90 text-slate-800'"
     (dblclick)="onPillDblClick($event)"
   >
+    @if (activeTab === 'references') {
+      <div class="flex items-center gap-3 overflow-x-auto h-full w-full">
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertToc.emit()">
+          <svg lucideIcon="list-tree" [size]="22"></svg>{{ t('word.toc.insert_doc') }}
+        </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="updateToc.emit()">
+          <svg lucideIcon="rotate-cw" [size]="22"></svg>{{ t('word.toc.update') }}
+        </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('sources')">
+          <svg lucideIcon="book-open" [size]="22"></svg>{{ t('word.academic.sources') }}
+        </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertBibliography.emit()">
+          <svg lucideIcon="list" [size]="22"></svg>{{ t('word.academic.bibliography') }}
+        </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('objects')">
+          <svg lucideIcon="image" [size]="22"></svg>{{ t('word.academic.objects') }}
+        </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('pages')">
+          <svg lucideIcon="file-text" [size]="22"></svg>{{ t('word.academic.page_settings') }}
+        </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('structure')"><svg lucideIcon="file-text" [size]="22"></svg>{{ t('word.academic.structure') }}</button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('notes')"><svg lucideIcon="quote" [size]="22"></svg>{{ t('word.academic.notes') }}</button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('review')"><svg lucideIcon="file-check-2" [size]="22"></svg>{{ t('word.academic.review') }}</button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="updateAcademic.emit()">
+          <svg lucideIcon="rotate-cw" [size]="22"></svg>{{ t('word.academic.update') }}
+        </button>
+      </div>
+    }
     <!-- ==================== HOME TAB ==================== -->
     @if (activeTab === 'home') {
       <app-word-home-toolbar
@@ -354,9 +383,9 @@
       </div>
     }
 
-    <!-- ==================== IMPORT TAB ==================== -->
-    @if (activeTab === 'import') {
-      <div class="ribbon-tab-container">
+    <!-- ==================== FILE TAB ==================== -->
+    @if (activeTab === 'file') {
+      <div class="ribbon-tab-container file-toolbar">
         <div class="ribbon-group">
           <div class="control-row">
             <button
@@ -366,26 +395,16 @@
               [title]="t('word.import.button')"
             >
               <svg lucideIcon="upload" [size]="20" class="w-5 h-5 text-blue-600"></svg>
-              <span class="btn-label font-semibold text-blue-700">{{ t('word.import.button') }}</span>
+              <span class="btn-label font-semibold text-blue-700">{{ t('word.tab.import') }}</span>
             </button>
 
-            <div class="stacked-rows max-w-lg pl-2">
-              <span class="text-xs text-slate-700 leading-tight">
-                {{ t('word.import.hint_pre') }}<strong>{{ t('word.import.hint_headings') }}</strong>, <strong>{{ t('word.import.hint_images') }}</strong>, <strong>{{ t('word.import.hint_tabs') }}</strong>, <strong>{{ t('word.import.hint_sheets') }}</strong> y <strong>{{ t('word.import.hint_borders') }}</strong>.
-              </span>
-              <span class="text-[11px] text-slate-400">
-                Word (.docx, .doc), Markdown (.md), HTML (.html, .htm), Texto (.txt)
-              </span>
+            <div class="stacked-rows pl-2 text-[11px] text-slate-500 whitespace-nowrap">
+              <span>Word (.docx, .doc)</span>
+              <span>Markdown · HTML · TXT</span>
             </div>
           </div>
           <div class="group-label">{{ t('word.tab.import') }}</div>
         </div>
-      </div>
-    }
-
-    <!-- ==================== EXPORT TAB ==================== -->
-    @if (activeTab === 'export') {
-      <div class="ribbon-tab-container">
         <div class="ribbon-group">
           <div class="control-row">
             <button

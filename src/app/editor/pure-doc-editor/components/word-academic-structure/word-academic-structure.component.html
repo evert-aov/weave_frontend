@@ -1,0 +1,26 @@
+<form (ngSubmit)="submit()">
+  <label>{{ t('section_type') }}<select name="kind" [(ngModel)]="kind"><option value="cover">{{ t('cover') }}</option><option value="abstract">{{ t('abstract') }}</option><option value="appendix">{{ t('appendix') }}</option></select></label>
+  @if (kind === 'cover') {
+    <label>{{ t('paper_mode') }}<select name="professional" [(ngModel)]="professional"><option [ngValue]="false">{{ t('student') }}</option><option [ngValue]="true">{{ t('professional') }}</option></select></label>
+    <label>{{ t('title') }} *<input name="title" [(ngModel)]="title" required></label>
+    <label>{{ t('cover_authors') }} *<textarea name="authors" [(ngModel)]="authors" rows="3" required></textarea></label>
+    <label>{{ t('affiliations') }}<textarea name="affiliations" [(ngModel)]="affiliations" rows="2"></textarea></label>
+    @if (!professional) {
+      <div class="grid"><label>{{ t('course') }}<input name="course" [(ngModel)]="course"></label><label>{{ t('instructor') }}<input name="instructor" [(ngModel)]="instructor"></label></div>
+    } @else { <label>{{ t('author_note') }}<textarea name="authorNote" [(ngModel)]="authorNote" rows="4"></textarea></label> }
+    <label>{{ t('due_date') }}<input name="date" [(ngModel)]="date"></label>
+    <p class="hint">{{ t('cover_hint') }}</p>
+  } @else if (kind === 'abstract') {
+    <label>{{ t('language') }}<select name="language" [(ngModel)]="language"><option value="es">Resumen</option><option value="en">Abstract</option></select></label>
+    <label>{{ t('abstract_text') }} *<textarea name="text" [(ngModel)]="text" rows="8" required></textarea></label>
+    <p class="hint">{{ count() }} {{ t('words') }}. {{ t('abstract_hint') }}</p>
+    <label>{{ t('keywords') }}<input name="keywords" [(ngModel)]="keywords"></label>
+  } @else {
+    <label>{{ t('title') }} *<input name="appendixTitle" [(ngModel)]="title" required></label>
+    <label>{{ t('appendix_text') }}<textarea name="text" [(ngModel)]="text" rows="6"></textarea></label>
+    <label>{{ t('move_object') }}<select name="object" [(ngModel)]="objectId"><option value="">{{ t('none') }}</option>@for(object of objects; track object.id; let index = $index){<option [value]="object.id">{{ index + 1 }} · {{ t(object.kind) }} {{ object.title }}</option>}</select></label>
+    <label><span><input type="checkbox" name="singleTable" [(ngModel)]="singleTable"> {{ t('single_table') }}</span></label>
+    <p class="hint">{{ t('appendix_hint') }}</p>
+  }
+  <button type="submit" [disabled]="kind === 'abstract' ? !text.trim() : !title.trim()">{{ t('insert_section') }}</button>
+</form>

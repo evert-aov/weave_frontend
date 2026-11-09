@@ -30,9 +30,9 @@ sin borrar los mensajes persistidos. Las respuestas tardías de otra sesión se 
 ### Tamaño del envío
 
 [ai-request.ts](../src/app/core/utils/ai-request.ts) define los presupuestos antes de construir
-el JSON: mensaje actual de hasta 12 000 caracteres y documento de hasta 15 000. El historial
-no se retransmite desde el navegador: FastAPI aplica su ventana y presupuesto de 24 000
-caracteres al contexto recuperado. La conversación visible conserva las respuestas completas.
+el JSON: mensaje actual de hasta 12 000 caracteres y documento de hasta 350 000. El historial
+no se retransmite desde el navegador: FastAPI aplica su ventana y presupuesto configurable (60 000 caracteres por defecto)
+al contexto recuperado. La conversación visible conserva las respuestas completas.
 Un mensaje actual demasiado largo se rechaza con una
 indicación para dividirlo, sin recortar silenciosamente la consulta.
 
@@ -87,3 +87,13 @@ No crea iframes ni vuelve a cargar las hojas CSS de la aplicación. No modifica 
 ni restaura una posición de scroll antigua. Las cargas de recursos y el dibujo tienen un
 límite de espera; el progreso por página y los errores aparecen junto a la barra de herramientas. El botón muestra el estado de
 exportación y bloquea solicitudes simultáneas. La exportación requiere vista de páginas.
+
+### Documentos Word largos
+
+El adaptador recorre primero los encabezados H1–H6 y APA 4/5 de todas las páginas y después
+el cuerpo. Conserva los IDs originales por nodo: cambiar la prioridad no cambia los destinos
+ni permite alterar estilos o imágenes. Así, los primeros 2 000 destinos no quedan ocupados
+solo por las páginas iniciales. Los límites siguen vigentes; el contexto incluye una advertencia
+explícita si es parcial y no permite inferir que una sección omitida no existe. En edición,
+el texto contextual y los destinos se construyen desde la misma captura. FastAPI valida toda
+la salida y admite un único intento correctivo; consultar su guía de proveedores y errores.

@@ -53,6 +53,26 @@ Las pruebas incluyen navegación entre 14 hojas, scroll en ambos ejes y rastreo 
 viewport. Son verificaciones del modelo y DOM en JSDOM; no son mediciones de latencia de un archivo
 real en navegador. Ver [la guía de hojas](18-HOJAS-DE-CALCULO.md#libros-grandes-y-navegación).
 
+## Escritura y borrado en Word
+
+La escritura normal agrupa la repaginación tras 120 ms de pausa, con un máximo de 400 ms de
+entrada continua. Los cambios de formato/layout, composición finalizada y borrado de límites
+de página conservan su ruta inmediata. Al destruir el editor se cancelan también estos timers.
+La repaginación reutiliza las secciones separadas por saltos manuales cuyo HTML no cambió;
+si cambia la geometría, la estructura o los saltos, vuelve al cálculo completo. No se omite
+la recomposición bidireccional dentro de una sección automática.
+
+Las estadísticas se cachean por objeto de página y posición; `syncInnerHtml` recuerda el HTML
+sincronizado y evita serializar las páginas sin cambios en cada comprobación de Angular. Los
+formatos activos no notifican cambios si siguen siendo iguales. Backspace/Delete continuos
+comparten un paso de historial durante la misma ráfaga (800 ms), igual que escribir. La limpieza
+de imágenes previa al guardado reutiliza páginas sin modificar; se sigue guardando el documento
+completo, incluido el contenido más reciente al salir o cambiar de nota.
+
+Las regresiones usan un documento de 200 páginas: una edición vuelve a analizar una sola página
+y repagina solo la sección manual modificada. Esto mide trabajo evitado, no latencia de teclado
+en un navegador real. Se verifican además cancelación, historial, guardado y límites de página.
+
 ## Verificación automática
 
 ```sh
@@ -105,3 +125,31 @@ El backend optimiza el archivo físico de las hojas mediante estilos compartidos
 pérdida; la API mantiene el modelo editable completo. La reducción de disco no implica que la
 cuadrícula deje de reconstruir estilos ni que el transporte HTTP esté comprimido. No eliminar
 celdas con formato para reducir el tamaño. Ver [almacenamiento del backend](../../backend/guia-desarrollador/04-DOCUMENTOS-Y-ARCHIVOS.md#almacenamiento-compacto-de-hojas).
+
+## Sesiones Word al cambiar de documento
+
+`DocumentEditorComponent` retiene como máximo dos instancias Word recientes, identificadas
+por ID de nota y cargadas mediante `@defer`. Cambiar a bloques o Excel oculta Word sin destruir
+su DOM: al volver conserva zoom, página activa, scroll e historial local de deshacer. Abrir
+un tercer Word libera la sesión menos reciente; cerrar una pestaña también libera su instancia.
+La navegación sigue consultando el documento mediante NotesService y no recarga el navegador.
+
+Las sesiones ocultas quedan `inert`, no ofrecen destinos a IA ni procesan selección o
+repaginación. Al ocultarse capturan y envían los cambios pendientes con su propio ID de nota;
+el efecto normal de autoguardado se reactiva al volver. Las utilidades de posición ignoran
+sesiones inactivas, incluso si dos documentos comparten identificadores de página. No se
+conservan todos los documentos abiertos sin límite ni se añade almacenamiento persistente.
+
+### Medición del interlineado Word
+
+`materializeWordLineSpacing` separa lecturas de fuente y escrituras de estilos en dos fases. No intercalar `getComputedStyle` con cambios de `line-height` por párrafo: provoca recálculos de layout repetidos en documentos largos. Las alturas naturales siguen almacenadas por fuente. La prueba con 500 párrafos exige que todas las lecturas precedan a la primera escritura, manteniendo el doble nativo y la invalidación al cargar fuentes.
+
+La paginación incremental de secciones automáticas inicia una página antes de la primera edición e incluye las ediciones posteriores. Amplía la ventana por duplicación hasta que su última página coincide en contenido e identidad con la distribución previa; entonces reutiliza el sufijo sin medirlo. Si cambia la geometría o estructura de páginas se recalcula todo. Las secciones con notas conservan el cálculo completo para respetar su numeración. Pruebas con 140 páginas verifican una ventana de cuatro y la ampliación cuando el cambio se propaga.
+
+### Capturas DOM y eventos del editor Word
+
+`DomSnapshotCache` reutiliza el HTML serializado por cuerpo de página. MutationObserver invalida solo las raíces modificadas y `takeRecords()` detecta cambios síncronos, incluidos marcadores de selección. Al cambiar el conjunto de páginas se desconectan observadores retirados y al destruir la sesión se libera la caché. Cada captura mantiene objetos de página independientes porque las operaciones de borrado modifican sus copias.
+
+Scroll usa un listener pasivo fuera de Angular; scroll, resize y selectionchange se agrupan por requestAnimationFrame y cancelan al destruir el editor. Las hojas animan solamente la sombra, nunca el tamaño durante la paginación. No se desmontan páginas lejanas todavía: selección, búsqueda, exportación y operaciones sobre el documento completo continúan disponiendo del DOM.
+
+Medición aislada en Firefox: 140 páginas simuladas, 35 párrafos por página, 50 capturas; serialización completa 96 ms, caché con edición de una página por captura 3 ms. Es una medición del coste de captura, no de latencia total de escritura ni de memoria del documento real.

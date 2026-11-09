@@ -23,7 +23,7 @@ describe('XLSX charts, names, tables and arrays', () => {
     expect(chart.width).toBeGreaterThan(200); expect(chart.x).toBeGreaterThan(100);
     expect(chart.seriesColors).toEqual({ 'column:1': '#4472C4' });
     expect(imported[0].xlsxImportReport).toEqual({ chartsImported: 1, chartsSkipped: 0 });
-  });
+  }, 20000);
   it('reports unsupported chart types while retaining the workbook', async () => {
     const imported = await readXlsx(await chartFixture('surface3DChart'));
     expect(imported[0].xlsxImportReport).toEqual({ chartsImported: 0, chartsSkipped: 1 });

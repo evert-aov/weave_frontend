@@ -88,33 +88,76 @@ export function caretAtBoundary(body: HTMLElement, atStart: boolean): boolean {
 }
 
 /** Join the adjacent paragraphs at a physical page boundary, with a caret at their seam. */
-export function joinBoundaryBlocks(left: HTMLElement, right: HTMLElement): void {
-  let head = left.lastElementChild as HTMLElement | null;
-  let tail = right.firstElementChild as HTMLElement | null;
-  const marker = document.createComment(START);
-  const textBlocks = 'p,div,h1,h2,h3,h4,h5,h6,blockquote,pre,li';
-  if (head?.matches('ol,ul') && tail?.tagName === head.tagName) {
-    const headList = head;
-    const tailList = tail;
-    head = headList.lastElementChild as HTMLElement | null;
-    tail = tailList.firstElementChild as HTMLElement | null;
-    if (head && tail) {
-      head.appendChild(marker);
-      if (head.innerHTML === '<br><!--weave-selection-start-->') head.firstChild?.remove();
-      head.append(...Array.from(tail.childNodes));
-      tail.remove();
-      headList.append(...Array.from(tailList.childNodes));
-      tailList.remove();
-    }
-  } else if (head?.matches(textBlocks) && tail?.matches(textBlocks)) {
-    if (head.innerHTML.toLowerCase() === '<br>') head.replaceChildren();
-    head.appendChild(marker);
-    if (tail.innerHTML.toLowerCase() !== '<br>') head.append(...Array.from(tail.childNodes));
-    tail.remove();
-  } else {
-    left.appendChild(marker);
+export function joinBoundaryBlocks(left: HTMLElement, right: HTMLElement): boolean {
+  if (!left.childNodes.length || !right.childNodes.length) {
+    left.appendChild(document.createComment(START));
+    left.append(...Array.from(right.childNodes));
+    return true;
   }
+  const leftBlock = left.lastElementChild as HTMLElement | null;
+  const rightBlock = right.firstElementChild as HTMLElement | null;
+  const leftList = leftBlock?.matches('ol,ul') ? leftBlock : null;
+  const rightList = rightBlock?.matches('ol,ul') ? rightBlock : null;
+  const leaf = (block: HTMLElement | null, atStart: boolean): HTMLElement | null => {
+    let current = block;
+    while (current?.matches('div,li,blockquote,ol,ul')) {
+      const nodes = Array.from(current.childNodes).filter(node => node.nodeType !== Node.COMMENT_NODE
+        && !(node instanceof Text && !node.data.trim()));
+      const edge = atStart ? nodes[0] : nodes.at(-1);
+      if (!(edge instanceof HTMLElement) || !edge.matches('p,div,h1,h2,h3,h4,h5,h6,blockquote,pre,li,ol,ul')) break;
+      current = edge;
+    }
+    return current;
+  };
+  const head = leaf(leftBlock, false), tail = leaf(rightBlock, true);
+  const textBlocks = 'p,div,h1,h2,h3,h4,h5,h6,blockquote,pre,li';
+  const editableTextBlock = (node: HTMLElement | null): node is HTMLElement => !!node
+    && node.matches(textBlocks) && !node.closest('[contenteditable="false"]')
+    && !node.querySelector('table,ol,ul,video,iframe');
+  // Tables and atomic objects are navigation boundaries, not paragraph merges.
+  // Reporting failure lets the caller move the caret instead of consuming Delete forever.
+  if (!editableTextBlock(head) || !editableTextBlock(tail)) return false;
+  if (head.innerHTML.toLowerCase() === '<br>') head.replaceChildren();
+  head.appendChild(document.createComment(START));
+  if (tail.innerHTML.toLowerCase() !== '<br>') head.append(...Array.from(tail.childNodes));
+  let parent = tail.parentElement;
+  tail.remove();
+  while (parent && parent !== right && !parent.childNodes.length) {
+    const next = parent.parentElement; parent.remove(); parent = next;
+  }
+  if (leftList && rightList && leftList.tagName === rightList.tagName) {
+    leftList.append(...Array.from(rightList.childNodes));
+    rightList.remove();
+  } else if (rightList && !rightList.children.length) rightList.remove();
   left.append(...Array.from(right.childNodes));
+  return true;
+}
+
+/** Prepare a same-page paragraph/list join without native contenteditable run normalization. */
+export function prepareParagraphJoin(body: HTMLElement, backwards: boolean): {
+  left: HTMLElement; right: HTMLElement; joined: HTMLElement;
+} | null {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !selection.isCollapsed || !body.contains(selection.anchorNode)) return null;
+  const anchor = selection.anchorNode instanceof HTMLElement ? selection.anchorNode : selection.anchorNode?.parentElement;
+  let unit = anchor?.closest<HTMLElement>('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,div') || null;
+  while (unit && unit !== body && caretAtBoundary(unit, backwards)) {
+    let adjacent = backwards ? unit.previousSibling : unit.nextSibling;
+    while (adjacent && (adjacent.nodeType === Node.COMMENT_NODE || adjacent instanceof Text && !adjacent.data.trim())) {
+      adjacent = backwards ? adjacent.previousSibling : adjacent.nextSibling;
+    }
+    if (adjacent instanceof HTMLElement) {
+      const left = backwards ? adjacent : unit, right = backwards ? unit : adjacent;
+      const joined = document.createElement('div'), following = document.createElement('div');
+      joined.appendChild(left.cloneNode(true)); following.appendChild(right.cloneNode(true));
+      return joinBoundaryBlocks(joined, following) ? { left, right, joined } : null;
+    }
+    if (adjacent) return null;
+    const parent: HTMLElement | null = unit.parentElement;
+    if (!parent?.matches('li,ul,ol,div,blockquote')) return null;
+    unit = parent;
+  }
+  return null;
 }
 
 /** Remove one grapheme at the seam of a paragraph continued on the next page. */
@@ -127,7 +170,7 @@ export function deleteAtContinuation(body: HTMLElement, backwards: boolean): voi
   let candidate: Text | null = null;
   let node: Node | null;
   while ((node = walker.nextNode())) {
-    if (!node.textContent?.length) continue;
+    if (!node.textContent?.length || node.parentElement?.closest('[contenteditable="false"],[data-word-heading-number]')) continue;
     const before = !!(node.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING);
     if (backwards && before) candidate = node as Text;
     if (!backwards && !before) { candidate = node as Text; break; }

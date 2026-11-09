@@ -8,7 +8,10 @@
 | --- | --- |
 | [DocumentFlowService](../src/app/editor/pure-doc-editor/services/document-flow.service.ts) | Recomponer fragmentos y distribuir párrafos, listas y filas según el espacio disponible. |
 | [document-selection.ts](../src/app/editor/pure-doc-editor/utils/document-selection.ts) | Conservar la selección y resolver el borrado en el límite entre hojas. |
-| [PureDocEditorComponent](../src/app/editor/pure-doc-editor/pure-doc-editor.component.ts) | Eventos de edición, medición, renderizado Angular, historial y persistencia. |
+| [PureDocEditorComponent](../src/app/editor/pure-doc-editor/pure-doc-editor.component.ts) | Coordinación y ciclo de vida Angular; delega los eventos a controladores por instancia. |
+| [WordFlowController](../src/app/editor/pure-doc-editor/controllers/word-flow.controller.ts) | Medición, mapas DOM, instantáneas pendientes y publicación de páginas. |
+| [WordInputController](../src/app/editor/pure-doc-editor/controllers/word-input.controller.ts) | Teclado, composición y unión de límites sin publicar páginas desbordadas. |
+| [WordPersistenceController](../src/app/editor/pure-doc-editor/controllers/word-persistence.controller.ts) | Historial, hidratación, guardado y captura del documento. |
 | [DocxParserService](../src/app/editor/pure-doc-editor/services/docx-parser.service.ts) | Distinguir saltos explícitos de estimaciones y marcas de renderizado de DOCX. |
 | [clipboard-table.ts](../src/app/shared/utils/clipboard-table.ts) | Reconocer y normalizar tablas HTML, texto tabulado y Markdown al pegar, compartido con el editor por bloques. |
 
@@ -54,6 +57,37 @@ Los bloques se dividen conservando sus nodos y estilos. El texto se mide mediant
 binaria, prefiere cortes entre palabras y respeta grafemas para conservar emoji y acentos.
 Las listas mantienen la numeración; una continuación del mismo elemento no dibuja otra viñeta.
 Las tablas se dividen por filas, conservando columnas y encabezados.
+
+La medición considera tanto la caja como su `scrollHeight` para detectar contenido que sobresale
+de un contenedor. Al repaginar se actualizan inmediatamente los hosts existentes, incluida la página
+enfocada, mientras Angular crea las hojas adicionales. Las instantáneas pendientes se leen de la
+transacción de renderizado, evitando mezclar fragmentos nuevos con el DOM anterior. La comprobación
+de estado estable compara también el DOM visible: un modelo ya paginado no permite dejar contenido
+antiguo desbordado en la página activa.
+
+Backspace al inicio de una página y Delete al final de la anterior preparan la unión sobre
+copias del DOM. Con geometría disponible se repagina esa instantánea antes de publicarla: nunca
+se coloca temporalmente toda la página siguiente dentro del host visible anterior. El cursor
+viaja con sus marcadores, el historial guarda el estado previo y un salto manual se elimina
+sin borrar texto. Si todavía no hay una geometría utilizable se conserva la ruta de renderizado
+y redistribución posterior. Los saltos manuales que no se han eliminado siguen separando secciones;
+no se borran automáticamente para rellenar huecos intencionales.
+
+La unión de límites resuelve los párrafos internos de listas y contenedores: puede unir una
+viñeta con un párrafo o el primer elemento de una lista con el bloque anterior, conservando
+los elementos restantes. La continuación de un mismo elemento se distingue de un elemento
+nuevo antes de borrar un carácter; la continuación del contenedor `ul/ol` por sí sola no basta.
+Cuando el borde es una tabla u objeto indivisible, el primer Backspace/Delete mueve el cursor
+al lado adyacente y deja la siguiente pulsación al navegador. No se repaginan páginas idénticas
+ni se consume indefinidamente la tecla. Los prefijos de títulos y el texto no editable se excluyen
+del borrado de caracteres en continuaciones.
+
+El borrado de la separación entre párrafos y elementos de lista dentro de una misma página
+también se resuelve explícitamente en `keydown`/`beforeinput`. Se preparan copias de los bloques,
+se trasladan sus nodos sin reconstruir el texto y se conserva el punto de unión con un marcador.
+Esto evita que la normalización nativa de `contenteditable` altere los espacios de runs importados
+como `<span> </span>`. La operación conserva enlaces, énfasis y deshacer/rehacer; no inserta espacios
+inferidos dentro de palabras ni intenta reconstruir texto ya guardado sin separaciones.
 
 ## Tablas pegadas
 
@@ -165,8 +199,56 @@ Para comprobar visualmente en el navegador:
 ## Alcance
 
 Las vistas web, borrador y esquema conservan su comportamiento sin paginación automática.
-Una fila individual, celdas con `rowspan`, imágenes y objetos no editables se mantienen enteros.
+Una fila individual, grupos de filas unidos por `rowspan`, imágenes y objetos no editables
+se mantienen enteros. Una tabla con un único cuerpo puede dividirse entre grupos de filas,
+sin cortar una combinación vertical. El arrastre de imágenes suspende la repaginación hasta
+soltar el tirador para evitar reemplazar el nodo durante la interacción.
 Si un objeto indivisible supera el área útil, se conserva aunque desborde: el paginador no lo
 descarta ni intenta dividirlo indefinidamente. Su ajuste requiere una operación específica.
 Este motor HTML no reproduce todas las reglas de composición de Microsoft Word, como
 control de viudas/huérfanas, notas al pie o división de una celda entre varias hojas.
+
+## Conversión de listas sin perder espacios
+
+Crear una lista mueve los párrafos y sus nodos inline originales a UL/OL y LI, conservando
+incluso spans que solo contienen espacios. Se evita `execCommand` para esos párrafos: en
+Firefox puede eliminar los espacios de runs importados al convertirlos en lista. Las partes
+de un párrafo automático repartido en páginas reciben contenedores de lista continuados,
+para volver a unirlas sin crear párrafos o saltos de línea nuevos. Los marcadores de selección,
+el formato inline y la ruta de deshacer se mantienen. Se verificó con el fragmento de
+«No es una plataforma P2P…» en Firefox, antes/después y tras tres repaginaciones.
+
+## Contexto real de medición del contenido
+
+`document-measurement.ts` crea la copia fuera del área transformada por zoom, con el ancho
+CSS y las clases reales del cuerpo (incluida `word-apa-body`), idioma, tipografía, espaciado,
+sangrías base, ajuste de palabras y padding. El límite vertical sigue siendo `clientHeight`
+del cuerpo real: los encabezados y pies ya han consumido su espacio mediante flex layout.
+No se repite una reserva fija adicional. Cambios de clase, idioma y espaciado invalidan la
+caché geométrica. La copia no lleva `data-page-body-id`, para medir las notas al pie en flujo
+antes de colocarlas al fondo en la página visible. El índice comparte este mismo contexto.
+
+Comprobaciones reales en Firefox: párrafos APA sin formato inline, párrafos largos con
+énfasis, listas, tablas por filas, imágenes con texto, encabezado/pie y notas al pie. En los
+siete escenarios se conservó el texto, no hubo desbordamiento y la paginación permaneció
+igual con zoom 100 % y 50 %. Para párrafos cortos se comprobó además que no cupiera otro
+párrafo en las páginas llenas. Son escenarios de regresión, no una garantía sobre cualquier
+objeto indivisible de tamaño mayor que la página o sobre fuentes aún pendientes de cargar.
+
+## Enter en el límite de una lista
+
+La comparación vertical admite hasta 1 píxel CSS de redondeo: `clientHeight` es entero,
+mientras que dos cajas de línea de viñetas pueden sumar fracciones. En el caso reproducido
+con el documento real, el área útil era de 864 px y la caja de contenido tras Enter medía
+865 px, pero los glifos del nuevo texto quedaban aún a 5,5 px del límite. Sin esta tolerancia
+se expulsaba una línea completa por ese píxel. Una línea adicional real sigue pasando a la
+página siguiente. La tolerancia no reserva una línea ni altera márgenes/interlineado.
+`insertParagraph` e `insertLineBreak` solicitan repaginación en el siguiente frame, sin el
+debounce de escritura normal; se evita mostrar una ubicación provisional durante esa espera.
+La regresión cubre la viñeta vacía, texto corto en ella y desbordamiento de otra línea.
+
+El flujo materializa el interlineado lógico de Word antes de medir y dividir el contenido. La altura natural se mide sin zoom y se guarda en caché por fuente; la carga de fuentes invalida esa caché. El atributo `data-word-line-spacing` mantiene el multiplicador al guardar y exportar, aunque el estilo visible use píxeles.
+
+Al dividir párrafos o elementos de lista, el flujo comprueba el límite de palabra entre ambos fragmentos completos. Si una palabra atraviesa varios nodos de formato (por ejemplo `dato` y `s` en un span), traslada el sufijo completo mediante Range, conservando estilos, espacios y marcadores de selección. Una palabra indivisible sin límite anterior se mantiene unida. La prueba de regresión verifica texto completo y estabilidad al repaginar.
+
+El paginador del índice materializa el interlineado de todas sus entradas dentro del contexto de medición antes de distribuir filas. Medir solo el encabezado con el doble resuelto subestimaba las entradas y podía invadir el margen inferior. El límite sigue siendo la altura útil real del cuerpo, sin sumar los márgenes de la hoja.

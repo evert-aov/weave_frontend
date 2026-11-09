@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { noteList, renumberAcademicNotes } from '../utils/academic-notes';
+import { APA_STYLE_TEMPLATES } from '../constants/apa-style-templates';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentFlowService } from './document-flow.service';
 import { DocumentPage } from '../models/word-document.model';
 import { deleteAtContinuation, joinBoundaryBlocks, markDocumentSelection, restoreDocumentSelection, withoutSelectionMarkers } from '../utils/document-selection';
@@ -30,6 +32,83 @@ describe('DocumentFlowService', () => {
     holder.innerHTML = pages.map((p) => p.html).join('');
     return holder.textContent;
   };
+
+  it('moves complete words across formatted runs to the next page', () => {
+    for (const html of ['<p>123456789012345678 dato<span>s permite</span></p>', '<p>123456789012345678 <b>dato</b><i>s permite</i></p>']) {
+      const result = paginate([page(html)], 20);
+      expect(text([result[0]])).toBe('123456789012345678 ');
+      expect(text([result[1]])).toBe('datos permite');
+      expect(text(result)).toBe(text([page(html)]));
+      expect(paginate(result, 20).map(p => p.html)).toEqual(result.map(p => p.html));
+    }
+  });
+
+  it('keeps APA number and title with the figure instead of leaving them on the preceding page', () => {
+    const html = '<p>Texto</p><p data-apa-caption-for="fig" data-apa-role="number">Figura 1</p><p data-apa-caption-for="fig" data-apa-role="title">Título</p><p><img data-word-object-id="fig" src="/a.jpg"></p>';
+    const result = paginate([page(html)], 30);
+    expect(result).toHaveLength(2);
+    expect(result[0].html).toBe('<p>Texto</p>');
+    expect(result[1].html).toContain('Figura 1'); expect(result[1].html).toContain('<img');
+    expect(text(result)).toBe(text([page(html)]));
+  });
+
+  it('splits a long generated endnote without duplicating its content on the next pagination', () => {
+    const note = { id: 'long', kind: 'endnote' as const, number: 1, text: 'Explicación extensa. '.repeat(100) };
+    const body = document.createElement('div'); body.innerHTML = `<p>Texto<a data-word-note-id="long" data-note-kind="endnote" data-note-content="${note.text}">1</a></p>`; renumberAcademicNotes([body]);
+    const pages: DocumentPage[] = [page(body.innerHTML), { id: 'notes', html: noteList([note], APA_STYLE_TEMPLATES[0], 'endnote').outerHTML, breakBefore: 'manual' }];
+    const result = paginate(pages, 60); expect(result.length).toBeGreaterThan(4);
+    const noteText = (list: DocumentPage[]) => { const holder = document.createElement('div'); holder.innerHTML = list.map(p => p.html).join(''); return Array.from(holder.querySelectorAll('[data-note-entry-id]')).map(p => p.textContent).join(''); };
+    expect(noteText(result)).toBe('1 ' + note.text);
+    const again = paginate(result, 60); expect(noteText(again)).toBe(noteText(result));
+    expect(again.map(p => p.html)).toEqual(result.map(p => p.html));
+  });
+
+  it('keeps a settled automatic suffix outside the measurement window while typing', () => {
+    const engine = new DocumentFlowService();
+    const previous = Array.from({length:140}, (_,i)=>page(`<p>Page ${i}</p>`,String(i)));
+    const edited = previous.map((p,i)=>i===60?{...p,html:'<p>Edited</p>'}:p);
+    const spy = vi.spyOn(engine,'paginate').mockImplementation(pages=>pages);
+    const result = engine.paginateChangedSections(edited,previous,canvas,100);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0].map(p=>p.id)).toEqual(['59','60','61','62']);
+    expect(result[0]).toBe(previous[0]);expect(result[139]).toBe(previous[139]);
+    expect(result[60].html).toBe('<p>Edited</p>');
+    spy.mockRestore();
+  });
+
+  it('expands the changed window until cascading page changes settle', () => {
+    const engine = new DocumentFlowService();
+    const previous = Array.from({length:20}, (_,i)=>page(`<p>Page ${i}</p>`,String(i)));
+    const edited = previous.map((p,i)=>i===2?{...p,html:'<p>Edited</p>'}:p);
+    const spy = vi.spyOn(engine,'paginate').mockImplementation(pages=>pages.length<8 ? pages.map((p,i)=>i===pages.length-1?{...p,html:'<p>Unsettled</p>'}:p) : pages);
+    const result = engine.paginateChangedSections(edited,previous,canvas,100);
+    expect(spy.mock.calls.map(call=>call[0].length)).toEqual([4,8]);
+    expect(result).toEqual(edited);
+    spy.mockRestore();
+  });
+
+  it('paginates only the edited manual section among 200 independent pages', () => {
+    const previous: DocumentPage[] = Array.from({ length: 200 }, (_, index) => ({ id: String(index), html: `<p>Page ${index}</p>`, ...(index ? { breakBefore: 'manual' as const } : {}) }));
+    const edited = previous.map((page, index) => index === 100 ? { ...page, html: '<p>Changed page</p>' } : page);
+    const paginate = vi.spyOn(service, 'paginate');
+    const result = service.paginateChangedSections(edited, previous, canvas, 100);
+    expect(paginate).toHaveBeenCalledTimes(1);
+    expect(paginate.mock.calls[0][0]).toHaveLength(1);
+    expect(result[99]).toBe(previous[99]);
+    expect(result[101]).toBe(previous[101]);
+    expect(text(result)).toContain('Changed page');
+    paginate.mockRestore();
+  });
+
+  it('measures overflowing content as well as the measuring box height', () => {
+    Object.defineProperty(canvas, 'scrollHeight', { configurable: true, get: () => measureNode(canvas) });
+    canvas.getBoundingClientRect = () => ({ height: 10 } as DOMRect);
+    const input = [page('<p>one two three four five six seven eight nine ten eleven twelve</p>')];
+    const result = service.paginate(input, canvas, 30);
+    expect(result.length).toBeGreaterThan(1);
+    expect(text(result)).toBe(text(input));
+    result.forEach(page => { canvas.innerHTML = page.html; expect(measureNode(canvas)).toBeLessThanOrEqual(30); });
+  });
 
   it('fills the remaining area with part of a long paragraph while retaining inline markup', () => {
     const html = '<p>1234567890</p><p style="color:red"><strong>one two three four five six seven eight nine ten eleven twelve</strong></p>';
@@ -190,5 +269,38 @@ describe('DocumentFlowService', () => {
     joinBoundaryBlocks(left, right);
     deleteAtContinuation(left, backwards);
     expect(left.textContent).toBe('A👩🏽‍💻B');
+  });
+});
+
+describe('fractional list line boxes at a page boundary',()=>{
+  it('keeps the extra line when only one pixel is rounding, but moves the next complete line',()=>{
+    const canvas=document.createElement('div');document.body.append(canvas);
+    const measure=()=>Array.from(canvas.querySelectorAll('p,li')).reduce((height,node)=>height+(node.tagName==='P'?704:node.textContent==='Primer punto'?128.5:32.5),0);
+    const service=new DocumentFlowService();
+    const source='<p>Contenido anterior</p><ul><li>Primer punto</li><li><br></li></ul>';
+    const fitted=service.paginate([{id:'a',html:source}],canvas,864,measure);
+    expect(fitted).toHaveLength(1);expect(fitted[0].html.match(/<li/g)).toHaveLength(2);
+    const overflowing=service.paginate([{id:'a',html:source.replace('</ul>','<li>Siguiente línea</li></ul>')}],canvas,864,measure);
+    expect(overflowing).toHaveLength(2);expect(overflowing[0].html.match(/<li/g)).toHaveLength(2);
+    expect(overflowing[1].html).toContain('Siguiente línea');canvas.remove();
+  });
+});
+
+describe('recomposition after importing many automatic pages',()=>{
+  it('does not accumulate a lost list line across 100 imported pages',()=>{
+    const canvas=document.createElement('div');document.body.append(canvas);
+    const measure=()=>Array.from(canvas.querySelectorAll('p,li')).reduce((height,node)=>height+(node.tagName==='P'?704:node.textContent==='Primer punto'?128.5:32.5),0);
+    const fragmented:DocumentPage[]=[];
+    for(let i=0;i<100;i++) {
+      fragmented.push({id:`page-${i}-a`,html:`<p>Sección ${i}</p><ul data-word-flow="list-${i}"><li>Primer punto</li></ul>`});
+      fragmented.push({id:`page-${i}-b`,html:`<ul data-word-flow="list-${i}" data-word-continuation="list-${i}"><li><br></li></ul>`});
+    }
+    const service=new DocumentFlowService();
+    const result=service.paginate(fragmented,canvas,864,measure);
+    expect(result).toHaveLength(100);
+    expect(result.every(page=>(page.html.match(/<li/g)||[]).length===2)).toBe(true);
+    const repeated=service.paginate(result,canvas,864,measure);
+    expect(repeated.map(page=>page.html)).toEqual(result.map(page=>page.html));
+    canvas.remove();
   });
 });

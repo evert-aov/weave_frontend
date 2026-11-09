@@ -32,7 +32,7 @@
                 >
                   <span class="font-medium">{{ getMarginLabel(item.key, item.preset.label) }}</span>
                   <span class="text-[10px] text-slate-400">
-                    {{ (item.preset.topPx / 96 * 2.54).toFixed(1) }} × {{ (item.preset.leftPx / 96 * 2.54).toFixed(1) }} cm
+                    {{ (item.preset.topPx / 96 * 2.54).toFixed(2) }} × {{ (item.preset.leftPx / 96 * 2.54).toFixed(2) }} cm
                   </span>
                 </button>
               }
@@ -44,19 +44,19 @@
               <div class="grid grid-cols-2 gap-1.5 text-[11px]">
                 <label>
                   <span>{{ t('word.layout.margin_top_short', 'Sup') }}</span>
-                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginTopCm()" (input)="customMarginTopCm.set(Number($any($event.target).value))" />
+                  <input type="number" step="0.01" min="0.5" max="6" [value]="customMarginTopCm()" (input)="customMarginTopCm.set(Number($any($event.target).value))" />
                 </label>
                 <label>
                   <span>{{ t('word.layout.margin_bottom_short', 'Inf') }}</span>
-                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginBottomCm()" (input)="customMarginBottomCm.set(Number($any($event.target).value))" />
+                  <input type="number" step="0.01" min="0.5" max="6" [value]="customMarginBottomCm()" (input)="customMarginBottomCm.set(Number($any($event.target).value))" />
                 </label>
                 <label>
                   <span>{{ t('word.layout.margin_left_short', 'Izq') }}</span>
-                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginLeftCm()" (input)="customMarginLeftCm.set(Number($any($event.target).value))" />
+                  <input type="number" step="0.01" min="0.5" max="6" [value]="customMarginLeftCm()" (input)="customMarginLeftCm.set(Number($any($event.target).value))" />
                 </label>
                 <label>
                   <span>{{ t('word.layout.margin_right_short', 'Der') }}</span>
-                  <input type="number" step="0.1" min="0.5" max="6" [value]="customMarginRightCm()" (input)="customMarginRightCm.set(Number($any($event.target).value))" />
+                  <input type="number" step="0.01" min="0.5" max="6" [value]="customMarginRightCm()" (input)="customMarginRightCm.set(Number($any($event.target).value))" />
                 </label>
               </div>
               <button type="submit" class="btn-apply-margins">

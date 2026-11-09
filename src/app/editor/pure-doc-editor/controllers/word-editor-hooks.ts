@@ -1,0 +1,54 @@
+import type { ChangeDetectorRef } from '@angular/core';
+import type { NotesService } from '../../../core/services/notes.service';
+import type { ThemeService } from '../../../core/services/theme.service';
+import type { WordCompatibilityService } from '../services/word-compatibility.service';
+import type { LatexRendererService } from '../services/latex-renderer.service';
+import type { ImageStoreService } from '../services/image-store.service';
+import type { DocumentFlowService } from '../services/document-flow.service';
+import type { DocumentPage } from '../models/word-document.model';
+import type { DocumentReferenceService } from '../../../core/services/document-reference.service';
+import type { DialogService } from '../../../core/services/dialog.service';
+import type { DocDataV2, HistorySnapshot } from '../models/word-editor-state.model';
+
+/** Explicit private capabilities used by the per-editor controllers. */
+export interface WordEditorHooks {
+  readonly applyActiveListRules: () => void;
+  readonly applyPendingScroll: (headingId: string) => void;
+  readonly captureHistory: () => HistorySnapshot;
+  readonly cdr: ChangeDetectorRef | null;
+  readonly collectDocData: () => DocDataV2;
+  readonly composing: boolean;
+  destroyed: boolean;
+  readonly dialogs: DialogService;
+  readonly documentFlow: DocumentFlowService;
+  readonly finishDocumentMutation: () => void;
+  readonly getActivePageElement: () => HTMLDivElement | null;
+  readonly getLivePagesSnapshot: () => DocumentPage[];
+  readonly imageStore: ImageStoreService;
+  lastFlowPages: DocumentPage[] | null;
+  lastInputTime: number;
+  readonly latexRenderer: LatexRendererService;
+  readonly liveBodies: () => HTMLElement[];
+  loadedNoteId: string | null;
+  readonly notesService: NotesService;
+  pendingRenderPages: DocumentPage[] | null;
+  pendingTypingStyle: Record<string, string> | null;
+  readonly prepareRibbonSelection: () => Range | null;
+  redoStack: HistorySnapshot[];
+  readonly references: DocumentReferenceService;
+  readonly refreshApaToc: () => void;
+  readonly settleApaToc: () => void;
+  readonly reflowDocument: (sourcePages?: DocumentPage[]) => boolean;
+  readonly renderDocumentPages: (pages: DocumentPage[], reflowAfterRender?: boolean) => void;
+  readonly restoreSelection: () => void;
+  readonly samePages: (left: DocumentPage[], right: DocumentPage[] | null | undefined) => boolean;
+  readonly saveSelection: () => void;
+  savedRange: Range | null;
+  readonly scheduleAutoSave: (payload: DocDataV2) => void;
+  readonly scheduleDocumentFlow: (deferInput?: boolean) => void;
+  readonly showToast: (msg: string) => void;
+  readonly syncInnerHtml: () => void;
+  readonly themeService: ThemeService | null;
+  undoStack: HistorySnapshot[];
+  readonly wordCompat: WordCompatibilityService;
+}

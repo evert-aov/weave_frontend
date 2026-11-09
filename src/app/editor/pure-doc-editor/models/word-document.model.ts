@@ -1,4 +1,4 @@
-export type RibbonTab = 'home' | 'insert' | 'layout' | 'styles' | 'view' | 'import' | 'export';
+export type RibbonTab = 'file' | 'home' | 'insert' | 'layout' | 'styles' | 'view' | 'references';
 
 export type PaperFormatId =
   | 'a4'
@@ -47,12 +47,23 @@ export interface ElementStyleRule {
   backgroundColor?: string;
 }
 
+export interface ListStyleRule {
+  marker: 'decimal' | 'disc' | 'circle' | 'square';
+  indentLeftPt: number;
+  hangingIndentPt: number;
+  lineHeight: number;
+  spaceBeforePt: number;
+  spaceAfterPt: number;
+}
+
 export interface StyleTemplate {
   id: string;
   name: string;
   description: string;
   isCustom?: boolean;
   rules: Record<StyleTargetTag, ElementStyleRule>;
+  academicStyle?: 'apa7';
+  listRules?: { ordered: ListStyleRule; unordered: ListStyleRule };
 }
 
 export interface PageBorderConfig {
@@ -86,7 +97,15 @@ export interface PaperFormatPreset {
   heightTwips: number;
 }
 
+export interface ApaPageConfig {
+  mode: 'student' | 'professional';
+  runningHead: string;
+  fontFamily: string;
+  fontSizePt: number;
+}
+
 export interface DocumentLayoutConfig {
+  apa?: ApaPageConfig;
   paperFormatId: PaperFormatId;
   orientation: PageOrientation;
   customWidthPx?: number;

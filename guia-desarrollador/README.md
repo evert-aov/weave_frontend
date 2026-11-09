@@ -22,7 +22,9 @@ abrir el documento o bloque que los necesita. Las credenciales de proveedores de
 | [10 — Referencias y navegación](10-REFERENCIAS-Y-NAVEGACION.md) | Enlaces internos, selector, Ctrl+O, Ctrl+I y posiciones de retorno. |
 | [11 — Diálogos y creación](11-DIALOGOS-Y-CREACION.md) | Modal reutilizable, tipo antes de nombre, directorios y confirmación de eliminación. |
 | [12 — Home y estilos Word](12-HOME-Y-ESTILOS-WORD.md) | Controles de formato, estilos desde la selección y búsqueda/reemplazo. |
+| [13 — APA: tablas, figuras y referencias](13-APA-TABLAS-FIGURAS-Y-REFERENCIAS.md) | Plantillas, estructura, citas, fuentes, notas, apéndices y revisión. |
 | [13 — LaTeX avanzado](13-LATEX-AVANZADO.md) | Fórmulas, documentos completos, autocompletado, guardado y compilación PDF. |
+| [14 — Exportación DOCX](14-EXPORTACION-DOCX-WORD.md) | OpenXML, imágenes incrustadas, notas nativas y comprobaciones. |
 | [14 — Monaco y Vim](14-MONACO-Y-VIM.md) | Editor LaTeX compartido, carga local, autocompletado y teclado modal. |
 | [15 — Texto enriquecido y vista previa](15-MARKDOWN-Y-VISTA-EN-VIVO.md) | Tiptap, preview sin Vim, compatibilidad con notas Markdown y alineación por línea en fórmulas. |
 | [16 — Chats y edición IA](16-CHATS-Y-EDICION-IA.md) | Conversaciones independientes, adaptadores de edición y pantalla completa LaTeX. |

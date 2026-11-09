@@ -1,3 +1,4 @@
+import type { AcademicSection } from '../../models/academic-sections.model';
 import {
   Component,
   ElementRef,
@@ -243,6 +244,7 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() applyHeading = new EventEmitter<string>();
   @Output() applyFontSizePt = new EventEmitter<{ pt: string; cmd: string }>();
   @Output() insertTable = new EventEmitter<{ rows: number; cols: number }>();
+  @Output() updateToc = new EventEmitter<void>();
   @Output() insertToc = new EventEmitter<void>();
   @Output() insertPageBreak = new EventEmitter<void>();
   @Output() addNewPage = new EventEmitter<void>();
@@ -264,6 +266,9 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() insertDateTime = new EventEmitter<void>();
   @Output() insertSymbol = new EventEmitter<string>();
   @Output() insertDrawingCanvas = new EventEmitter<void>();
+  @Output() openAcademic = new EventEmitter<AcademicSection>();
+  @Output() updateAcademic = new EventEmitter<void>();
+  @Output() insertBibliography = new EventEmitter<void>();
   @Output() insertDocumentReference = new EventEmitter<void>();
   @Output() insertBlockquote = new EventEmitter<void>();
   @Output() insertCodeBlock = new EventEmitter<string>();
@@ -315,13 +320,13 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   readonly Math = Math;
   readonly Number = Number;
   readonly tabs: { id: RibbonTab; labelKey: string }[] = [
+    { id: 'file', labelKey: 'word.tab.file' },
     { id: 'home', labelKey: 'word.tab.home' },
     { id: 'insert', labelKey: 'word.tab.insert' },
     { id: 'styles', labelKey: 'word.tab.styles' },
     { id: 'layout', labelKey: 'word.tab.layout' },
+    { id: 'references', labelKey: 'word.academic.tab' },
     { id: 'view', labelKey: 'word.tab.view' },
-    { id: 'import', labelKey: 'word.tab.import' },
-    { id: 'export', labelKey: 'word.tab.export' },
   ];
   readonly paperFormatList = PAPER_FORMAT_LIST;
   readonly borderStylesList = BORDER_STYLES_LIST;

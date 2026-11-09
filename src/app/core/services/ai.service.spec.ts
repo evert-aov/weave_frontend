@@ -43,12 +43,12 @@ describe('bounded AI requests', () => {
   it('caps a large Word context before HTTP serialization and stops reading later pages', () => {
     const laterPage = { get html(): string { throw new Error('Unneeded page was read'); } };
     currentNote.set({ title: 'Word', docType: 'doc', docData: {
-      pages: [{ html: `<p>${'Texto '.repeat(20_000)}</p>` }, laterPage],
+      pages: [{ html: `<p>${'Texto '.repeat(70_000)}</p>` }, laterPage],
     } } as Note);
     service.sendMessage('Resume el documento');
     const request = http.expectOne(url);
     expect(request.request.body.documentContext.content.length).toBeLessThanOrEqual(AI_REQUEST_LIMITS.document);
-    expect(new TextEncoder().encode(JSON.stringify(request.request.body)).byteLength).toBeLessThan(100_000);
+    expect(new TextEncoder().encode(JSON.stringify(request.request.body)).byteLength).toBeLessThan(1_000_000);
     expect(service.documentContextTruncated()).toBe(true);
     request.flush({ reply: 'Resumen' });
     expect(service.isGenerating()).toBe(false);
@@ -76,7 +76,7 @@ describe('bounded AI requests', () => {
     });
     const context = service.extractCurrentDocumentContext();
     expect(context!.content).not.toContain('AAAA');
-    expect(context!.content!.length).toBeLessThanOrEqual(15_000);
+    expect(context!.content!.length).toBeLessThanOrEqual(AI_REQUEST_LIMITS.document);
   });
 
   it('never extracts the document when its context is disabled', () => {
@@ -87,6 +87,15 @@ describe('bounded AI requests', () => {
     expect(extract).not.toHaveBeenCalled();
     expect(request.request.body.documentContext).toBeUndefined();
     request.flush({ reply: 'Hola' });
+  });
+
+  it('sends the selected model in the request payload and updates activeModel on response', () => {
+    service.setSelectedModel('gemini-4-argon');
+    service.sendMessage('Razona este problema');
+    const request = http.expectOne(url);
+    expect(request.request.body.model).toBe('gemini-4-argon');
+    request.flush({ reply: 'Solución', model: 'gemini-4-argon' });
+    expect(service.activeModel()).toBe('gemini-4-argon');
   });
 
   it('reports an oversized current message without silently truncating or sending it', () => {

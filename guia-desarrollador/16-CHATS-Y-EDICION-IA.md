@@ -10,6 +10,11 @@ anterior sigue disponible como «Chat principal». Cada chat conserva mensajes y
 independientes en MongoDB, gestionados por FastAPI. Angular no guarda mensajes ni IDs de chat
 en localStorage. Al cambiar de cuenta se cancela HTTP y se limpia la identidad local.
 
+La cabecera del agente incluye un selector de modelo que permite alternar dinámicamente entre
+`Gemini 3.8 Flash` (rápido y multimodal con 1M tokens), `Gemini 2.5 Flash` (ligero y veloz)
+y `Gemini 4 Argon` (razonamiento profundo). La preferencia se almacena en el cliente y viaja
+en `AiChatRequest.model`.
+
 `AiService` envía `conversationId` en chat y en las consultas de historial. Cambiar de chat
 cancela la suscripción local de generación: el servidor puede terminar y conservar su respuesta
 en el chat de origen, pero Angular nunca la inserta ni aplica en el nuevo chat. Borrar historial
@@ -62,9 +67,9 @@ rechaza la respuesta. El borrado y cambio de chat invalidan también la respuest
 Los fallos de un motor durante la aplicación se muestran como operación incompleta; revisar
 el documento antes de reintentar. No se promete una transacción distribuida entre motores.
 
-El contexto editable admite hasta 200 destinos, 15 000 caracteres por destino y 24 000 en total
+El contexto editable admite hasta 2000 destinos, 15 000 caracteres por destino y 400 000 en total
 (incluyendo IDs); se informa «Contexto parcial» si hay recorte. Una respuesta contiene hasta
-30 cambios y 30 000 caracteres entre fragmentos originales y nuevos. La fuente no enviada se
+100 cambios y 80 000 caracteres entre fragmentos originales y nuevos. La fuente no enviada se
 conserva localmente: una operación jamás sustituye el documento por un extracto truncado.
 El historial guarda conversación, no instrucciones ejecutables que se vuelvan a aplicar al abrirlo.
 
@@ -88,3 +93,24 @@ Usan dobles para motores y HTTP; completar una comprobación manual con los moto
 crear dos chats, editar en cada tipo, esperar Guardado, recargar, comprobar contenido y probar
 Escape dentro de Monaco y del visor PDF. No confundir pruebas con dobles con una llamada real
 al proveedor o una prueba de fidelidad visual.
+
+### Cobertura de capítulos y errores de generación
+
+Word prioriza encabezados de todas las páginas antes de enviar texto del cuerpo. Los IDs
+siguen referidos al índice original del nodo; no son índices de la lista priorizada. El extracto
+advierte cuando la cobertura es parcial. No afirmar que faltan capítulos por ausencia en un
+extracto, ni considerar que una respuesta del chat confirma cambios aplicados. Los errores
+502/503 muestran que falló la generación o validación y permiten reintentar por secciones.
+FastAPI separa diagnósticos operativos de salidas inválidas y revalida un único intento correctivo.
+
+### Panel compacto
+
+La cabecera contiene el acceso a conversaciones, el título del chat, nuevo chat y cerrar.
+El acceso abre una minibarra lateral con búsqueda local de títulos, selección, renombrado,
+eliminación y vaciado del historial. Modelo, vinculación del documento y modo edición se
+encuentran en el compositor inferior. Los avisos de contexto parcial y de aplicación siguen
+visibles cuando corresponden. El panel conserva redimensionamiento y adaptación a pantallas
+estrechas. La búsqueda no descarga ni indexa el contenido de los mensajes.
+
+La revisión de escritura solicitada pertenece exclusivamente a Word, no al campo del chat;
+consultar la guía de Home y estilos de Word.
