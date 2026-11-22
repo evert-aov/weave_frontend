@@ -163,6 +163,47 @@ export class ImageStoreService {
     return url;
   }
 
+  async externalizeImageSrc(rawSrc: string): Promise<string> {
+    if (!rawSrc) return rawSrc;
+    if (rawSrc.startsWith('data:') || rawSrc.startsWith('blob:')) {
+      try {
+        const dataUrl = rawSrc.startsWith('blob:') ? await this.blobUrlToDataUrl(rawSrc) : rawSrc;
+        if (!dataUrl) return rawSrc;
+        const serverUrl = await this.uploadAndPersist(dataUrl);
+        return this.toRelativeUrl(serverUrl);
+      } catch (err) {
+        console.error('[ImageStoreService] Error subiendo imagen embebida:', err);
+        return rawSrc;
+      }
+    }
+    if (this.serverBaseUrl && rawSrc.startsWith(`${this.serverBaseUrl}/uploads/`)) {
+      return rawSrc.slice(this.serverBaseUrl.length);
+    }
+    return rawSrc;
+  }
+
+  async resolveImageSrc(rawSrc: string): Promise<string> {
+    if (!rawSrc) return rawSrc;
+    if (rawSrc.startsWith(SCHEME)) {
+      const legacyId = rawSrc.slice(SCHEME.length);
+      const localDataUrl = await this.get(legacyId);
+      if (localDataUrl && localDataUrl.startsWith('data:image')) {
+        try {
+          const serverUrl = await this.uploadAndPersist(localDataUrl);
+          return this.toDisplayUrl(serverUrl);
+        } catch (err) {
+          console.error('[ImageStoreService] Error al migrar imagen legacy al servidor:', err);
+          return localDataUrl;
+        }
+      }
+      return MISSING_IMAGE_PLACEHOLDER;
+    }
+    if (this.serverBaseUrl && rawSrc.startsWith('/uploads/')) {
+      return `${this.serverBaseUrl}${rawSrc}`;
+    }
+    return rawSrc;
+  }
+
   /**
    * Procesa el HTML antes de guardarlo en MongoDB:
    * 1. Detecta imágenes en base64 (`data:`) o `blob:` y las sube físicamente al backend.
@@ -212,7 +253,7 @@ export class ImageStoreService {
    * 1. Migra automáticamente referencias legacy `weave-img://<id>` subiendo los datos locales
    *    al backend para convertirlos en archivos físicos permanentes.
    * 2. Convierte rutas relativas `/uploads/...` a URLs completas que el navegador pueda cargar
-   *    desde el servidor NestJS (`http://localhost:3000/uploads/...`).
+   *    desde el servidor NestJS (`http://localhost:5001/uploads/...`).
    */
   async resolveImages(html: string): Promise<string> {
     if (!html || (!html.includes('<img') && !html.includes(SCHEME))) return html;

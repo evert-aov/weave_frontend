@@ -5,6 +5,7 @@ import { normalizeApaHeadings, runInHeading, clearRunInHeading } from '../utils/
 import { apaDocumentLayout } from '../utils/apa-layout';
 import { applyApaObjects } from '../utils/apa-objects';
 import { applyTemplateLists } from '../utils/list-formatting';
+import { styleTableElement } from '../utils/table-styling-dom';
 import { selectedListItems, removeListItems, addListItems } from '../utils/list-editing';
 import {
   markDocumentSelection,
@@ -69,6 +70,28 @@ type WordFormattingControllerHooks = Pick<WordEditorHooks,
   | 'showToast'>;
 
 /** Formatting behavior owned by one editor instance. */
+/** Clears inline or block formatting within the selected range using the base style rule. */
+export function clearFormattingInRange(
+  bodies: HTMLElement[],
+  range: Range,
+  base: ElementStyleRule,
+): void {
+  const blocks = selectedParagraphs(bodies, range);
+  if (!range.collapsed && range.toString() !== blocks.map(block => block.textContent).join('')) {
+    applyInlineProperties(bodies, range, { ...inlineProperties(base), textShadow: 'none', webkitTextStroke: '0px' });
+    return;
+  }
+  blocks.forEach(block => {
+    const normal = block.tagName === 'LI' ? block : replaceParagraphTag(block, 'P');
+    normal.removeAttribute('style');
+    applyStyleRule(normal, base);
+    normal.querySelectorAll<HTMLElement>('[style]').forEach(run => {
+      run.style.textShadow = 'none';
+      run.style.webkitTextStroke = '0px';
+    });
+  });
+}
+
 export class WordFormattingController {
   constructor(private readonly editor: WordFormattingControllerHost, private readonly hooks: WordFormattingControllerHooks) {}
 
@@ -86,31 +109,15 @@ export class WordFormattingController {
     if (!anchorNode) return;
 
     const currentPages = this.editor.pages();
-    let matchedPageIdx = -1;
-    let containerEl: HTMLDivElement | null = null;
+    const startEl = anchorNode instanceof Element ? anchorNode : anchorNode.parentElement;
+    const containerEl = startEl?.closest<HTMLDivElement>('[data-page-body-id], [data-page-header-id], [data-page-footer-id]');
+    if (!containerEl) return;
 
-    for (let idx = 0; idx < currentPages.length; idx++) {
-      const p = currentPages[idx];
-      if (!p) continue;
-      const bodyEl = this.editor.getPageBody(p.id);
-      const headEl = this.editor.getHeaderEl(p.id);
-      const footEl = this.editor.getFooterEl(p.id);
-      if (bodyEl && bodyEl.contains(anchorNode)) {
-        matchedPageIdx = idx;
-        containerEl = bodyEl;
-        break;
-      } else if (headEl && headEl.contains(anchorNode)) {
-        matchedPageIdx = idx;
-        containerEl = headEl;
-        break;
-      } else if (footEl && footEl.contains(anchorNode)) {
-        matchedPageIdx = idx;
-        containerEl = footEl;
-        break;
-      }
-    }
-
-    if (matchedPageIdx === -1 || !containerEl) return;
+    const pageId = containerEl.getAttribute('data-page-body-id')
+      || containerEl.getAttribute('data-page-header-id')
+      || containerEl.getAttribute('data-page-footer-id');
+    const matchedPageIdx = currentPages.findIndex(p => p.id === pageId);
+    if (matchedPageIdx === -1) return;
     if (matchedPageIdx !== this.editor.activePageIndex()) {
       this.editor.activePageIndex.set(matchedPageIdx);
     }
@@ -150,6 +157,7 @@ export class WordFormattingController {
       fontSize: this.pendingTypingStyle?.['fontSize'] ? String(parseFloat(this.pendingTypingStyle['fontSize'])) : String(rule.fontSizePt),
       indentLeftCm: Number(((rule.indentLeftPt ?? 0) / 72 * 2.54).toFixed(2)),
       indentRightCm: Number(((rule.indentRightPt ?? 0) / 72 * 2.54).toFixed(2)),
+      firstLineIndentPt: Math.round((rule.firstLineIndentPt ?? 0) * 10) / 10,
       spaceBeforePt: rule.spaceBeforePt, spaceAfterPt: rule.spaceAfterPt, lineHeight: String(rule.lineHeight),
     });
   }
@@ -319,10 +327,18 @@ export class WordFormattingController {
     markDocumentSelection(this.hooks.liveBodies());
     this.hooks.liveBodies().forEach(body => {
       (['P','H1','H2','H3','H4','H5','H6'] as StyleTargetTag[]).forEach(tag => {
-        body.querySelectorAll<HTMLElement>(tag.toLowerCase()).forEach(element => applyStyleRule(element, template.rules[tag]));
+        body.querySelectorAll<HTMLElement>(tag.toLowerCase()).forEach(element => {
+          if (element.closest('table[data-word-table-binding="fixed"]') || (template.tableStyle && template.tableStyle.mode !== 'inherit' && element.closest('table'))) return;
+          applyStyleRule(element, template.rules[tag]);
+        });
       });
     });
     applyTemplateLists(this.hooks.liveBodies(), template);
+    if (template.tableStyle && template.tableStyle.mode !== 'inherit') {
+      for (const body of this.hooks.liveBodies()) for (const table of body.querySelectorAll('table')) {
+        if (table.dataset['wordTableBinding'] !== 'fixed') styleTableElement(table, template.tableStyle);
+      }
+    }
     if (template.academicStyle === 'apa7') {
       emphasis.forEach(({ run, bold, italic }) => { if (bold) run.style.fontWeight = 'bold'; if (italic) run.style.fontStyle = 'italic'; });
       this.editor.headingNumbering.set(false);
@@ -432,11 +448,20 @@ export class WordFormattingController {
     if (command === 'toggleMarks') { this.editor.showFormattingMarks.update(current => !current); return; }
     if (command === 'find' || command === 'replace') { this.editor.openDocumentSearch(command); return; }
     if (command === 'headingNumbering') {
-      if (this.editor.styleTemplates().find(t => t.id === this.editor.activeTemplateId())?.academicStyle === 'apa7') return;
       if (!this.editor.documentReady() || this.editor.isReadMode()) return;
       this.editor.pushUndoSnapshot(); this.editor.headingNumbering.set(value === 'on');
       this.finishDocumentMutation();
       this.hooks.showToast(value === 'on' ? 'Títulos H1–H6 vinculados a la numeración 1, 1.1, 1.1.1' : 'Numeración automática de títulos desactivada');
+      return;
+    }
+    if (command === 'restartListNumbering') {
+      const range = this.prepareRibbonSelection();
+      const li = range ? selectionElement(range).closest('li') : null;
+      if (!li) { this.hooks.showToast('Coloca el cursor dentro de un elemento de lista'); return; }
+      this.editor.pushUndoSnapshot();
+      li.setAttribute('value', '1');
+      this.finishDocumentMutation();
+      this.hooks.showToast('Numeración de lista reiniciada en 1');
       return;
     }
     const range = this.prepareRibbonSelection();
@@ -489,16 +514,10 @@ export class WordFormattingController {
     }
     if (command === 'removeFormat') {
       this.editor.pushUndoSnapshot();
-      const blocks = selectedParagraphs(this.hooks.liveBodies(), range);
       const base = this.editor.styleTemplates().find(t => t.id === this.editor.activeTemplateId())!.rules.P;
       markDocumentSelection(this.hooks.liveBodies());
-      if (!range.collapsed && range.toString() !== blocks.map(block => block.textContent).join('')) {
-        applyInlineProperties(this.hooks.liveBodies(), window.getSelection()!.getRangeAt(0), { ...inlineProperties(base), textShadow: 'none', webkitTextStroke: '0px' });
-      } else blocks.forEach(block => {
-        const normal = block.tagName === 'LI' ? block : replaceParagraphTag(block, 'P');
-        normal.removeAttribute('style'); applyStyleRule(normal, base);
-        normal.querySelectorAll<HTMLElement>('[style]').forEach(run => { run.style.textShadow = 'none'; run.style.webkitTextStroke = '0px'; });
-      });
+      const activeRange = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : range;
+      clearFormattingInRange(this.hooks.liveBodies(), activeRange, base);
       this.finishDocumentMutation(); return;
     }
     if (command === 'fontName' && range.collapsed) {

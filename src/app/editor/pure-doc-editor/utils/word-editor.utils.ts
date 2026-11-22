@@ -40,7 +40,7 @@ export function analyzePageHtmlFast(
     headings.push({
       id,
       text: cleanText,
-      level,
+      level: /data-word-chapter\s*=/.test(attrs)?0:level,
       pageIndex,
       fontSizePt: sizeMatch ? Number(sizeMatch[1]) : undefined,
     });
@@ -52,7 +52,7 @@ export function analyzePageHtmlFast(
     root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,[data-apa-heading-level]').forEach((heading, index) => {
       if (heading.closest('[data-word-continuation],.word-toc-page-section,[data-native-word-toc]')) return;
       const text = formatCleanHeadingTitle(heading.textContent || '');
-      if (text) headings.push({ id: heading.id || `doc-heading-p${pageIndex + 1}-${index + 1}`, text, level: Number(heading.dataset['apaHeadingLevel'] || heading.tagName.slice(1)), pageIndex });
+      if (text) headings.push({ id: heading.id || `doc-heading-p${pageIndex + 1}-${index + 1}`, text, level: heading.hasAttribute('data-word-chapter')?0:Number(heading.dataset['apaHeadingLevel'] || heading.tagName.slice(1)), pageIndex });
     });
   }
 

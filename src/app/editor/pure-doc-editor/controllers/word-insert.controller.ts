@@ -13,10 +13,13 @@ type WordInsertControllerHost = Pick<PureDocEditorComponent,
   | 'isReadMode'
   | 'pushUndoSnapshot'>;
 type WordInsertControllerHooks = Pick<WordEditorHooks,
+  | 'canvasMode'
   | 'collectDocData'
   | 'destroyed'
   | 'dialogs'
   | 'getActivePageElement'
+  | 'hasSelection'
+  | 'insertCanvasHtml'
   | 'loadedNoteId'
   | 'pendingRenderPages'
   | 'prepareRibbonSelection'
@@ -25,9 +28,14 @@ type WordInsertControllerHooks = Pick<WordEditorHooks,
   | 'saveSelection'
   | 'scheduleAutoSave'
   | 'scheduleDocumentFlow'
+  | 'selectedText'
   | 'showToast'>;
 
 /** Insert behavior owned by one editor instance. */
+const AUDIO_ICON_SVG = '<svg class="word-doc-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+const VIDEO_ICON_SVG = '<svg class="word-doc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>';
+const COMMENT_ICON_SVG = '<svg class="word-doc-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#854d0e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+
 export class WordInsertController {
   constructor(private readonly editor: WordInsertControllerHost, private readonly hooks: WordInsertControllerHooks) {}
 
@@ -56,7 +64,8 @@ export class WordInsertController {
       onSubmit: (url) => {
         if (this.hooks.destroyed || this.hooks.loadedNoteId !== sourceId) return;
         this.hooks.restoreSelection();
-        if (window.getSelection()?.toString()) this.editor.executeCommand('createLink', url);
+        const selected = this.hooks.selectedText?.() ?? (window.getSelection()?.toString() || '');
+        if (selected) this.editor.executeCommand('createLink', url);
         else {
           const anchor = document.createElement('a');
           anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; anchor.textContent = url;
@@ -74,7 +83,8 @@ export class WordInsertController {
       if (this.hooks.destroyed || this.hooks.loadedNoteId !== sourceId) return;
       this.hooks.restoreSelection();
       const href = documentHref(note._id);
-      if (window.getSelection()?.toString()) this.editor.executeCommand('createLink', href);
+      const selected = this.hooks.selectedText?.() ?? (window.getSelection()?.toString() || '');
+      if (selected) this.editor.executeCommand('createLink', href);
       else {
         const anchor = document.createElement('a');
         anchor.setAttribute('href', href); anchor.textContent = note.title || 'Sin título';
@@ -85,7 +95,9 @@ export class WordInsertController {
 
   handleInsertBlockquote(): void {
     const selectedText =
-      window.getSelection()?.toString() || 'Escribe aquí tu cita destacada...';
+      this.hooks.selectedText?.() ||
+      window.getSelection()?.toString() ||
+      'Escribe aquí tu cita destacada...';
     this.editor.executeCommand('insertHTML', `<blockquote>${selectedText}</blockquote><p><br/></p>`);
   }
 
@@ -135,8 +147,8 @@ export class WordInsertController {
 
   handleInsertAudioPlaceholder(): void {
     const html = `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;margin:10px 0;">
-        <span>🎵</span>
+      <div class="word-audio-placeholder" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;margin:10px 0;">
+        <span style="display:inline-flex;align-items:center;justify-content:center;">${AUDIO_ICON_SVG}</span>
         <div>
           <div style="font-weight:600;font-size:13px;">Archivo de Audio Adjunto</div>
           <div style="font-size:11px;color:#64748b;">Grabación_Reunión_Ejecutiva.mp3</div>
@@ -148,8 +160,8 @@ export class WordInsertController {
 
   handleInsertVideoPlaceholder(): void {
     const html = `
-      <div style="padding:16px;background:#0f172a;color:#f8fafc;border-radius:8px;margin:12px 0;text-align:center;">
-        <div style="font-size:14px;font-weight:600;">🎬 Bloque Multimedia de Video</div>
+      <div class="word-video-placeholder" style="padding:16px;background:#0f172a;color:#f8fafc;border-radius:8px;margin:12px 0;text-align:center;">
+        <div style="font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;">${VIDEO_ICON_SVG}<span>Bloque Multimedia de Video</span></div>
         <div style="font-size:12px;color:#94a3b8;margin-top:4px;">Presentación_Corporativa_2025.mp4</div>
       </div><p><br/></p>
     `;
@@ -157,6 +169,10 @@ export class WordInsertController {
   }
 
   insertHtmlAtCursorOrActivePage(html: string, keepInlineCaret = false): void {
+    if (this.hooks.canvasMode?.() && this.hooks.insertCanvasHtml) {
+      this.hooks.insertCanvasHtml(html, keepInlineCaret);
+      return;
+    }
     this.editor.pushUndoSnapshot();
     const range = this.hooks.prepareRibbonSelection();
     const activeEl = this.hooks.getActivePageElement();
@@ -262,10 +278,10 @@ export class WordInsertController {
   handleInsertComment(): void {
     const commentHtml = `
       <span class="word-comment-badge" contenteditable="false" style="background:#fef9c3;border:1px solid #eab308;color:#713f12;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin:0 4px;display:inline-flex;align-items:center;gap:4px;">
-        💬 Comentario: <span contenteditable="true" style="font-weight:normal;outline:none;min-width:40px;">Escribe tu nota aquí</span>
+        ${COMMENT_ICON_SVG} Comentario: <span contenteditable="true" style="font-weight:normal;outline:none;min-width:40px;">Escribe tu nota aquí</span>
       </span>&nbsp;
     `;
-    this.insertHtmlAtCursorOrActivePage(commentHtml);
+    this.insertHtmlAtCursorOrActivePage(commentHtml, true);
     this.hooks.showToast('Comentario insertado');
   }
 
@@ -275,12 +291,19 @@ export class WordInsertController {
         Pág. {{page}}
       </span>&nbsp;
     `;
-    this.insertHtmlAtCursorOrActivePage(pageNumHtml);
+    this.insertHtmlAtCursorOrActivePage(pageNumHtml, true);
     this.hooks.showToast('Número de página insertado');
   }
 
   handleInsertTextBox(): void {
-    this.handleInsertCalloutBox();
+    const textBoxHtml = `
+      <div class="word-textbox" style="background:#ffffff;border:1px solid #94a3b8;border-left:4px solid #2563eb;padding:12px 16px;border-radius:6px;margin:12px 0;">
+        <p contenteditable="true" style="font-weight:700;font-size:13px;color:#1e293b;margin:0 0 4px 0;outline:none;">Cuadro de texto</p>
+        <p contenteditable="true" style="font-size:12px;color:#334155;margin:0;outline:none;">Escribe o pega contenido destacado aquí.</p>
+      </div><p><br/></p>
+    `;
+    this.insertHtmlAtCursorOrActivePage(textBoxHtml);
+    this.hooks.showToast('Cuadro de texto insertado');
   }
 
   handleInsertWordArt(preset: WordArtPreset): void {
@@ -294,12 +317,17 @@ export class WordInsertController {
   }
 
   handleInsertDropCap(): void {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const selectedText = sel.toString();
+    const canDrop = this.hooks.hasSelection
+      ? this.hooks.hasSelection()
+      : (() => {
+          const sel = window.getSelection();
+          return Boolean(sel && sel.rangeCount > 0);
+        })();
+    if (!canDrop) return;
+    const selectedText = this.hooks.selectedText?.() ?? (window.getSelection()?.toString() || '');
     const firstChar = selectedText ? selectedText.charAt(0) : 'A';
     const dropCapHtml = `<span style="float:left;font-size:3.2em;line-height:0.8;margin-right:8px;font-weight:bold;color:#1e3a8a;font-family:serif;">${firstChar}</span>`;
-    this.insertHtmlAtCursorOrActivePage(dropCapHtml);
+    this.insertHtmlAtCursorOrActivePage(dropCapHtml, true);
     this.hooks.showToast('Letra capital insertada');
   }
 
@@ -320,12 +348,12 @@ export class WordInsertController {
       dateStyle: 'full',
       timeStyle: 'short',
     });
-    this.insertHtmlAtCursorOrActivePage(`<span>${nowStr}</span>&nbsp;`);
+    this.insertHtmlAtCursorOrActivePage(`<span>${nowStr}</span>&nbsp;`, true);
     this.hooks.showToast('Fecha y hora insertadas');
   }
 
   handleInsertSymbol(symbol: string): void {
-    this.insertHtmlAtCursorOrActivePage(`<span>${symbol}</span>&nbsp;`);
+    this.insertHtmlAtCursorOrActivePage(`<span>${symbol}</span>&nbsp;`, true);
     this.hooks.showToast(`Símbolo ${symbol} insertado`);
   }
 

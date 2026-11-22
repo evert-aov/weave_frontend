@@ -1,9 +1,38 @@
-import { formatReferenceWork } from './apa-reference-formats';
+import { formatReferenceWorkSegments } from './apa-reference-formats';
 import type { BibliographicAuthor, BibliographicSource } from '../models/academic.model';
+
+export type AcademicInlineSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'italic'; text: string }
+  | { kind: 'link'; text: string; href: string };
 
 export const escapeAcademicHtml = (value: string): string => value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 const e = escapeAcademicHtml;
-const italic = (text: string) => `<i>${e(text)}</i>`;
+
+export function normalizeAcademicSegments(segments: readonly AcademicInlineSegment[]): AcademicInlineSegment[] {
+  const out: AcademicInlineSegment[] = [];
+  for (const seg of segments) {
+    if (!seg.text) continue;
+    const prev = out.at(-1);
+    if (prev && prev.kind === seg.kind && (seg.kind !== 'link' || (prev.kind === 'link' && prev.href === seg.href))) {
+      out[out.length - 1] = { ...prev, text: prev.text + seg.text } as AcademicInlineSegment;
+    } else {
+      out.push(seg);
+    }
+  }
+  return out;
+}
+
+export function academicSegmentsToHtml(segments: readonly AcademicInlineSegment[]): string {
+  return normalizeAcademicSegments(segments)
+    .map(seg => {
+      if (seg.kind === 'italic') return `<i>${e(seg.text)}</i>`;
+      if (seg.kind === 'link') return `<a href="${e(seg.href)}" rel="noopener noreferrer">${e(seg.text)}</a>`;
+      return e(seg.text);
+    })
+    .join('');
+}
+
 const period = (text: string) => /[.!?]$/.test(text) ? text : `${text}.`;
 function initials(given: string): string {
   return given.trim().split(/\s+/).filter(Boolean).map(part => part.split('-').map(name => `${Array.from(name)[0]?.toLocaleUpperCase() || ''}.`).join('-')).join(' ');
@@ -65,42 +94,135 @@ export function sourceLink(source: BibliographicSource): string {
   const doi = source.doi.trim().replace(/^(?:https?:\/\/(?:dx\.)?doi\.org\/|doi:\s*)/i, '');
   return doi && /^10\.\d{4,9}\/\S+$/i.test(doi) ? `https://doi.org/${doi}` : academicUrl(source.url.trim());
 }
-/** APA 7 common source types. Titles retain the capitalization supplied by the author. */
-export function referenceHtml(source: BibliographicSource, sources: BibliographicSource[]): string {
-  if (!referenceEligible(source)) return '';
-  const formatted = formatReferenceWork(source), by = referenceAuthors(source), year = sourceYear(source, sources);
+/** APA 7 common source types as typed inline segments. Titles retain the capitalization supplied by the author. */
+export function referenceSegments(source: BibliographicSource, sources: BibliographicSource[]): AcademicInlineSegment[] {
+  if (!referenceEligible(source)) return [];
+  const formatted = formatReferenceWorkSegments(source);
+  const by = referenceAuthors(source);
+  const year = sourceYear(source, sources);
   const detailed = !['book', 'article', 'thesis', 'religious', 'chapter'].includes(source.kind);
   const date = detailed && source.date.trim() ? `${year}, ${source.date.trim()}` : year;
-  const role = formatted.role ? ` (${e(formatted.role)})` : '';
-  const handle = source.handle ? ` [${e(source.handle)}]` : '';
-  let output = by ? `${e(by)}${handle}${role}${/[.!?]$/.test(by) && !role && !handle ? '' : '.'} (${e(date)}). ${formatted.work}` : `${formatted.work} (${e(date)}).`;
-  if (formatted.publication) output += ` ${formatted.publication}`;
+  const role = formatted.role ? ` (${formatted.role})` : '';
+  const handle = source.handle ? ` [${source.handle}]` : '';
+  const segments: AcademicInlineSegment[] = by
+    ? [{ kind: 'text', text: `${by}${handle}${role}${/[.!?]$/.test(by) && !role && !handle ? '' : '.'} (${date}). ` }, ...formatted.work]
+    : [...formatted.work, { kind: 'text', text: ` (${date}).` }];
+  if (formatted.publication.length) {
+    segments.push({ kind: 'text', text: ' ' }, ...formatted.publication);
+  }
   const link = sourceLink(source);
   if (link) {
-    if (source.accessed.trim()) output += ` Recuperado el ${e(source.accessed.trim())}, de`;
-    output += ` <a href="${e(link)}" rel="noopener noreferrer">${e(link)}</a>`;
+    if (source.accessed.trim()) segments.push({ kind: 'text', text: ` Recuperado el ${source.accessed.trim()}, de` });
+    segments.push({ kind: 'text', text: ' ' }, { kind: 'link', text: link, href: link });
   }
-  if (source.originalYear) output += ` (Trabajo original publicado en ${e(source.originalYear)}).`;
-  return output;
+  if (source.originalYear) {
+    segments.push({ kind: 'text', text: ` (Trabajo original publicado en ${source.originalYear}).` });
+  }
+  return normalizeAcademicSegments(segments);
+}
+
+/** APA 7 common source types. Titles retain the capitalization supplied by the author. */
+export function referenceHtml(source: BibliographicSource, sources: BibliographicSource[]): string {
+  return academicSegmentsToHtml(referenceSegments(source, sources));
+}
+
+export function citationSegments(
+  source: BibliographicSource,
+  sources: BibliographicSource[],
+  narrative = false,
+  locator = '',
+  options: CitationOptions = {},
+): AcademicInlineSegment[] {
+  const text = citationText(source, sources, narrative, locator, options);
+  if (source.authors.length || source.organization || ['article', 'web', 'chapter', 'newspaper', 'dictionary', 'wiki', 'legal', 'personal'].includes(source.kind)) {
+    return [{ kind: 'text', text }];
+  }
+  const titleIdx = source.title ? text.indexOf(source.title) : -1;
+  if (titleIdx < 0) return [{ kind: 'text', text }];
+  const out: AcademicInlineSegment[] = [];
+  if (titleIdx > 0) out.push({ kind: 'text', text: text.slice(0, titleIdx) });
+  out.push({ kind: 'italic', text: source.title });
+  const after = text.slice(titleIdx + source.title.length);
+  if (after) out.push({ kind: 'text', text: after });
+  return normalizeAcademicSegments(out);
 }
 
 export function citationHtml(source: BibliographicSource, sources: BibliographicSource[], narrative = false, locator = '', options: CitationOptions = {}): string {
-  const text = citationText(source, sources, narrative, locator, options);
-  if (source.authors.length || source.organization || ['article', 'web', 'chapter', 'newspaper', 'dictionary', 'wiki', 'legal', 'personal'].includes(source.kind)) return e(text);
-  const title = e(source.title), escaped = e(text);
-  return escaped.replace(title, `<i>${title}</i>`);
+  return academicSegmentsToHtml(citationSegments(source, sources, narrative, locator, options));
 }
 
-export function citationSourceIds(element: HTMLElement): string[] {
-  try { const ids: unknown = JSON.parse(element.dataset['wordSourceIds'] || '[]'); if (Array.isArray(ids)) return [...new Set(ids.filter((id): id is string => typeof id === 'string'))]; } catch { /* Older single-source citation. */ }
-  return element.dataset['wordSourceId'] ? [element.dataset['wordSourceId']] : [];
+export function parseCitationSourceIds(rawSourceIds?: string, singleSourceId?: string): string[] {
+  try {
+    const ids: unknown = JSON.parse(rawSourceIds || '[]');
+    if (Array.isArray(ids)) return [...new Set(ids.filter((id): id is string => typeof id === 'string'))];
+  } catch { /* Older single-source citation. */ }
+  return singleSourceId ? [singleSourceId] : [];
 }
-export function renderCitationGroup(element: HTMLElement, sources: BibliographicSource[], used: Set<string> = new Set()): string {
-  const group = sortedSources(sources.filter(s => citationSourceIds(element).includes(s.id)));
-  const options: CitationOptions = { secondaryAuthor: element.dataset['secondaryAuthor'], secondaryYear: element.dataset['secondaryYear'] };
+export function citationSourceIds(element: HTMLElement): string[] {
+  return parseCitationSourceIds(element.dataset['wordSourceIds'], element.dataset['wordSourceId']);
+}
+
+function stripOuterParensFromSegments(segs: readonly AcademicInlineSegment[]): AcademicInlineSegment[] {
+  if (!segs.length) return [];
+  const next = segs.map(s => ({ ...s }));
+  if (next[0].text.startsWith('(')) next[0].text = next[0].text.slice(1);
+  const last = next[next.length - 1];
+  if (last.text.endsWith(')')) last.text = last.text.slice(0, -1);
+  return normalizeAcademicSegments(next);
+}
+
+export function renderCitationGroupSegments(
+  attrs: {
+    sourceIds?: string;
+    sourceId?: string;
+    narrative?: string;
+    locator?: string;
+    secondaryAuthor?: string;
+    secondaryYear?: string;
+  },
+  sources: BibliographicSource[],
+  used: Set<string> = new Set(),
+): AcademicInlineSegment[] {
+  const ids = parseCitationSourceIds(attrs.sourceIds, attrs.sourceId);
+  const group = sortedSources(sources.filter(s => ids.includes(s.id)));
+  const options: CitationOptions = { secondaryAuthor: attrs.secondaryAuthor, secondaryYear: attrs.secondaryYear };
   const parts = group.map(source => {
     options.firstInstitution = !used.has(source.id); used.add(source.id);
-    return citationHtml(source, sources, group.length === 1 && element.dataset['narrative'] === 'true', element.dataset['locator'] || '', options);
+    return citationSegments(source, sources, group.length === 1 && attrs.narrative === 'true', attrs.locator || '', options);
   });
-  return parts.length > 1 ? `(${parts.map(part => part.replace(/^\(|\)$/g, '')).join('; ')})` : parts[0] || '[Fuente no disponible]';
+  if (parts.length > 1) {
+    const joined: AcademicInlineSegment[] = [{ kind: 'text', text: '(' }];
+    parts.forEach((part, idx) => {
+      if (idx > 0) joined.push({ kind: 'text', text: '; ' });
+      joined.push(...stripOuterParensFromSegments(part));
+    });
+    joined.push({ kind: 'text', text: ')' });
+    return normalizeAcademicSegments(joined);
+  }
+  return parts[0] || [{ kind: 'text', text: '[Fuente no disponible]' }];
+}
+
+export function renderCitationGroupData(
+  attrs: {
+    sourceIds?: string;
+    sourceId?: string;
+    narrative?: string;
+    locator?: string;
+    secondaryAuthor?: string;
+    secondaryYear?: string;
+  },
+  sources: BibliographicSource[],
+  used: Set<string> = new Set(),
+): string {
+  return academicSegmentsToHtml(renderCitationGroupSegments(attrs, sources, used));
+}
+export function renderCitationGroup(element: HTMLElement, sources: BibliographicSource[], used: Set<string> = new Set()): string {
+  return renderCitationGroupData({
+    sourceIds: element.dataset['wordSourceIds'],
+    sourceId: element.dataset['wordSourceId'],
+    narrative: element.dataset['narrative'],
+    locator: element.dataset['locator'],
+    secondaryAuthor: element.dataset['secondaryAuthor'],
+    secondaryYear: element.dataset['secondaryYear'],
+  }, sources, used);
 }

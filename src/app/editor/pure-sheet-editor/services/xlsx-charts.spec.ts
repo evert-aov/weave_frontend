@@ -44,3 +44,126 @@ describe('XLSX charts, names, tables and arrays', () => {
     expect(getCellMatrix('D1', imported[0].data, new WeakMap())?.materialize()).toEqual([[1,2],[3,4],[5,6]]);
   });
 });
+
+it('imports chart drawings with an unprefixed default namespace used by other XLSX producers',async()=>{
+ const files=unzipSync(new Uint8Array(await chartFixture()));
+ const name='xl/drawings/drawing1.xml';
+ files[name]=strToU8(strFromU8(files[name]).replace(/xdr:/g,''));
+ // Use the default namespace declaration instead of the original xdr prefix.
+ files[name]=strToU8(strFromU8(files[name]).replace('xmlns:xdr=', 'xmlns='));
+ const zip=zipSync(files),imported=await readXlsx(zip.buffer as ArrayBuffer);
+ expect(imported[0].data['B2'].raw).toBe('10');
+ expect(imported[0].charts).toHaveLength(1);
+});
+
+it('imports c2make_completo_defensa.xlsx including row-oriented bar/column charts', async () => {
+  // @ts-ignore
+  const fs = await import('node:fs');
+  if (fs.existsSync('/home/evert/Downloads/c2make_completo_defensa.xlsx')) {
+    const buf = fs.readFileSync('/home/evert/Downloads/c2make_completo_defensa.xlsx');
+    const imported = await readXlsx(buf.buffer as ArrayBuffer);
+    bindWorkbookFormulaContext(imported);
+    const depSheet = imported.find(s => s.name.toLowerCase().includes('depreciacion'))!;
+    expect(depSheet).toBeDefined();
+    expect(depSheet.charts).toBeDefined();
+    expect(depSheet.charts!.length).toBe(2);
+
+    const scatterChart = depSheet.charts!.find(c => c.category === 'scatter')!;
+    expect(scatterChart).toBeDefined();
+    expect(scatterChart.subType).toBe('scatterStraightLinesMarkers');
+    expect(scatterChart.chartTitle).toBe('Punto de Equilibrio Operativo (Costos vs. Ingresos)');
+
+    const columnChart = depSheet.charts!.find(c => c.category === 'column')!;
+    expect(columnChart).toBeDefined();
+    expect(columnChart.subType).toBe('clusteredColumn');
+    expect(columnChart.chartTitle).toBe('Movimiento del Estado de Resultados (2026–2030)');
+    expect(columnChart.dataConfig?.orientation).toBe('row');
+    expect(columnChart.dataConfig?.seriesRows).toEqual([37, 39, 41, 48]);
+    expect(columnChart.dataConfig?.xRow).toBe(36);
+    expect(columnChart.dataConfig?.seriesNames?.[37]).toContain('INGRESOS');
+    expect(columnChart.dataConfig?.seriesNames?.[39]).toContain('MARGEN DE CONTRIBUCIÓN');
+    expect(columnChart.dataConfig?.seriesNames?.[41]).toContain('EBITDA');
+    expect(columnChart.dataConfig?.seriesNames?.[48]).toContain('UTILIDAD NETA');
+
+    const { extractChartDataFromGrid } = await import('../components/excel-chart-renderer/excel-chart-renderer.component');
+    const chart2Data = extractChartDataFromGrid(depSheet.data, columnChart.range, columnChart.dataConfig);
+    expect(chart2Data.seriesKeys.length).toBe(4);
+    expect(chart2Data.rows.length).toBe(5);
+    expect(chart2Data.rows[0]['name']).toBe('Año 1 (2026)');
+    expect(chart2Data.rows[4]['name']).toBe('Año 5 (2030)');
+  }
+});
+
+it('round-trips embedded charts through writeXlsx and readXlsx even alongside images', async () => {
+  const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  const sheets: Sheet[] = [
+    {
+      id: 'ventas-id',
+      name: 'Ventas Q1',
+      type: 'grid',
+      data: {
+        A1: { raw: 'Mes' },
+        B1: { raw: 'Ingresos' },
+        A2: { raw: 'Ene' },
+        B2: { raw: '120' },
+        A3: { raw: 'Feb' },
+        B3: { raw: '180' },
+      },
+      artwork: [
+        {
+          id: 'logo',
+          kind: 'image',
+          itemId: 'logo.png',
+          imageDataUrl: `data:image/png;base64,${pngBase64}`,
+          x: 20,
+          y: 30,
+          width: 100,
+          height: 60,
+        },
+      ],
+      charts: [
+        {
+          id: 'ch-1',
+          title: 'column',
+          chartTitle: 'Resumen Ventas',
+          category: 'column',
+          subType: 'clusteredColumn',
+          range: { startCol: 0, startRow: 0, endCol: 1, endRow: 2 },
+          dataConfig: {
+            orientation: 'column',
+            xColumn: 0,
+            seriesColumns: [1],
+            hasHeaders: true,
+            seriesNames: { 1: 'Ingresos' },
+          },
+          seriesColors: { 'column:1': '#2563EB' },
+          appearance: { titlePosition: 'top', titleAlign: 'center', legendPosition: 'right' },
+          colorPalette: 'excel',
+          x: 168,
+          y: 48,
+          width: 420,
+          height: 260,
+        },
+      ],
+    },
+  ];
+
+  const bytes = await writeXlsx(sheets);
+  const [imported] = await readXlsx(bytes.buffer as ArrayBuffer);
+
+  expect(imported.artwork?.some(a => a.kind === 'image' && a.imageDataUrl?.startsWith('data:image/png;base64,'))).toBe(true);
+  expect(imported.charts).toHaveLength(1);
+  const chart = imported.charts![0];
+  expect(chart.category).toBe('column');
+  expect(chart.subType).toBe('clusteredColumn');
+  expect(chart.chartTitle).toBe('Resumen Ventas');
+  expect(chart.appearance?.legendPosition).toBe('right');
+  expect(chart.seriesColors?.['column:1']).toBe('#2563EB');
+  expect(chart.dataConfig?.seriesColumns).toEqual([1]);
+  expect(chart.dataConfig?.xColumn).toBe(0);
+  expect(chart.dataConfig?.seriesNames?.[1]).toBe('Ingresos');
+  expect(Math.round(chart.x)).toBe(168);
+  expect(Math.round(chart.y)).toBe(48);
+  expect(Math.round(chart.width)).toBe(420);
+  expect(Math.round(chart.height)).toBe(260);
+}, 30000);

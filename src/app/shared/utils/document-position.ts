@@ -50,11 +50,12 @@ export function restoreDocumentPosition(host: HTMLElement, position: DocumentPos
   if (position.anchor && position.focus) {
     const anchor = editableForPoint(host, position.anchor);
     const focus = editableForPoint(host, position.focus);
-    if (!anchor || !focus) return false;
-    const start = resolvePoint(anchor, position.anchor.offset);
-    const end = resolvePoint(focus, position.focus.offset);
-    anchor.focus({ preventScroll: true });
-    window.getSelection()?.setBaseAndExtent(start.node, start.offset, end.node, end.offset);
+    if (anchor && focus) {
+      const start = resolvePoint(anchor, position.anchor.offset);
+      const end = resolvePoint(focus, position.focus.offset);
+      anchor.focus({ preventScroll: true });
+      window.getSelection()?.setBaseAndExtent(start.node, start.offset, end.node, end.offset);
+    }
   }
   scroller.scrollTop = position.scrollTop; scroller.scrollLeft = position.scrollLeft;
   return true;

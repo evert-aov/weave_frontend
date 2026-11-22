@@ -40,8 +40,8 @@ npm ci
 npm start
 ```
 
-La web de desarrollo usa `http://localhost:4200`; el backend debe estar disponible en
-`http://localhost:3000`. Revisar [package.json](../package.json) y las dependencias instaladas
+La web de desarrollo usa `http://localhost:5000`; el backend debe estar disponible en
+`http://localhost:5001`. Revisar [package.json](../package.json) y las dependencias instaladas
 para elegir una versión de Node admitida por Angular CLI. No usar un número histórico de Node
 como sustituto de comprobar los requisitos de la versión instalada.
 
@@ -60,3 +60,5 @@ credenciales de Google, cámara, portapapeles ni el comportamiento visual de tod
 La integración completa se describe también en las guías de
 [NestJS](../../backend/guia-desarrollador/README.md) y
 [FastAPI](../../ia/guia-desarrollador/README.md).
+
+- [Motor Word híbrido y migración a Canvas](20-MOTOR-WORD-HIBRIDO-Y-CANVAS.md): estado real del motor, backend inicial, etapas y criterios de activación.

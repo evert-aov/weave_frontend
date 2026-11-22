@@ -163,6 +163,26 @@ describe('FormulaEngineService', () => {
       expect(evaluateCellValue('A4', grid)).toBe(8);
     });
 
+    it('evaluates arithmetic and aggregations with percentage cells and inline percentages', () => {
+      const grid: SheetGrid = {
+        I10: { raw: '10%' },
+        I11: { raw: '12,5%' },
+        I12: { raw: '20%', xlsxType: 'text' },
+        H11: { raw: '=5*I10' },
+        H12: { raw: '=200*I11' },
+        H13: { raw: '=50*I12' },
+        H14: { raw: '=5*10%' },
+        H15: { raw: '=SUMA(I10:I12)' },
+      };
+      expect(evaluateCellValue('I10', grid)).toBe(0.1);
+      expect(evaluateCellValue('I11', grid)).toBe(0.125);
+      expect(evaluateCellValue('H11', grid)).toBe(0.5);
+      expect(evaluateCellValue('H12', grid)).toBe(25);
+      expect(evaluateCellValue('H13', grid)).toBe(10);
+      expect(evaluateCellValue('H14', grid)).toBe(0.5);
+      expect(evaluateCellValue('H15', grid)).toBeCloseTo(0.425, 6);
+    });
+
     it('evaluates cell references and ranges with SUM, AVERAGE, MIN, MAX', () => {
       const grid: SheetGrid = {
         A1: { raw: '10' },

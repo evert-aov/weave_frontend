@@ -18,7 +18,7 @@
   } @else {
     <label>{{ t('title') }} *<input name="appendixTitle" [(ngModel)]="title" required></label>
     <label>{{ t('appendix_text') }}<textarea name="text" [(ngModel)]="text" rows="6"></textarea></label>
-    <label>{{ t('move_object') }}<select name="object" [(ngModel)]="objectId"><option value="">{{ t('none') }}</option>@for(object of objects; track object.id; let index = $index){<option [value]="object.id">{{ index + 1 }} · {{ t(object.kind) }} {{ object.title }}</option>}</select></label>
+    <label>{{ t('move_object') }}<select name="object" [(ngModel)]="objectId"><option value="">{{ t('none') }}</option>@for(option of objectOptions; track option.object.id){<option [value]="option.object.id">{{ t(option.object.kind) }}-{{ option.ordinal }}{{ option.object.title ? ": " + option.object.title : "" }}</option>}</select></label>
     <label><span><input type="checkbox" name="singleTable" [(ngModel)]="singleTable"> {{ t('single_table') }}</span></label>
     <p class="hint">{{ t('appendix_hint') }}</p>
   }

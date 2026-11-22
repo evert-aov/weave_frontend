@@ -100,21 +100,85 @@
           [attr.aria-pressed]="aiService.includeDocumentContext()" [title]="notesService.currentNote()?.title || i18n.t('ai.context')">
           <app-icon name="file-text" [size]="13" /><span>{{ aiService.includeDocumentContext() ? (notesService.currentNote()?.title || i18n.t('ai.context')) : i18n.t('ai.free_chat') }}</span>
         </button>
+        <button type="button" class="ai-db-note-btn" (click)="openDatabaseNotePicker()"
+          [disabled]="attachmentBusy()"
+          title="Leer documento de la base de datos">
+          <app-icon name="database" [size]="12" />
+          <span>+ Doc de la base</span>
+        </button>
+        <button type="button" class="ai-context-chip" [class.active]="keepAttachmentsEnabled()" (click)="toggleKeepAttachments()"
+          [attr.aria-pressed]="keepAttachmentsEnabled()" title="Conservar adjuntos activos en todo el chat">
+          <app-icon name="paperclip" [size]="12" /><span>Memoria</span>
+        </button>
+        <button type="button" class="ai-context-chip" [class.active]="workspaceIndexEnabled()" (click)="toggleWorkspaceIndex()"
+          [attr.aria-pressed]="workspaceIndexEnabled()" title="Consultar índice de documentos del espacio">
+          <app-icon name="database" [size]="12" /><span>Espacio</span>
+        </button>
         <label class="ai-edit-mode ai-edit-toggle"><input type="checkbox" [ngModel]="aiService.editMode()" (ngModelChange)="aiService.editMode.set($event)"
           [disabled]="aiService.isGenerating() || (!aiService.editMode() && (!aiService.documents.supported() || aiService.documents.isReadingLocked() || !aiService.includeDocumentContext()))" />{{ i18n.t('ai.edit_document') }}</label>
       </div>
+      @if (pinnedAttachments().length) {
+        <div class="ai-pinned-bar" aria-label="Adjuntos en memoria">
+          <small class="ai-pinned-label">En memoria:</small>
+          @for (file of pinnedAttachments(); track file.name) {
+            <span class="ai-attachment-chip ai-pinned-chip">
+              <app-icon name="paperclip" [size]="11" />
+              <span>{{ file.name }}</span>
+              <button type="button" (click)="unpinAttachment(file.name)" title="Quitar de memoria" aria-label="Quitar de memoria">
+                <app-icon name="close" [size]="11" />
+              </button>
+            </span>
+          }
+        </div>
+      }
+      @if (queuedPrompts().length) {
+        <div class="ai-queue-list" aria-label="Mensajes en cola">
+          @for (item of queuedPrompts(); track item.id) {
+            <div class="ai-queue-item">
+              <span>En cola: {{ item.prompt || 'Adjuntos' }}</span>
+              <button type="button" (click)="removeQueuedPrompt(item.id)" title="Quitar de la cola" aria-label="Quitar de la cola">
+                <app-icon name="close" [size]="11" />
+              </button>
+            </div>
+          }
+        </div>
+      }
       @if (aiService.documents.isReadingLocked()) { <small class="ai-context-warning">Activa Editar en el documento para permitir cambios.</small> }
       @if (notesService.currentNote()?.docType === 'canvas') { <small class="ai-context-warning">El lienzo admite conversación, sin edición automática.</small> }
       @if (aiService.includeDocumentContext() && aiService.documentContextTruncated()) { <small class="ai-context-warning" role="status">{{ i18n.t('ai.partial_context') }}</small> }
       <div class="ai-input-box">
-        <textarea [(ngModel)]="inputText" (keydown)="onKeyDown($event)" [placeholder]="i18n.t('ai.message_placeholder')" [attr.aria-label]="i18n.t('ai.message_placeholder')" rows="3"
-          [disabled]="aiService.isGenerating() || aiService.isLoadingHistory() || aiService.isClearingHistory() || !aiService.activeConversationId()"></textarea>
+        <textarea [(ngModel)]="inputText" (keydown)="onKeyDown($event)" (paste)="pasteAttachments($event)" [placeholder]="i18n.t('ai.message_placeholder')" [attr.aria-label]="i18n.t('ai.message_placeholder')" rows="3"
+          [disabled]="aiService.isLoadingHistory() || aiService.isClearingHistory() || !aiService.activeConversationId()"></textarea>
+        @if(attachmentBusy()){<p role="status">{{i18n.t('ai.reading_attachments')}}</p>}
+        @if(attachments().length){<small>{{i18n.t('ai.attachments_turn')}}</small>}
+        @if(attachmentError()){<p role="alert">{{ attachmentError() }}</p>}
+        @for(file of attachments();track $index){
+          <div class="ai-attachment-chip">
+            @if(file.mimeType.startsWith('image/')){
+              <img class="ai-attachment-preview" [src]="'data:'+file.mimeType+';base64,'+file.data" [alt]="file.name" />
+            } @else {
+            <app-icon [name]="file.name.includes('(Excel)') ? 'sheet' : file.name.includes('(Word)') ? 'file-text' : file.mimeType === 'application/pdf' ? 'file' : file.mimeType.startsWith('audio/') ? 'mic' : 'database'" [size]="12"/>
+            }
+            <span>{{file.name}}</span>
+            <button type="button" (click)="removeAttachment($index)" [attr.aria-label]="i18n.t('ai.remove_attachment')"><app-icon name="close" [size]="12"/></button>
+          </div>
+        }
+        <input #attachmentInput type="file" hidden multiple accept="image/png,image/jpeg,image/webp,image/gif,audio/wav,audio/mp3,audio/mpeg,audio/ogg,audio/aac,audio/flac,audio/webm,audio/mp4,.mp3,.wav,.ogg,.oga,.aac,.flac,.webm,.m4a,.pdf,.docx,.xlsx,.txt,.md,.csv,.tsv,.json" (change)="attachFiles($event)"/>
         <div class="ai-composer-tools">
+          <div class="ai-attach-group">
+            <button type="button" (click)="attachmentInput.click()" [disabled]="attachmentBusy()" [title]="i18n.t('ai.attach')" [attr.aria-label]="i18n.t('ai.attach')"><app-icon name="paperclip" [size]="17"/></button>
+            <button type="button" (click)="openDatabaseNotePicker()" [disabled]="attachmentBusy()" [class.active]="aiService.dbNotePickerOpen()" title="Leer documento de la base de datos" aria-label="Leer documento de la base de datos"><app-icon name="database" [size]="17"/></button>
+          </div>
           <select class="ai-model-select" [attr.aria-label]="i18n.t('ai.model')" [ngModel]="aiService.selectedModel()" (ngModelChange)="aiService.setSelectedModel($event)" [disabled]="aiService.isGenerating()">
             @for (model of aiService.availableModels; track model.id) { <option [value]="model.id">{{ model.name }}</option> }
           </select>
-          <button type="button" class="ai-send-btn" (click)="onSend()" [disabled]="!inputText().trim() || aiService.isGenerating() || aiService.isLoadingHistory() || aiService.isClearingHistory() || !aiService.activeConversationId()"
-            [title]="i18n.t('ai.send')" [attr.aria-label]="i18n.t('ai.send')"><app-icon name="send" [size]="17" /></button>
+          @if (aiService.isGenerating()) {
+            <button type="button" class="ai-stop-btn" (click)="cancelGeneration()" title="Detener generación" aria-label="Detener generación">
+              <app-icon name="close" [size]="16" />
+            </button>
+          }
+          <button type="button" class="ai-send-btn" (click)="onSend()" [disabled]="(!inputText().trim()&&!attachments().length) || attachmentBusy() || aiService.isLoadingHistory() || aiService.isClearingHistory() || !aiService.activeConversationId()"
+            [title]="aiService.isGenerating() ? 'Agregar a la cola' : i18n.t('ai.send')" [attr.aria-label]="i18n.t('ai.send')"><app-icon name="send" [size]="17" /></button>
         </div>
       </div>
       <div class="ai-input-helper">{{ i18n.t('ai.input_hint') }}</div>

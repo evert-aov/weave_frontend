@@ -1,5 +1,6 @@
 import type { SheetEditorHooks } from './sheet-editor-hooks';
 import { callFunction } from '../services/calc-functions';
+import { parseNumericLiteral } from '../services/calc-types';
 import { BorderEdge, BorderLineStyle, BorderPreset, CellBorders, CellStyle, MergeRegion, NumberFormat, PresetStyle, SelectionRange } from '../models/excel.model';
 import { getCellId } from '../services/formula-engine.service';
 import type { PureSheetEditorComponent } from '../pure-sheet-editor.component';
@@ -8,6 +9,7 @@ type SheetFormattingControllerHost = Pick<PureSheetEditorComponent,
   | 'activeSheet'
   | 'commitCellEdit'
   | 'getCell'
+  | 'guardEditableRange'
   | 'normalizedRange'
   | 'scheduleAutoSave'
   | 'selectedCell'
@@ -24,6 +26,7 @@ export class SheetFormattingController {
 
   applyStyleChange(patch: Partial<CellStyle>): void {
     let { minCol, maxCol, minRow, maxRow } = this.editor.normalizedRange;
+    if (!this.editor.guardEditableRange(minCol, maxCol, minRow, maxRow)) return;
     const merged = this.mergedRegion(minCol, minRow);
     if (merged && merged.startCol === minCol && merged.startRow === minRow && merged.endCol === maxCol && merged.endRow === maxRow) {
       maxCol = minCol; maxRow = minRow;
@@ -48,7 +51,7 @@ export class SheetFormattingController {
     const cell = this.editor.getCell(col, row);
     if (cell?.style?.borders) return cell.style.borders;
     if (cell?.style?.border) {
-      const edge: BorderEdge = { style: 'thin', color: this.editor.themeService.isDark() ? '#e2e8f0' : '#000000' };
+      const edge: BorderEdge = { style: 'thin', color: '#000000' };
       return { top: edge, right: edge, bottom: edge, left: edge };
     }
     return undefined;
@@ -124,14 +127,13 @@ export class SheetFormattingController {
   getCellBorder(col: number, row: number, edge: 'top' | 'bottom' | 'left' | 'right'): string {
     const cell = this.editor.getCell(col, row);
     const borders = cell?.style?.borders;
-    const isDark = this.editor.themeService.isDark();
     const defaultGrid = this.editor.showGridlines
-      ? `1px solid ${isDark ? '#334155' : '#e2e8f0'}`
+      ? '1px solid #e2e8f0'
       : '1px solid transparent';
 
     const borderEdge = borders?.[edge];
     if (borderEdge) {
-      const color = borderEdge.color || (isDark ? '#e2e8f0' : '#000000');
+      const color = borderEdge.color || '#000000';
       const style = borderEdge.style || 'thin';
       if (style === 'double') return `3px double ${color}`;
       if (style === 'thick') return `3px solid ${color}`;
@@ -142,7 +144,7 @@ export class SheetFormattingController {
     }
 
     if (cell?.style?.border) {
-      return isDark ? '1px solid #e2e8f0' : '1px solid #000000';
+      return '1px solid #000000';
     }
 
     return defaultGrid;
@@ -152,8 +154,7 @@ export class SheetFormattingController {
     const { preset, lineStyle, color } = event;
     const { minCol, maxCol, minRow, maxRow } = this.editor.normalizedRange;
 
-    const defaultColor = this.editor.themeService.isDark() ? '#e2e8f0' : '#000000';
-    const effectiveColor = color || defaultColor;
+    const effectiveColor = color || '#000000';
     const stdEdge: BorderEdge = { style: lineStyle || 'thin', color: effectiveColor };
     const thickEdge: BorderEdge = { style: 'thick', color: effectiveColor };
     const doubleEdge: BorderEdge = { style: 'double', color: effectiveColor };
@@ -309,7 +310,9 @@ export class SheetFormattingController {
 
   formatCellDisplay(val: string | number, style?: CellStyle): string {
     if (val === '' || val === null || val === undefined) return '';
-    const num = typeof val === 'number' ? val : Number(val);
+    const directNum = typeof val === 'number' ? val : Number(val);
+    const parsedLit = Number.isNaN(directNum) && typeof val === 'string' ? parseNumericLiteral(val) : null;
+    const num = !Number.isNaN(directNum) ? directNum : (parsedLit?.value ?? NaN);
     const isNum = !isNaN(num) && val !== '';
 
     if (isNum && (style?.numberFormat === 'date' || style?.numberFormat === 'datetime')) {
@@ -323,8 +326,9 @@ export class SheetFormattingController {
       return '$' + num.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
     }
     if (isNum && style?.numberFormat === 'percent') {
-      const dec = style.decimals ?? 0;
-      return (num * 100).toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) + '%';
+      const minDec = style.decimals ?? 0;
+      const maxDec = style.decimals ?? 2;
+      return (num * 100).toLocaleString(undefined, { minimumFractionDigits: minDec, maximumFractionDigits: maxDec }) + '%';
     }
     if (isNum && style?.numberFormat === 'comma') {
       const dec = style.decimals ?? 2;
@@ -334,23 +338,6 @@ export class SheetFormattingController {
       return Number(val.toFixed(4)).toString();
     }
     return String(val);
-  }
-
-  getPresetClasses(preset?: PresetStyle): string {
-    switch (preset) {
-      case 'bad':
-        return 'bg-[#ffc7ce] text-[#9c0006]';
-      case 'good':
-        return 'bg-[#c6efce] text-[#006100]';
-      case 'neutral':
-        return 'bg-[#ffeb9c] text-[#9c6500]';
-      case 'calculation':
-        return 'bg-[#f2f2f2] text-[#fa7d00] font-semibold border border-[#7f7f7f]';
-      case 'check':
-        return 'bg-[#a5a5a5] text-white font-bold border-b-2 border-white';
-      default:
-        return '';
-    }
   }
 
   handleApplyNumberFormat(format: NumberFormat): void {

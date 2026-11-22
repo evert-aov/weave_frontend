@@ -1,3 +1,4 @@
+import { applyModelStructuralInput, applyModelTextInput } from '../engine/model-text-input';
 import {
   caretAtBoundary,
   deleteAtContinuation,
@@ -13,6 +14,7 @@ import type { PureDocEditorComponent } from '../pure-doc-editor.component';
 import type { WordEditorHooks } from './word-editor-hooks';
 
 type WordInputControllerHost = Pick<PureDocEditorComponent,
+  | 'executeCommand'
   | 'activePageIndex'
   | 'commitPageDomToState'
   | 'formats'
@@ -124,6 +126,13 @@ export class WordInputController {
     }
     this.lastInputTime = now;
     this.lastInputType = e.inputType;
+    const body = this.editor.getPageBody(this.editor.pages()[pageIndex]?.id);
+    if (body && !this.hooks.pendingRenderPages) {
+      if (applyModelTextInput(body, e)) return;
+      if (['insertParagraph', 'deleteContentBackward', 'deleteContentForward'].includes(e.inputType)) {
+        applyModelStructuralInput(body, e);
+      }
+    }
   }
 
   onPageCompositionStart(): void {
@@ -202,6 +211,12 @@ export class WordInputController {
 
   onPageKeyDown(e: KeyboardEvent, pageIndex: number): void {
     if (e.isComposing) return;
+    if((e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&['b','i'].includes(e.key.toLowerCase())){
+      const body=this.editor.getPageBody(this.editor.pages()[pageIndex]?.id);
+      if(body?.getAttribute('contenteditable')==='true'){
+        e.preventDefault();this.editor.executeCommand(e.key.toLowerCase()==='b'?'bold':'italic');return;
+      }
+    }
     if ((e.ctrlKey || e.metaKey) && ['f','h'].includes(e.key.toLowerCase())) {
       e.preventDefault(); this.editor.openDocumentSearch(e.key.toLowerCase() === 'h' ? 'replace' : 'find'); return;
     }

@@ -31,8 +31,7 @@ export class ExcelCellBordersComponent {
     const b = this.borders[edge];
     if (!b) return 'none';
 
-    const defaultColor = this.themeService.isDark() ? '#e2e8f0' : '#000000';
-    const color = b.color || defaultColor;
+    const color = b.color || '#000000';
     const style = b.style || 'thin';
 
     switch (style) {

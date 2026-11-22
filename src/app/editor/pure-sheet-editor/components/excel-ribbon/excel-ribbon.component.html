@@ -85,10 +85,19 @@
       <!-- 1. Clipboard Group -->
       <section class="ribbon-group" [attr.aria-label]="t('excel.group.clipboard')">
         <div class="group-controls">
-          <button type="button" (click)="paste.emit()" title="Pegar (Ctrl+V)" class="ribbon-btn-lg">
-            <svg lucideIcon="clipboard" [size]="20" class="text-amber-300 mb-0.5"></svg>
-            <span>{{ t('excel.action.paste') }}</span>
-          </button>
+          <div class="flex flex-col items-center">
+            <button type="button" (click)="paste.emit()" title="Pegar (Ctrl+V)" class="ribbon-btn-lg">
+              <svg lucideIcon="clipboard" [size]="20" class="text-amber-300 mb-0.5"></svg>
+              <span>{{ t('excel.action.paste') }}</span>
+            </button>
+            <button type="button"
+                    data-testid="paste-special-toggle"
+                    (click)="togglePasteSpecial.emit(); $event.stopPropagation()"
+                    title="Pegado especial (Ctrl+Shift+V)"
+                    class="w-full h-3.5 flex items-center justify-center rounded hover:bg-slate-500/20 opacity-80">
+              <svg lucideIcon="chevron-down" [size]="11"></svg>
+            </button>
+          </div>
           <div class="stacked-rows">
             <button type="button" (click)="cut.emit()" title="Cortar (Ctrl+X)" class="ribbon-btn-stacked">
               <svg lucideIcon="scissors" [size]="13" class="text-gray-400"></svg>
@@ -207,6 +216,18 @@
                     class="ribbon-btn-icon" [class.active]="activeCellStyle.align === 'right'">
               <svg lucideIcon="align-right" [size]="14"></svg>
             </button>
+            <select [value]="activeCellStyle.textRotation || 0"
+                    (change)="setTextRotation($any($event.target).value)"
+                    data-testid="text-rotation-select"
+                    title="Orientación del texto"
+                    aria-label="Orientación del texto"
+                    class="ribbon-select w-16 ml-1">
+              <option value="0">0°</option>
+              <option value="45">45°</option>
+              <option value="-45">-45°</option>
+              <option value="90">90°</option>
+              <option value="-90">-90°</option>
+            </select>
           </div>
 
           <!-- Wrap Text & Merge & Center -->
@@ -333,8 +354,8 @@
             <span>{{ t('excel.action.sort_filter') }}</span>
           </button>
 
-          <!-- Find & Select / Functions -->
-          <button type="button" (click)="openFunctionsDrawer.emit()" class="ribbon-btn-lg" title="Buscar y Funciones">
+          <!-- Find & Replace -->
+          <button type="button" (click)="openFindReplace.emit()" class="ribbon-btn-lg" title="Buscar y reemplazar (Ctrl+F)">
             <svg lucideIcon="search" [size]="16" class="text-sky-400 mb-0.5"></svg>
             <span>{{ t('excel.action.find_select') }}</span>
           </button>
@@ -346,8 +367,12 @@
     <!-- ==================== TAB: INSERT ==================== -->
     @if (activeTab === 'Insert') {
       <app-excel-insert-toolbar (openShapes)="openShapes.emit()" (openIcons)="openIcons.emit()"
+        (insertPicture)="insertPicture.emit()"
+        (openPivot)="openPivotModal.emit()"
         (insertChart)="insertChartDirectly.emit($event)"
         (openAllChartsModal)="openChartModal.emit($event)"
+        (openSparklineModal)="openSparklineModal.emit()"
+        (openHyperlinkModal)="openHyperlinkModal.emit()"
         (insertCheckbox)="insertCheckbox.emit()"
         (formatSelectionAsTable)="insertTable.emit()">
       </app-excel-insert-toolbar>
@@ -400,15 +425,23 @@
 
     <!-- ==================== TAB: DATA ==================== -->
     @if (activeTab === 'Data') {
-      <section class="ribbon-group" [attr.aria-label]="t('excel.tab.data')">
-        <div class="group-controls">
-          <button type="button" (click)="openSortFilter.emit()" class="ribbon-btn-lg" title="Ordenar y Filtrar">
-            <svg lucideIcon="arrow-down-up" [size]="18" class="text-sky-400 mb-0.5"></svg>
-            <span>Ordenar y Filtrar</span>
-          </button>
-        </div>
-        <span class="group-label">{{ t('excel.tab.data') }}</span>
-      </section>
+      <app-excel-data-toolbar
+        [filterActive]="filterActive"
+        [hasColumnFilters]="hasColumnFilters"
+        [hasPivotTables]="hasPivotTables"
+        (applySort)="applySort.emit($event)"
+        (openSortFilter)="openSortFilter.emit()"
+        (toggleFilter)="toggleFilter.emit()"
+        (clearAllFilters)="clearAllFilters.emit()"
+        (openValidation)="openValidation.emit()"
+        (openRemoveDuplicates)="openRemoveDuplicates.emit()"
+        (openTextToColumns)="openTextToColumns.emit()"
+        (openFindReplace)="openFindReplace.emit()"
+        (openPivotModal)="openPivotModal.emit()"
+        (refreshPivot)="refreshPivot.emit()"
+        (groupOutline)="groupOutline.emit($event)"
+        (ungroupOutline)="ungroupOutline.emit($event)">
+      </app-excel-data-toolbar>
     }
 
     <!-- ==================== TAB: VIEW ==================== -->
@@ -423,6 +456,8 @@
         [activeCellId]="activeCellId"
         [selectedRow]="selectedRow"
         [selectedCol]="selectedCol"
+        [sheetProtected]="sheetProtected"
+        [activeCellLocked]="activeCellLocked"
         (selectNormalView)="selectNormalView.emit()"
         (selectChartView)="selectChartView.emit()"
         (toggleGridlines)="toggleGridlines.emit()"
@@ -430,7 +465,9 @@
         (toggleHeadings)="toggleHeadings.emit()"
         (changeZoom)="changeZoom.emit($event)"
         (setFreezePanes)="freezePanes.emit($event)"
-        (unfreezePanes)="unfreezePanes.emit()">
+        (unfreezePanes)="unfreezePanes.emit()"
+        (toggleSheetProtection)="toggleSheetProtection.emit()"
+        (toggleSelectionLocked)="toggleSelectionLocked.emit()">
       </app-excel-view-toolbar>
     }
 

@@ -14,6 +14,8 @@ import {
   LucideRows,
   LucideColumns,
   LucideX,
+  LucideLock,
+  LucideUnlock,
 } from '@lucide/angular';
 
 @Component({
@@ -29,7 +31,9 @@ import {
       LucideChevronDown,
       LucideRows,
       LucideColumns,
-      LucideX
+      LucideX,
+      LucideLock,
+      LucideUnlock
     ),
   ],
   templateUrl: './excel-view-toolbar.component.html',
@@ -45,6 +49,8 @@ export class ExcelViewToolbarComponent {
   @Input() activeCellId = 'A1';
   @Input() selectedRow = 0;
   @Input() selectedCol = 0;
+  @Input() sheetProtected = false;
+  @Input() activeCellLocked = true;
 
   @Output() selectNormalView = new EventEmitter<void>();
   @Output() selectChartView = new EventEmitter<void>();
@@ -54,6 +60,8 @@ export class ExcelViewToolbarComponent {
   @Output() changeZoom = new EventEmitter<number>();
   @Output() setFreezePanes = new EventEmitter<{ rows: number; cols: number }>();
   @Output() unfreezePanes = new EventEmitter<void>();
+  @Output() toggleSheetProtection = new EventEmitter<void>();
+  @Output() toggleSelectionLocked = new EventEmitter<void>();
 
   readonly themeService = inject(ThemeService);
   readonly Math = Math;

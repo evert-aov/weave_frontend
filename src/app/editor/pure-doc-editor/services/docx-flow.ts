@@ -26,7 +26,7 @@ export function joinDocxFlowPages(pages: DocumentPage[]): DocumentPage[] {
       Array.from(fragment.children).filter(node => node.tagName === 'P' && !node.textContent?.trim() && !node.querySelector('img,svg,table')).forEach(node => node.remove());
     }
     previousToc = group;
-    if (!joined.length || page.breakBefore === 'manual' && !continuationToc) joined.push({ page: { ...page }, root: document.createElement('div') });
+    if (!joined.length || (page.breakBefore === 'manual' || page.sectionBreak === 'nextPage') && !continuationToc) joined.push({ page: { ...page }, root: document.createElement('div') });
     append(joined[joined.length - 1].root, fragment);
   });
   return joined.map(({ page, root }) => { root.normalize(); return { ...page, html: root.innerHTML }; });

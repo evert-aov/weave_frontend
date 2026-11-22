@@ -20,7 +20,8 @@ type SheetArtworkControllerHost = Pick<PureSheetEditorComponent,
   | 'selectedChartId'
   | 'shapesPickerOpen'>;
 type SheetArtworkControllerHooks = Pick<SheetEditorHooks,
-  | 'pushUndoSnapshot'>;
+  | 'pushUndoSnapshot'
+  | 'scheduleCanvasRender'>;
 
 /** Artwork behavior scoped to one editor instance. */
 export class SheetArtworkController {
@@ -59,6 +60,27 @@ export class SheetArtworkController {
     this.editor.selectedChartId = null;
     this.editor.shapesPickerOpen = false; this.editor.iconsPickerOpen = false;
     this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
+  }
+
+  insertImageArtwork(dataUrl: string, name: string, width = 220, height = 160): void {
+    if (!dataUrl) return;
+    this.hooks.pushUndoSnapshot();
+    const item: FloatingArtwork = {
+      id: `artwork-${crypto.randomUUID()}`,
+      kind: 'image',
+      itemId: name || 'image',
+      imageDataUrl: dataUrl,
+      x: 100,
+      y: 80,
+      width: Math.max(48, Math.min(480, Math.round(width))),
+      height: Math.max(48, Math.min(360, Math.round(height))),
+    };
+    this.editor.activeSheet.artwork = [...(this.editor.activeSheet.artwork || []), item];
+    this.editor.selectedArtworkId = item.id;
+    this.editor.selectedChartId = null;
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 
   beginArtworkChange(): void { this.hooks.pushUndoSnapshot(); }

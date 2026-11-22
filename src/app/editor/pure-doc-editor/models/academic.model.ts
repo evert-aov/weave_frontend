@@ -33,6 +33,11 @@ export interface BibliographicSource {
 }
 export interface CitationRequest { sourceId: string; narrative: boolean; locator: string; additionalIds?: string[]; secondaryAuthor?: string; secondaryYear?: string; quoteText?: string; quoteEnding?: boolean; }
 export interface AcademicObject { id: string; kind: 'table' | 'figure'; number: number; prefix?: string; appendixLabel?: string; title: string; note: string; sourceId: string; attribution: string; }
+/** Selection identifiers are independent of whether an object already has an APA caption. */
+export function academicObjectOptions(objects: readonly AcademicObject[]): { object: AcademicObject; ordinal: number }[] {
+  const counts = { table: 0, figure: 0 };
+  return objects.map(object => ({ object, ordinal: ++counts[object.kind] }));
+}
 export interface CaptionRequest { id: string; title: string; note: string; sourceId: string; attribution: string; }
 export function emptySource(): BibliographicSource {
   return { id: '', kind: 'book', authors: [], organization: '', year: '', date: '', title: '', container: '', publisher: '', volume: '', issue: '', pages: '', edition: '', description: '', doi: '', url: '', accessed: '', editors: '', translators: '', originalYear: '', version: '', platform: '', role: '', number: '', location: '', abbreviation: '', handle: '' };

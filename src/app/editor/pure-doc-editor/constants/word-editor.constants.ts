@@ -18,6 +18,7 @@ export const DEFAULT_FORMATS: EditorActiveFormats = {
   fontSize: '11',
   indentLeftCm: 0,
   indentRightCm: 0,
+  firstLineIndentPt: 0,
   spaceBeforePt: 0,
   spaceAfterPt: 4,
   lineHeight: '1.15',

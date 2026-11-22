@@ -5,6 +5,7 @@
      [class.text-slate-800]="!themeService.isDark()">
 
   <input #xlsxInput type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden (change)="importXlsxFile($event)" />
+  <input #pictureInput type="file" accept="image/*" hidden (change)="onPictureFileSelected($event)" />
   @if (xlsxBusy || xlsxNotice) {
     <div role="status" aria-live="polite" class="px-4 py-2 text-sm flex items-center justify-between gap-3" [class.text-red-600]="xlsxFailed">
       <span>{{ xlsxBusy ? i18n.t('excel.xlsx.busy') : xlsxNotice }}</span>
@@ -22,7 +23,7 @@
     (openShapes)="shapesPickerOpen = true"
     (openIcons)="iconsPickerOpen = true"
     [showFormulasInCells]="showFormulasInCells"
-    (toggleShowFormulas)="showFormulasInCells = !showFormulasInCells"
+    (toggleShowFormulas)="toggleShowFormulas()"
     (insertFormula)="startCellEdit($event); commitCellEdit()"
     (editFormula)="handleFormulaEditing($event)"
     (traceReference)="traceFormulaReferences($event)" (clearTrace)="referenceTrace = null"
@@ -64,6 +65,12 @@
     (clearAllInk)="handleClearDrawings()"
     (freezePanes)="handleSetFreezePanes($event)"
     (unfreezePanes)="handleUnfreezePanes()"
+    [sheetProtected]="!!activeSheet.protected"
+    [activeCellLocked]="activeCellLocked"
+    (toggleSheetProtection)="toggleSheetProtection()"
+    (toggleSelectionLocked)="toggleSelectionLocked()"
+    (groupOutline)="groupSelection($event)"
+    (ungroupOutline)="ungroupSelection($event)"
     (undo)="handleUndo()"
     (redo)="handleRedo()"
     (copy)="handleCopy()"
@@ -95,8 +102,8 @@
     (clearDrawings)="handleClearDrawings()"
     (deleteDrawingStroke)="handleDeleteStroke($event)"
     (updatePageLayout)="handleUpdatePageLayout($event)"
-    (toggleGridlines)="showGridlines = !showGridlines"
-    (toggleHeadings)="showHeadings = !showHeadings"
+    (toggleGridlines)="toggleGridlines()"
+    (toggleHeadings)="toggleHeadings()"
     (toggleFormulaBar)="showFormulaBar = !showFormulaBar"
     (applySort)="handleApplySort($event)"
     (toggleFilter)="handleToggleFilter()"
@@ -106,9 +113,21 @@
     (insertColLeft)="handleInsertColLeft()"
     (deleteCol)="handleDeleteCol()"
     (openFunctionsDrawer)="functionsDrawerOpen = true"
+    (openFindReplace)="openFindReplaceModal(false)"
+    [hasColumnFilters]="hasActiveColumnFilters"
+    (clearAllFilters)="clearAllColumnFilters()"
+    (openValidation)="dataValidationModalOpen = true"
+    (openRemoveDuplicates)="removeDuplicatesModalOpen = true"
+    (openTextToColumns)="textToColumnsModalOpen = true"
+    [hasPivotTables]="hasPivotTables"
+    (openPivotModal)="pivotModalOpen = true"
+    (refreshPivot)="refreshPivotTables()"
+    (openSparklineModal)="openSparklineModal()"
+    (openHyperlinkModal)="openHyperlinkEditor(selectedCell.col, selectedCell.row)"
+    (insertPicture)="pictureInput.click()"
     (changeSelectedChartPalette)="changeSelectedChartPalette($event)"
     (deleteSelectedChart)="deleteSelectedChart()"
-    (save)="notesService.saveCurrentNote()"
+    (save)="saveCurrentDocument()"
     [xlsxBusy]="xlsxBusy"
     (importXlsx)="xlsxInput.click()"
     (exportXlsx)="exportXlsxFile()"
@@ -174,13 +193,18 @@
         <span>F4 ($A$1)</span>
       </button>
 
-      <button type="button" class="px-2 py-1 rounded text-xs text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+      <button type="button" class="px-2 py-1 rounded text-xs disabled:opacity-40"
+        [class.text-blue-600]="!themeService.isDark()"
+        [class.hover:bg-blue-50]="!themeService.isDark()"
+        [class.text-blue-400]="themeService.isDark()"
+        [class.hover:bg-blue-500/15]="themeService.isDark()"
         [disabled]="!activeCellRawFormula.startsWith('=')" (click)="traceFormulaReferences()" [title]="i18n.t('excel.trace.hint')">{{ i18n.t('excel.trace.action') }}</button>
 
       <!-- Formula Input -->
       <input #formulaBarInput
              type="text"
              [value]="activeCellRawFormula"
+             (pointerdown)="onFormulaEditorPointerDown()" (focus)="onFormulaBarFocus()"
              (input)="onFormulaBarChange($any($event.target).value); refreshCompletions($any($event.target))"
              (blur)="closeCompletions()" (keydown)="onFormulaBarKeyDown($event)" (keyup)="onEditorKeyUp($event)"
              aria-autocomplete="list" aria-controls="excel-formula-suggestions" [attr.aria-expanded]="completionItems.length > 0"
@@ -196,7 +220,11 @@
   }
 
   @if (isEditing && !editingOnActiveSheet) {
-    <div class="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 flex items-center gap-3">
+    <div class="px-3 py-1.5 text-xs flex items-center gap-3"
+         [class.bg-blue-50]="!themeService.isDark()"
+         [class.text-blue-700]="!themeService.isDark()"
+         [class.bg-blue-950/70]="themeService.isDark()"
+         [class.text-blue-300]="themeService.isDark()">
       <span>{{ i18n.t('excel.formula.origin', { cell: formulaOriginLabel, sheet: activeSheet.name }) }}</span>
       <button type="button" class="underline" (click)="returnToFormulaOrigin()">{{ i18n.t('excel.formula.return') }}</button>
     </div>
@@ -229,301 +257,412 @@
       </app-excel-chart-sheet-view>
     }
 
-    <!-- SPREADSHEET GRID VIEW -->
+    <!-- SPREADSHEET GRID VIEW (CANVAS) -->
     @if (activeSheet.type === 'grid') {
-      @let viewport = gridViewport;
       <div #gridContainer tabindex="0" (scroll)="onGridScroll()" (wheel)="onGridWheel($event)"
+           role="grid"
+           aria-multiselectable="true"
+           [attr.aria-label]="canvasGrid?.gridA11ySummary || activeSheet.name"
+           [attr.aria-rowcount]="totalRows"
+           [attr.aria-colcount]="totalCols"
+           [attr.aria-activedescendant]="'sheet-a11y-active-cell'"
            class="flex-1 w-full h-full overflow-auto relative select-none"
            [class.bg-white]="!themeService.isDark()"
-           [class.bg-slate-900]="themeService.isDark()"
-           [style.zoom]="currentZoom()">
+           [class.bg-slate-900]="themeService.isDark()">
+        <span data-testid="sheet-a11y-notice" class="sr-only" aria-live="polite">{{ editorNotice }}</span>
 
-        <app-excel-ink-layer [locked]="isReplaying" [strokes]="displayedInkStrokes" [tool]="activeDrawTool" [pen]="currentInkPen"
-          [enabled]="activeRibbonTab === 'Draw' && !isReplaying" [inkToShape]="inkToShape"
-          [width]="inkCanvasWidth" [height]="inkCanvasHeight"
-          (strokesChange)="commitInkStrokes($event)" (select)="selectInk()" />
+        <div class="relative sheet-canvas-world"
+             [style.width.px]="Math.round(inkCanvasWidth * currentZoom())"
+             [style.height.px]="Math.round(inkCanvasHeight * currentZoom())">
+          <div class="sticky top-0 left-0 w-0 h-0 overflow-visible z-0">
+            <app-excel-canvas-grid [host]="this" [scrollContainer]="gridContainer" [renderRevision]="renderRevision"></app-excel-canvas-grid>
+          </div>
 
-        @for (item of activeSheet.artwork || []; track item.id) {
-          <app-excel-floating-artwork [artwork]="item" [zoom]="currentZoom()" [selected]="selectedArtworkId === item.id"
-            [style.left.px]="item.x" [style.top.px]="item.y" [style.width.px]="item.width" [style.height.px]="item.height"
-            (select)="selectedArtworkId = item.id; selectedChartId = null; inkLayer?.clearSelection()" (beginChange)="beginArtworkChange()"
-            (geometryChange)="updateArtwork(item, $event)" (endChange)="finishArtworkChange()" (remove)="removeArtwork(item.id)" />
-        }
+          <div class="sticky top-0 left-0 w-0 h-0 overflow-visible z-20">
+            <app-excel-canvas-objects-layer
+              [host]="this"
+              [scrollLeft]="scrollLeft"
+              [scrollTop]="scrollTop"
+              [viewportWidth]="viewportWidth"
+              [viewportHeight]="viewportHeight"
+              [zoom]="currentZoom()"
+              [isDark]="themeService.isDark()"
+              [renderRevision]="renderRevision"
+              [selectedChartId]="selectedChartId"
+              [selectedArtworkId]="selectedArtworkId"
+            ></app-excel-canvas-objects-layer>
+          </div>
 
-        <!-- Floating Embedded Charts Overlay -->
-        @for (ch of activeSheet.charts || []; track ch.id) {
-          <div [style.left.px]="ch.x"
-               [style.top.px]="ch.y"
-               [style.width.px]="ch.width"
-               [style.height.px]="ch.height"
-               (mousedown)="selectedChartId = ch.id; selectedArtworkId = null; inkLayer?.clearSelection(); $event.stopPropagation()"
-               class="absolute z-30 rounded-lg shadow-xl flex flex-col transition-shadow cursor-default"
-               [class.bg-slate-800]="themeService.isDark()"
-               [class.border-2]="selectedChartId === ch.id"
-               [class.border-emerald-600]="selectedChartId === ch.id"
-               [class.ring-2]="selectedChartId === ch.id"
-               [class.ring-emerald-500/30]="selectedChartId === ch.id"
-               [class.border]="selectedChartId !== ch.id"
-               [class.border-slate-700]="selectedChartId !== ch.id && themeService.isDark()"
-               [class.bg-white]="!themeService.isDark()"
-               [class.border-slate-300]="selectedChartId !== ch.id && !themeService.isDark()">
+          <!-- Inline Cell Editor floating over active canvas cell -->
+          @if (isEditing && editingOnActiveSheet) {
+            @let editBox = activeCellEditorBox;
+            @let editStyle = activeCellEditorStyle;
+            @if (editingIsMultiline) {
+              <textarea #cellEditorInput
+                        (pointerdown)="onFormulaEditorPointerDown()"
+                        [(ngModel)]="editingValue" (blur)="closeCompletions()" (input)="onCellEditorInput($event)" (keydown)="onCellEditorKeyDown($event)" (keyup)="onEditorKeyUp($event)"
+                        aria-autocomplete="list" aria-controls="excel-formula-suggestions" [attr.aria-expanded]="completionItems.length > 0"
+                        [style.left.px]="editBox.left"
+                        [style.top.px]="editBox.top"
+                        [style.width.px]="Math.max(editBox.width, 160)"
+                        [style.height.px]="Math.max(editBox.height, editingLineCount * 16 + 10)"
+                        [style.text-align]="editStyle.textAlign"
+                        [style.font-weight]="editStyle.fontWeight"
+                        [style.font-style]="editStyle.fontStyle"
+                        [style.font-size.px]="editStyle.fontSizePx"
+                        [style.font-family]="editStyle.fontFamily"
+                        class="absolute px-2 py-1 outline-none border-2 border-emerald-500 z-30 bg-white text-slate-900 box-border resize-none leading-snug"></textarea>
+            } @else {
+              <input #cellEditorInput
+                     (pointerdown)="onFormulaEditorPointerDown()"
+                     type="text"
+                     [(ngModel)]="editingValue" (blur)="closeCompletions()" (input)="onCellEditorInput($event)" (keydown)="onCellEditorKeyDown($event)" (keyup)="onEditorKeyUp($event)"
+                     aria-autocomplete="list" aria-controls="excel-formula-suggestions" [attr.aria-expanded]="completionItems.length > 0"
+                     [style.left.px]="editBox.left"
+                     [style.top.px]="editBox.top"
+                     [style.width.px]="editBox.width"
+                     [style.height.px]="editBox.height"
+                     [style.text-align]="editStyle.textAlign"
+                     [style.font-weight]="editStyle.fontWeight"
+                     [style.font-style]="editStyle.fontStyle"
+                     [style.font-size.px]="editStyle.fontSizePx"
+                     [style.font-family]="editStyle.fontFamily"
+                     class="absolute px-2 outline-none border-2 border-emerald-500 z-30 bg-white text-slate-900 box-border" />
+            }
+          }
 
-            <!-- Chart Drag Bar -->
-            <div (mousedown)="draggingChart = { id: ch.id, startX: $event.clientX, startY: $event.clientY, origX: ch.x, origY: ch.y }; selectedChartId = ch.id; $event.stopPropagation()"
-                 class="h-8 px-3 border-b flex items-center justify-between cursor-move rounded-t-lg select-none"
-                 [class.bg-[#262626]]="themeService.isDark()"
-                 [class.border-[#383838]]="themeService.isDark()"
-                 [class.bg-[#f8f9fa]]="!themeService.isDark()"
-                 [class.border-[#e5e5e5]]="!themeService.isDark()">
-              
-              <div class="flex items-center gap-2 truncate">
-                <span class="text-xs font-semibold truncate"
-                      [class.text-gray-200]="themeService.isDark()"
-                      [class.text-[#262626]]="!themeService.isDark()">
-                  {{ getChartTypeLabel(ch) }}
-                </span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded border"
-                      [class.text-emerald-400]="themeService.isDark()"
-                      [class.bg-emerald-950/60]="themeService.isDark()"
-                      [class.border-emerald-800]="themeService.isDark()"
-                      [class.text-emerald-700]="!themeService.isDark()"
-                      [class.bg-emerald-50]="!themeService.isDark()"
-                      [class.border-emerald-200]="!themeService.isDark()">
-                  {{ getChartRangeString(ch.range) }}
-                </span>
+          <div class="sticky top-0 left-0 w-0 h-0 overflow-visible z-35">
+            <app-excel-ink-layer
+              [locked]="isReplaying"
+              [strokes]="displayedInkStrokes"
+              [tool]="activeDrawTool"
+              [pen]="currentInkPen"
+              [enabled]="activeRibbonTab === 'Draw' && !isReplaying"
+              [inkToShape]="inkToShape"
+              [width]="inkCanvasWidth"
+              [height]="inkCanvasHeight"
+              [scrollLeft]="scrollLeft"
+              [scrollTop]="scrollTop"
+              [viewportWidth]="viewportWidth"
+              [viewportHeight]="viewportHeight"
+              [zoom]="currentZoom()"
+              (strokesChange)="commitInkStrokes($event)"
+              (select)="selectInk()"
+            />
+          </div>
+        </div>
+
+        <!-- Screen-reader & keyboard landmarks scoped strictly to viewport-visible floating objects -->
+        @if (visibleCharts.length > 0 || visibleArtwork.length > 0) {
+          <div class="sr-only" aria-label="Objetos flotantes visibles">
+            @for (item of visibleArtwork; track item.id) {
+              <div role="region" [attr.aria-label]="item.kind === 'icon' ? 'Icono ' + item.itemId : 'Forma ' + item.itemId">
+                <button type="button" (click)="selectedArtworkId = item.id; selectedChartId = null; inkLayer?.clearSelection()">Seleccionar {{ item.itemId }}</button>
+                <button type="button" (click)="removeArtwork(item.id)">Eliminar {{ item.itemId }}</button>
               </div>
-
-              <div (mousedown)="$event.stopPropagation()" class="flex items-center gap-1 shrink-0">
-                <button type="button"
-                        (click)="openChangeChartType(ch, $event)"
-                        title="Cambiar tipo de gráfico..."
-                        class="px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 border transition-colors cursor-pointer"
-                        [class.bg-slate-700]="themeService.isDark()"
-                        [class.hover:bg-slate-600]="themeService.isDark()"
-                        [class.border-slate-600]="themeService.isDark()"
-                        [class.text-slate-200]="themeService.isDark()"
-                        [class.bg-white]="!themeService.isDark()"
-                        [class.hover:bg-gray-100]="!themeService.isDark()"
-                        [class.border-gray-300]="!themeService.isDark()"
-                        [class.text-gray-700]="!themeService.isDark()">
-                  <svg lucideIcon="sliders-horizontal" [size]="12" class="text-blue-500"></svg>
-                  <span>Type</span>
-                </button>
-                <button type="button"
-                        (click)="deleteSelectedChart(); $event.stopPropagation()"
-                        class="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Eliminar gráfico">
-                  <svg lucideIcon="x" [size]="14"></svg>
-                </button>
+            }
+            @for (ch of visibleCharts; track ch.id) {
+              <div role="region" [attr.aria-label]="'Gráfico ' + getChartTypeLabel(ch) + ' ' + getChartRangeString(ch.range)">
+                <button type="button" (click)="openChangeChartType(ch, $any($event))">Cambiar tipo de gráfico</button>
+                <button type="button" (click)="deleteChartById(ch.id)">Eliminar gráfico</button>
               </div>
-            </div>
-
-            <!-- Chart Body -->
-            <div class="flex-1 min-h-0 p-2 overflow-hidden">
-              <app-excel-chart-renderer
-                [seriesColors]="ch.seriesColors" [appearance]="ch.appearance" [dataConfig]="ch.dataConfig" [chartTitle]="ch.chartTitle || ''"
-                [category]="ch.category"
-                [subType]="ch.subType"
-                [grid]="chartGrid(ch)" [dataRevision]="formulaWorkbookRevision"
-                [range]="ch.range"
-                [palette]="ch.colorPalette">
-              </app-excel-chart-renderer>
-            </div>
-
-            <!-- 4 Corner Selection Handles & Resizer -->
-            @if (selectedChartId === ch.id) {
-              <div class="w-2.5 h-2.5 bg-white border-2 border-emerald-600 rounded-full absolute -top-1.5 -left-1.5 pointer-events-none z-40"></div>
-              <div class="w-2.5 h-2.5 bg-white border-2 border-emerald-600 rounded-full absolute -top-1.5 -right-1.5 pointer-events-none z-40"></div>
-              <div class="w-2.5 h-2.5 bg-white border-2 border-emerald-600 rounded-full absolute -bottom-1.5 -left-1.5 pointer-events-none z-40"></div>
-              <div (mousedown)="resizingChart = { id: ch.id, startX: $event.clientX, startY: $event.clientY, origW: ch.width, origH: ch.height }; $event.stopPropagation()"
-                   title="Arrastrar para redimensionar gráfico"
-                   class="w-3 h-3 bg-emerald-600 border border-white rounded-full absolute -bottom-1.5 -right-1.5 cursor-nwse-resize z-40 shadow-sm"></div>
             }
           </div>
         }
 
-        <!-- SPREADSHEET TABLE -->
-        <table class="border-collapse table-fixed select-none virtual-sheet-table" [style.width.px]="inkCanvasWidth"
+        @if (filterMenuState; as fm) {
+          <div
+            class="column-filter-popover fixed-in-sheet sticky-in-sheet z-40 w-56 rounded-lg border p-2.5 shadow-xl text-xs"
+            [class.bg-slate-800]="themeService.isDark()"
+            [class.border-slate-700]="themeService.isDark()"
+            [class.text-slate-100]="themeService.isDark()"
+            [class.bg-white]="!themeService.isDark()"
+            [class.border-slate-200]="!themeService.isDark()"
+            [class.text-slate-800]="!themeService.isDark()"
+            [style.position]="'absolute'"
+            [style.left.px]="fm.left"
+            [style.top.px]="fm.top"
+            (mousedown)="$event.stopPropagation()">
+            <div class="flex items-center justify-between gap-2 pb-1.5 mb-1.5 border-b"
+                 [class.border-slate-700]="themeService.isDark()"
+                 [class.border-slate-200]="!themeService.isDark()">
+              <span class="font-semibold">Filtro columna {{ colIndexToLetter(fm.col) }}</span>
+              <button type="button"
+                      (click)="closeColumnFilterMenu()"
+                      class="p-0.5 rounded hover:bg-slate-500/15 cursor-pointer"
+                      aria-label="Cerrar filtro">
+                <svg lucideIcon="x" [size]="12"></svg>
+              </button>
+            </div>
+            <div class="max-h-40 overflow-y-auto space-y-1">
+              @for (opt of fm.options; track opt) {
+                <label class="flex items-center gap-2 px-1 py-0.5 rounded cursor-pointer hover:bg-emerald-500/10">
+                  <input type="checkbox"
+                         [checked]="isFilterValueChecked(fm.col, opt)"
+                         (change)="toggleFilterOption(fm.col, opt)"
+                         class="accent-emerald-600" />
+                  <span class="truncate">{{ opt }}</span>
+                </label>
+              } @empty {
+                <div class="px-1 py-2 opacity-60">Sin valores únicos</div>
+              }
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2 mt-1.5 border-t"
+                 [class.border-slate-700]="themeService.isDark()"
+                 [class.border-slate-200]="!themeService.isDark()">
+              <button type="button"
+                      (click)="clearColumnFilter(fm.col)"
+                      class="px-2 py-1 rounded border text-[11px] hover:bg-slate-500/10 cursor-pointer"
+                      [class.border-slate-600]="themeService.isDark()"
+                      [class.border-slate-300]="!themeService.isDark()">
+                Limpiar
+              </button>
+              <button type="button"
+                      (click)="closeColumnFilterMenu()"
+                      class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium cursor-pointer">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (validationMenuState; as vm) {
+          <div role="listbox"
+               data-testid="validation-cell-dropdown"
+               class="validation-dropdown-popover z-40 rounded-xl border p-1 shadow-xl text-xs max-h-48 overflow-y-auto"
+               [class.bg-slate-900]="themeService.isDark()"
+               [class.border-slate-700]="themeService.isDark()"
+               [class.text-slate-100]="themeService.isDark()"
                [class.bg-white]="!themeService.isDark()"
-               [class.bg-slate-900]="themeService.isDark()">
-          <colgroup>
-            @if (showHeadings) { <col style="width: 40px" /> }
-            @if (viewport.left > 0) { <col [style.width.px]="viewport.left" /> }
-            @for (col of viewport.columns; track col) { <col [style.width.px]="getColWidth(col)" /> }
-            @if (viewport.right > 0) { <col [style.width.px]="viewport.right" /> }
-          </colgroup>
-          <!-- COLUMN HEADERS (A, B, C...) -->
-          @if (showHeadings) {
-            <thead>
-              <tr class="h-6">
-                <!-- Top-Left Corner (Select All) -->
-                <th (click)="selectAllCells()"
-                    class="w-10 min-w-[40px] border sticky top-0 left-0 z-40 cursor-pointer select-none"
-                    [class.bg-slate-800]="themeService.isDark()"
-                    [class.border-slate-700]="themeService.isDark()"
-                    [class.bg-slate-100]="!themeService.isDark()"
-                    [class.border-slate-300]="!themeService.isDark()"
-                    title="Seleccionar todo">
-                  <div class="w-0 h-0 border-l-[8px] border-l-transparent border-b-[8px] border-b-slate-400 ml-auto mr-1 mb-1"></div>
-                </th>
-
-                @if (viewport.left > 0) { <th class="virtual-spacer" aria-hidden="true" [style.width.px]="viewport.left" [style.min-width.px]="viewport.left"></th> }
-                @for (cIdx of viewport.columns; track cIdx) {
-                  @let colLetter = colIndexToLetter(cIdx);
-                  <th [style.width.px]="getColWidth(cIdx)"
-                      [style.min-width.px]="getColWidth(cIdx)"
-                      (click)="selectEntireColumn(cIdx, $event)"
-                      class="text-xs font-medium border sticky top-0 z-30 cursor-pointer select-none relative"
-                      [class.bg-slate-800]="themeService.isDark()"
-                      [class.text-slate-300]="themeService.isDark()"
-                      [class.border-slate-700]="themeService.isDark()"
-                      [class.bg-slate-100]="!themeService.isDark()"
-                      [class.text-slate-700]="!themeService.isDark()"
-                      [class.border-slate-300]="!themeService.isDark()">
-                    <span>{{ colLetter }}</span>
-
-                    <!-- Column resize handle -->
-                    <div (mousedown)="resizingCol = { col: cIdx, startX: $event.clientX, startWidth: getColWidth(cIdx) }; $event.stopPropagation()"
-                         class="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-emerald-500"></div>
-                  </th>
-                }
-                @if (viewport.right > 0) { <th class="virtual-spacer" aria-hidden="true" [style.width.px]="viewport.right" [style.min-width.px]="viewport.right"></th> }
-              </tr>
-            </thead>
-          }
-
-          <!-- ROWS AND CELLS -->
-          <tbody>
-            @if (viewport.top > 0) { <tr aria-hidden="true"><td class="virtual-spacer" [attr.colspan]="viewport.columns.length + (showHeadings ? 1 : 0) + (viewport.left > 0 ? 1 : 0) + (viewport.right > 0 ? 1 : 0)" [style.height.px]="viewport.top"></td></tr> }
-            @for (rowIdx of viewport.rows; track rowIdx) {
-              <tr [style.height.px]="getRowHeight(rowIdx)">
-                <!-- Row Header (1, 2, 3...) -->
-                @if (showHeadings) {
-                  <th (click)="selectEntireRow(rowIdx, $event)"
-                      class="w-10 min-w-[40px] border sticky left-0 z-20 cursor-pointer text-xs font-medium select-none relative"
-                      [class.bg-slate-800]="themeService.isDark()"
-                      [class.text-slate-400]="themeService.isDark()"
-                      [class.border-slate-700]="themeService.isDark()"
-                      [class.bg-slate-100]="!themeService.isDark()"
-                      [class.text-slate-600]="!themeService.isDark()"
-                      [class.border-slate-300]="!themeService.isDark()">
-                    <span>{{ rowIdx + 1 }}</span>
-
-                    <!-- Row resize handle -->
-                    <div (mousedown)="resizingRow = { row: rowIdx, startY: $event.clientY, startHeight: getRowHeight(rowIdx) }; $event.stopPropagation()"
-                         class="absolute left-0 right-0 bottom-0 h-1.5 cursor-row-resize hover:bg-emerald-500"></div>
-                  </th>
-                }
-
-                @if (viewport.left > 0) { <td class="virtual-spacer" aria-hidden="true" [style.width.px]="viewport.left" [style.min-width.px]="viewport.left"></td> }
-                <!-- Cells in Row -->
-                @for (cIdx of viewport.columns; track cIdx) {
-                  @let merge = renderedMerge(cIdx, rowIdx, viewport);
-                  @if (!merge.hidden) {
-                  @let cellCol = merge.col;
-                  @let cellRow = merge.row;
-                  @let cell = getCell(cellCol, cellRow);
-                  @let cellVal = showFormulasInCells && cell?.raw?.startsWith('=') ? (cell?.raw || '') : getCellValue(cellCol, cellRow);
-                  @let isSelected = isCellInSelection(cellCol, cellRow);
-                  @let isActive = isCellActive(cellCol, cellRow);
-
-                  <td [class.trace-cell-highlight]="isTracedCell(cellCol, cellRow)" [attr.data-cell-id]="colIndexToLetter(cellCol) + (cellRow + 1)" [attr.colspan]="merge.colSpan" [attr.rowspan]="merge.rowSpan" [style.width.px]="merge.width"
-                      [style.min-width.px]="merge.width"
-                      [style.max-width.px]="merge.width"
-                      [style.height.px]="merge.height"
-                      [style.background-color]="cell?.style?.bgColor || ''"
-                      [style.color]="cell?.style?.textColor || ''"
-                      [style.text-align]="cell?.style?.align || 'left'"
-                      [style.font-weight]="cell?.style?.bold ? 'bold' : 'normal'"
-                      [style.font-style]="cell?.style?.italic ? 'italic' : 'normal'"
-                      [style.text-decoration]="cell?.style?.underline ? 'underline' : 'none'"
-                      [class.bg-white]="!cell?.style?.bgColor && !themeService.isDark()"
-                      [class.bg-slate-900]="!cell?.style?.bgColor && themeService.isDark()"
-                      [class.border]="showGridlines"
-                      [class.border-slate-200]="showGridlines && !themeService.isDark()"
-                      [class.border-[#334155]]="showGridlines && themeService.isDark()"
-                      (mousedown)="onCellMouseDown(cellCol, cellRow, $event)"
-                      (mouseenter)="onCellMouseEnter(cellCol, cellRow)"
-                      (dblclick)="onCellDoubleClick(cellCol, cellRow)"
-                      class="relative p-0 select-none align-middle text-xs">
-
-                    <!-- Custom Cell Borders Overlay (Crisp Border Lines, Never Clipped) -->
-                    @if (getEffectiveCellBorders(cellCol, cellRow); as cellBorders) {
-                      <app-excel-cell-borders
-                        [borders]="cellBorders"
-                        [skipTop]="shouldSkipBorder(cellCol, cellRow, 'top')"
-                        [skipLeft]="shouldSkipBorder(cellCol, cellRow, 'left')">
-                      </app-excel-cell-borders>
-                    }
-
-                    <!-- Selection Range Highlight & Perimeter Border Overlay -->
-                    @if (isSelected) {
-                      <div class="absolute inset-0 pointer-events-none z-10"
-                           [class.bg-emerald-500/20]="!isActive"
-                           [class.border-t-2]="isTopSelectionEdge(cellCol, cellRow)"
-                           [class.border-t-emerald-600]="isTopSelectionEdge(cellCol, cellRow)"
-                           [class.border-b-2]="isBottomSelectionEdge(cellCol, cellRow)"
-                           [class.border-b-emerald-600]="isBottomSelectionEdge(cellCol, cellRow)"
-                           [class.border-l-2]="isLeftSelectionEdge(cellCol, cellRow)"
-                           [class.border-l-emerald-600]="isLeftSelectionEdge(cellCol, cellRow)"
-                           [class.border-r-2]="isRightSelectionEdge(cellCol, cellRow)"
-                           [class.border-r-emerald-600]="isRightSelectionEdge(cellCol, cellRow)"
-                           [class.border-dashed]="isFillDragging">
-                      </div>
-                    }
-                    
-                    @if (getSourceHighlight(cellCol, cellRow); as highlight) {
-                      <div class="absolute inset-0 pointer-events-none z-10" [ngStyle]="highlight"></div>
-                    }
-
-                    <!-- Inline Cell Editor or Cell Display -->
-                    @if (isActive && isEditing && editingOnActiveSheet) {
-                      <input #cellEditorInput
-                             type="text"
-                             [(ngModel)]="editingValue" (blur)="closeCompletions()" (input)="onCellEditorInput($event)" (keydown)="onCellEditorKeyDown($event)" (keyup)="onEditorKeyUp($event)"
-                             aria-autocomplete="list" aria-controls="excel-formula-suggestions" [attr.aria-expanded]="completionItems.length > 0"
-                             class="absolute inset-0 w-full h-full px-2 text-xs font-mono outline-none border-2 border-emerald-500 z-30"
-                             [class.bg-slate-800]="themeService.isDark()"
-                             [class.text-white]="themeService.isDark()"
-                             [class.bg-white]="!themeService.isDark()"
-                             [class.text-slate-900]="!themeService.isDark()" />
-                    } @else {
-                      <div class="w-full h-full px-2 flex items-center overflow-hidden text-ellipsis whitespace-nowrap"
-                           [class.justify-center]="cell?.style?.align === 'center'"
-                           [class.justify-end]="cell?.style?.align === 'right'"
-                           [class.justify-start]="!cell?.style?.align || cell?.style?.align === 'left'">
-                        <span class="truncate block max-w-full relative z-0">{{ formatCellDisplay(cellVal, cell?.style) }}</span>
-                      </div>
-                    }
-
-                    <!-- Autofill Corner Handle -->
-                    @if (isBottomRightSelectionCorner(cellCol, cellRow) && !isEditing) {
-                      <div (mousedown)="startFillDrag($event)"
-                           class="w-2.5 h-2.5 bg-emerald-600 border border-white absolute -bottom-1 -right-1 z-30 cursor-crosshair hover:scale-125 transition-transform"
-                           title="Arrastrar para autocompletar">
-                      </div>
-                    }
-                  </td>
-                  }
-                }
-                @if (viewport.right > 0) { <td class="virtual-spacer" aria-hidden="true" [style.width.px]="viewport.right" [style.min-width.px]="viewport.right"></td> }
-              </tr>
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()"
+               [style.position]="'absolute'"
+               [style.left.px]="vm.left"
+               [style.top.px]="vm.top"
+               [style.minWidth.px]="vm.width"
+               (mousedown)="$event.stopPropagation()">
+            @for (opt of vm.options; track opt) {
+              <button type="button"
+                      role="option"
+                      (click)="selectValidationOption(opt)"
+                      class="w-full px-2.5 py-1.5 rounded-lg text-left cursor-pointer transition-colors"
+                      [class.hover:bg-slate-800]="themeService.isDark()"
+                      [class.hover:bg-emerald-50]="!themeService.isDark()">
+                {{ opt }}
+              </button>
             }
-            @if (viewport.bottom > 0) { <tr aria-hidden="true"><td class="virtual-spacer" [attr.colspan]="viewport.columns.length + (showHeadings ? 1 : 0) + (viewport.left > 0 ? 1 : 0) + (viewport.right > 0 ? 1 : 0)" [style.height.px]="viewport.bottom"></td></tr> }
-          </tbody>
-        </table>
+          </div>
+        }
+
+        @if (hoveredCommentState; as hc) {
+          <div data-testid="cell-comment-tooltip"
+               class="z-40 w-56 rounded-xl border p-2.5 shadow-lg text-xs pointer-events-none"
+               [class.bg-amber-950]="themeService.isDark()"
+               [class.border-amber-700]="themeService.isDark()"
+               [class.text-amber-100]="themeService.isDark()"
+               [class.bg-amber-50]="!themeService.isDark()"
+               [class.border-amber-300]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()"
+               [style.position]="'absolute'"
+               [style.left.px]="hc.left"
+               [style.top.px]="hc.top">
+            <div class="flex items-center justify-between text-[11px] font-semibold mb-1 opacity-80">
+              <span>{{ hc.cellId }}</span>
+              @if (hc.author) {
+                <span>{{ hc.author }}</span>
+              }
+            </div>
+            <p class="whitespace-pre-wrap break-words leading-snug">{{ hc.text }}</p>
+          </div>
+        }
+
+        @if (commentEditorState; as ce) {
+          <div data-testid="cell-comment-popover"
+               class="cell-comment-popover z-40 w-64 rounded-xl border p-2.5 shadow-xl text-xs"
+               [class.bg-slate-900]="themeService.isDark()"
+               [class.border-slate-700]="themeService.isDark()"
+               [class.text-slate-100]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-300]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()"
+               [style.position]="'absolute'"
+               [style.left.px]="ce.left"
+               [style.top.px]="ce.top"
+               (mousedown)="$event.stopPropagation()">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-semibold">Nota {{ ce.cellId }}</span>
+              <button type="button"
+                      (click)="closeCellCommentEditor()"
+                      class="p-0.5 rounded hover:bg-slate-500/15 cursor-pointer"
+                      aria-label="Cerrar nota">
+                <svg lucideIcon="x" [size]="12"></svg>
+              </button>
+            </div>
+            <textarea
+              data-testid="cell-comment-input"
+              [(ngModel)]="ce.text"
+              (keydown.escape)="closeCellCommentEditor()"
+              rows="3"
+              placeholder="Escribe una nota para esta celda..."
+              class="w-full rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-emerald-500 resize-y"
+              [class.bg-slate-800]="themeService.isDark()"
+              [class.border-slate-700]="themeService.isDark()"
+              [class.bg-slate-50]="!themeService.isDark()"
+              [class.border-slate-300]="!themeService.isDark()"></textarea>
+            <div class="flex items-center justify-between gap-2 mt-2">
+              @if (activeSheet.comments?.[ce.cellId]) {
+                <button type="button"
+                        data-testid="cell-comment-delete"
+                        (click)="deleteCellComment(ce.col, ce.row)"
+                        class="text-rose-500 hover:underline text-[11px] cursor-pointer">
+                  Eliminar
+                </button>
+              } @else {
+                <span></span>
+              }
+              <div class="flex items-center gap-1.5">
+                <button type="button"
+                        (click)="closeCellCommentEditor()"
+                        class="px-2 py-1 rounded-lg border text-[11px] cursor-pointer"
+                        [class.border-slate-700]="themeService.isDark()"
+                        [class.border-slate-300]="!themeService.isDark()">
+                  Cancelar
+                </button>
+                <button type="button"
+                        data-testid="cell-comment-save"
+                        (click)="saveCellComment()"
+                        class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium cursor-pointer">
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (hyperlinkEditorState; as he) {
+          <div data-testid="hyperlink-modal"
+               class="cell-hyperlink-popover z-40 w-72 rounded-xl border p-3 shadow-xl text-xs"
+               [class.bg-slate-900]="themeService.isDark()"
+               [class.border-slate-700]="themeService.isDark()"
+               [class.text-slate-100]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()"
+               [style.position]="'absolute'"
+               [style.left.px]="he.left"
+               [style.top.px]="he.top"
+               (mousedown)="$event.stopPropagation()">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold">Hipervínculo {{ he.cellId }}</span>
+              <button type="button"
+                      (click)="closeHyperlinkEditor()"
+                      class="p-0.5 rounded hover:bg-slate-500/15 cursor-pointer"
+                      aria-label="Cerrar hipervínculo">
+                <svg lucideIcon="x" [size]="12"></svg>
+              </button>
+            </div>
+            <label class="block text-[11px] opacity-75 mb-1">URL (https://, http:// o mailto:)</label>
+            <input type="text"
+                   data-testid="hyperlink-url-input"
+                   [(ngModel)]="he.url"
+                   (input)="he.error = undefined"
+                   (keydown.enter)="saveCellHyperlink()"
+                   (keydown.escape)="closeHyperlinkEditor()"
+                   placeholder="https://ejemplo.com"
+                   class="w-full rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-emerald-500 mb-2"
+                   [class.bg-slate-800]="themeService.isDark()"
+                   [class.border-slate-700]="themeService.isDark()"
+                   [class.bg-slate-50]="!themeService.isDark()"
+                   [class.border-slate-300]="!themeService.isDark()" />
+            <label class="block text-[11px] opacity-75 mb-1">Texto mostrado</label>
+            <input type="text"
+                   data-testid="hyperlink-label-input"
+                   [(ngModel)]="he.label"
+                   (keydown.enter)="saveCellHyperlink()"
+                   (keydown.escape)="closeHyperlinkEditor()"
+                   placeholder="Opcional"
+                   class="w-full rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-emerald-500"
+                   [class.bg-slate-800]="themeService.isDark()"
+                   [class.border-slate-700]="themeService.isDark()"
+                   [class.bg-slate-50]="!themeService.isDark()"
+                   [class.border-slate-300]="!themeService.isDark()" />
+            @if (he.error) {
+              <div class="text-rose-500 text-[11px] mt-1.5">{{ he.error }}</div>
+            }
+            <div class="flex items-center justify-between gap-2 mt-2.5">
+              @if (activeSheet.data[he.cellId]?.hyperlink) {
+                <button type="button"
+                        data-testid="hyperlink-remove"
+                        (click)="removeCellHyperlink(he.col, he.row)"
+                        class="text-rose-500 hover:underline text-[11px] cursor-pointer">
+                  Quitar
+                </button>
+              } @else {
+                <span></span>
+              }
+              <div class="flex items-center gap-1.5">
+                <button type="button"
+                        (click)="closeHyperlinkEditor()"
+                        class="px-2 py-1 rounded-lg border text-[11px] cursor-pointer"
+                        [class.border-slate-700]="themeService.isDark()"
+                        [class.border-slate-300]="!themeService.isDark()">
+                  Cancelar
+                </button>
+                <button type="button"
+                        data-testid="hyperlink-save"
+                        (click)="saveCellHyperlink()"
+                        class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium cursor-pointer">
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (pasteSpecialMenu; as ps) {
+          <div data-testid="paste-special-menu"
+               class="paste-special-popover z-40 w-52 rounded-xl border p-1.5 shadow-xl text-xs"
+               [class.bg-slate-900]="themeService.isDark()"
+               [class.border-slate-700]="themeService.isDark()"
+               [class.text-slate-100]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-800]="!themeService.isDark()"
+               [style.position]="'absolute'"
+               [style.left.px]="ps.left"
+               [style.top.px]="ps.top"
+               (mousedown)="$event.stopPropagation()">
+            <div class="px-2.5 py-1 text-[11px] font-semibold opacity-65">Pegado especial</div>
+            <button type="button" data-testid="paste-special-values" (click)="applyPasteSpecial('values')"
+                    class="w-full px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-500/15 cursor-pointer">
+              Solo valores
+            </button>
+            <button type="button" data-testid="paste-special-formulas" (click)="applyPasteSpecial('formulas')"
+                    class="w-full px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-500/15 cursor-pointer">
+              Solo fórmulas
+            </button>
+            <button type="button" data-testid="paste-special-formats" (click)="applyPasteSpecial('formats')"
+                    class="w-full px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-500/15 cursor-pointer">
+              Solo formatos
+            </button>
+            <button type="button" data-testid="paste-special-transpose" (click)="applyPasteSpecial('transpose')"
+                    class="w-full px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-500/15 cursor-pointer">
+              Transponer (filas ↔ cols)
+            </button>
+          </div>
+        }
       </div>
     }
   </div>
 
   <!-- 5. SHEET TABS BAR (BOTTOM) -->
-  <div class="sheet-footer px-2 py-1 border-t flex items-center justify-between gap-3 text-xs shrink-0 min-w-0"
+  <div class="sheet-footer relative z-40 px-2 py-1 border-t flex flex-nowrap items-center justify-between gap-3 text-xs shrink-0 min-w-0 h-9 max-h-9 whitespace-nowrap"
        [class.bg-slate-900]="themeService.isDark()"
        [class.border-slate-800]="themeService.isDark()"
        [class.bg-white]="!themeService.isDark()"
        [class.border-slate-200]="!themeService.isDark()">
     
-    <div class="flex items-center gap-1 flex-1 min-w-0">
+    <div class="flex flex-nowrap items-center gap-1 flex-1 min-w-0 h-full overflow-hidden">
       <!-- Add Sheet (+) Button -->
       <button type="button"
               (click)="addNewSheet()"
@@ -532,10 +671,16 @@
         <svg lucideIcon="plus" [size]="14"></svg>
       </button>
 
-      <div class="sheet-tabs-scroll" [attr.aria-label]="i18n.t('excel.sheet.tabs')">
+      <div #sheetTabsScroll
+           class="sheet-tabs-scroll"
+           (wheel)="onSheetTabsWheel($event)"
+           [attr.aria-label]="i18n.t('excel.sheet.tabs')">
       <!-- Sheet Tabs -->
       @for (sh of sheets; track sh.id) {
-        <div [attr.data-sheet-id]="sh.id" (click)="switchSheet(sh.id)"
+        <div [attr.data-sheet-id]="sh.id"
+             (click)="switchSheet(sh.id)"
+             (contextmenu)="openSheetTabMenu(sh, $event)"
+             [style.boxShadow]="sh.tabColor ? 'inset 0 -3px 0 ' + sh.tabColor : null"
              class="sheet-tab px-3 py-1 rounded flex items-center gap-1.5 cursor-pointer transition-colors border text-xs"
              [class.bg-emerald-600]="activeSheetId === sh.id"
              [class.text-white]="activeSheetId === sh.id"
@@ -591,6 +736,81 @@
                class="w-20 accent-blue-600 cursor-pointer" />
         <span class="font-mono text-[11px] w-9">{{ Math.round(currentZoom() * 100) }}%</span>
       </div>
+
+      <!-- All Sheets List Picker (Right Corner) -->
+      <div class="sheet-list-picker relative border-l pl-2 shrink-0"
+           [class.border-slate-700]="themeService.isDark()"
+           [class.border-slate-200]="!themeService.isDark()"
+           (keydown.escape)="sheetListOpen = false">
+        <button type="button"
+                data-testid="sheet-list-toggle"
+                (click)="toggleSheetList($event)"
+                aria-haspopup="listbox"
+                [attr.aria-expanded]="sheetListOpen"
+                [attr.aria-label]="i18n.t('excel.sheet.list')"
+                [title]="i18n.t('excel.sheet.list')"
+                class="h-7 px-2.5 rounded-lg border flex items-center gap-1.5 text-[11px] font-medium cursor-pointer transition-colors"
+                [class.bg-slate-800]="themeService.isDark()"
+                [class.border-slate-700]="themeService.isDark()"
+                [class.text-slate-200]="themeService.isDark()"
+                [class.hover:bg-slate-700]="themeService.isDark()"
+                [class.bg-slate-50]="!themeService.isDark()"
+                [class.border-slate-200]="!themeService.isDark()"
+                [class.text-slate-700]="!themeService.isDark()"
+                [class.hover:bg-slate-100]="!themeService.isDark()">
+          <svg lucideIcon="list" [size]="13" class="opacity-80"></svg>
+          <span>{{ i18n.t('excel.sheet.all', { count: sheets.length }) }}</span>
+          <svg lucideIcon="chevron-up" [size]="12" class="opacity-70 transition-transform" [class.rotate-180]="sheetListOpen"></svg>
+        </button>
+
+        @if (sheetListOpen) {
+          <div role="listbox"
+               [attr.aria-label]="i18n.t('excel.sheet.tabs')"
+               class="sheet-list-popover absolute right-0 bottom-full mb-1.5 w-64 max-h-72 rounded-xl border shadow-xl z-50 flex flex-col overflow-hidden"
+               [class.bg-slate-900]="themeService.isDark()"
+               [class.border-slate-700]="themeService.isDark()"
+               [class.text-slate-200]="themeService.isDark()"
+               [class.bg-white]="!themeService.isDark()"
+               [class.border-slate-200]="!themeService.isDark()"
+               [class.text-slate-700]="!themeService.isDark()">
+            <div class="px-3 py-2 text-[11px] font-semibold border-b flex items-center justify-between shrink-0"
+                 [class.border-slate-800]="themeService.isDark()"
+                 [class.text-slate-400]="themeService.isDark()"
+                 [class.border-slate-100]="!themeService.isDark()"
+                 [class.text-slate-500]="!themeService.isDark()">
+              <span>{{ i18n.t('excel.sheet.tabs') }}</span>
+              <span>{{ sheets.length }}</span>
+            </div>
+            <div class="overflow-y-auto p-1 flex flex-col gap-0.5">
+              @for (sh of sheets; track sh.id) {
+                <button type="button"
+                        role="option"
+                        [attr.aria-selected]="activeSheetId === sh.id"
+                        [attr.data-sheet-list-id]="sh.id"
+                        (click)="selectSheetFromList(sh.id)"
+                        class="w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 text-left text-xs cursor-pointer transition-colors"
+                        [class.bg-emerald-600/15]="activeSheetId === sh.id"
+                        [class.text-emerald-400]="activeSheetId === sh.id && themeService.isDark()"
+                        [class.text-emerald-700]="activeSheetId === sh.id && !themeService.isDark()"
+                        [class.font-medium]="activeSheetId === sh.id"
+                        [class.hover:bg-slate-800]="activeSheetId !== sh.id && themeService.isDark()"
+                        [class.hover:bg-slate-100]="activeSheetId !== sh.id && !themeService.isDark()">
+                  <span class="flex items-center gap-2 min-w-0">
+                    @if (sh.tabColor) {
+                      <span class="w-2 h-2 rounded-full shrink-0" [style.backgroundColor]="sh.tabColor"></span>
+                    }
+                    <svg [lucideIcon]="sh.type === 'chart' ? 'bar-chart-2' : 'file-spreadsheet'" [size]="13" class="shrink-0 opacity-80"></svg>
+                    <span class="truncate">{{ sh.name }}</span>
+                  </span>
+                  @if (activeSheetId === sh.id) {
+                    <svg lucideIcon="check" [size]="13" class="shrink-0"></svg>
+                  }
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
     </div>
   </div>
 
@@ -599,10 +819,23 @@
   @if (conditionalModalOpen) {
     <app-excel-conditional-modal
       [range]="selectionRange"
-      (addRule)="activeSheet.conditionalRules = (activeSheet.conditionalRules || []).concat($event); scheduleAutoSave()"
-      (clearRangeRules)="activeSheet.conditionalRules = []; scheduleAutoSave()"
+      [existingRules]="activeSheet.conditionalRules || []"
+      (addRule)="addConditionalRule($event)"
+      (removeRule)="removeConditionalRule($event)"
+      (clearRangeRules)="clearConditionalRules()"
       (close)="conditionalModalOpen = false">
     </app-excel-conditional-modal>
+  }
+
+  @if (sparklineModalOpen) {
+    <app-excel-sparkline-modal
+      [sourceRange]="selectionRange"
+      [initialTargetCellId]="sparklineInitialTargetCell"
+      [existingConfig]="sparklineExistingConfig"
+      (apply)="applySparkline($event)"
+      (remove)="removeSparkline($event)"
+      (close)="sparklineModalOpen = false">
+    </app-excel-sparkline-modal>
   }
 
   @if (sortFilterModalOpen) {
@@ -646,6 +879,65 @@
     </app-excel-functions-drawer>
   }
 
+  @if (findReplaceModalOpen) {
+    <app-excel-find-replace-modal
+      [focusReplace]="findReplaceFocusReplace"
+      [matches]="findReplaceMatches"
+      [activeIndex]="findReplaceActiveIndex"
+      [statusMessage]="findReplaceStatus"
+      (searchChange)="updateFindSearch($event)"
+      (findNext)="stepFindMatch($event, 1)"
+      (findPrev)="stepFindMatch($event, -1)"
+      (replaceCurrent)="replaceCurrentFindMatch($event)"
+      (replaceAll)="replaceAllFindMatches($event)"
+      (close)="findReplaceModalOpen = false">
+    </app-excel-find-replace-modal>
+  }
+
+  @if (dataValidationModalOpen) {
+    <app-excel-data-validation-modal
+      [existingRule]="activeValidationRule"
+      [rangeLabel]="getChartRangeString(selectionRange)"
+      (apply)="applyDataValidationRule($event)"
+      (close)="dataValidationModalOpen = false">
+    </app-excel-data-validation-modal>
+  }
+
+  @if (removeDuplicatesModalOpen) {
+    <app-excel-remove-duplicates-modal
+      [columns]="removeDuplicateColumns"
+      [rangeLabel]="getChartRangeString(selectionRange)"
+      (apply)="applyRemoveDuplicates($event)"
+      (close)="removeDuplicatesModalOpen = false">
+    </app-excel-remove-duplicates-modal>
+  }
+
+  @if (textToColumnsModalOpen) {
+    <app-excel-text-to-columns-modal
+      [grid]="activeSheet.data"
+      [range]="selectionRange"
+      [sheets]="sheets"
+      [activeSheet]="activeSheet"
+      [calculationCache]="calculationCache"
+      [rangeLabel]="getChartRangeString(selectionRange)"
+      (apply)="applyTextToColumnsTool($event)"
+      (close)="textToColumnsModalOpen = false">
+    </app-excel-text-to-columns-modal>
+  }
+
+  @if (pivotModalOpen) {
+    <app-excel-pivot-modal
+      [grid]="activeSheet.data"
+      [range]="selectionRange"
+      [sheets]="sheets"
+      [activeSheet]="activeSheet"
+      [calculationCache]="calculationCache"
+      [rangeLabel]="getChartRangeString(selectionRange)"
+      (createPivot)="applyPivotTable($event)"
+      (close)="pivotModalOpen = false">
+    </app-excel-pivot-modal>
+  }
+
   @if (exportModalOpen) {
     @defer (on immediate) {
       <app-export-modal
@@ -654,7 +946,11 @@
       </app-export-modal>
     }
   }
-  @if (editorNotice) { <div role="status" class="px-3 py-1 text-xs text-amber-700">{{ editorNotice }}</div> }
+  @if (editorNotice) {
+    <div role="status" class="px-3 py-1 text-xs"
+         [class.text-amber-700]="!themeService.isDark()"
+         [class.text-amber-400]="themeService.isDark()">{{ editorNotice }}</div>
+  }
   @if (isEditing && (completionItems.length || completionSignature)) {
     <div class="formula-completion" [class.dark-completion]="themeService.isDark()" [style.left.px]="completionLeft" [style.top.px]="completionTop">
       @if (completionSignature) { <code class="completion-signature">{{ completionSignature }}</code> }
@@ -676,3 +972,70 @@
       (insert)="insertDefinedName($event)" (close)="namesModalOpen = false" />
   }
 </div>
+
+@if(cellContextMenu;as menu){<app-excel-cell-context-menu [x]="menu.x" [y]="menu.y" [dark]="themeService.isDark()" [hasComment]="!!activeSheet.comments?.[colIndexToLetter(menu.col) + (menu.row + 1)]" [hasHyperlink]="!!activeSheet.data[colIndexToLetter(menu.col) + (menu.row + 1)]?.hyperlink" [hasHiddenRows]="!!activeSheet.hiddenRows?.length" [hasHiddenCols]="!!activeSheet.hiddenCols?.length" (action)="insertFromCellContext($event)" (dismiss)="closeCellContextMenu()"/>}
+
+@if (sheetTabMenu && sheetTabMenuSheet; as menuSheet) {
+  <div data-testid="sheet-tab-menu"
+       class="sheet-tab-context-menu fixed z-50 w-52 rounded-xl border p-1.5 shadow-xl text-xs"
+       [class.bg-slate-900]="themeService.isDark()"
+       [class.border-slate-700]="themeService.isDark()"
+       [class.text-slate-100]="themeService.isDark()"
+       [class.bg-white]="!themeService.isDark()"
+       [class.border-slate-200]="!themeService.isDark()"
+       [class.text-slate-800]="!themeService.isDark()"
+       [style.left.px]="sheetTabMenu.x"
+       [style.top.px]="sheetTabMenu.y"
+       (mousedown)="$event.stopPropagation()">
+    <button type="button" data-testid="tab-action-duplicate" (click)="duplicateSheet(menuSheet.id)"
+            class="w-full px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-500/15 cursor-pointer">
+      Duplicar hoja
+    </button>
+    <button type="button" data-testid="tab-action-move-left"
+            [disabled]="sheetTabMenuIndex <= 0"
+            (click)="moveSheet(menuSheet.id, -1); closeSheetTabMenu()"
+            class="w-full px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-500/15 disabled:opacity-40 cursor-pointer">
+      Mover a la izquierda
+    </button>
+    <button type="button" data-testid="tab-action-move-right"
+            [disabled]="sheetTabMenuIndex >= sheets.length - 1"
+            (click)="moveSheet(menuSheet.id, 1); closeSheetTabMenu()"
+            class="w-full px-2.5 py-1.5 rounded-lg text-left hover:bg-emerald-500/15 disabled:opacity-40 cursor-pointer">
+      Mover a la derecha
+    </button>
+    <div class="my-1 border-t pt-1.5 px-2.5"
+         [class.border-slate-700]="themeService.isDark()"
+         [class.border-slate-200]="!themeService.isDark()">
+      <div class="text-[11px] opacity-70 mb-1.5">Color de pestaña</div>
+      <div class="flex items-center gap-1.5">
+        @for (clr of sheetTabColorPalette; track clr) {
+          <button type="button"
+                  data-testid="tab-color-btn"
+                  [style.backgroundColor]="clr"
+                  (click)="setSheetTabColor(menuSheet.id, clr); closeSheetTabMenu()"
+                  class="w-4 h-4 rounded-full border border-white/40 cursor-pointer"></button>
+        }
+        <button type="button"
+                (click)="setSheetTabColor(menuSheet.id, undefined); closeSheetTabMenu()"
+                class="ml-auto text-[10px] opacity-70 hover:underline cursor-pointer">
+          Sin color
+        </button>
+      </div>
+    </div>
+    @if (sheets.length > 1) {
+      <button type="button" (click)="deleteSheet(menuSheet.id)"
+              class="w-full mt-1 px-2.5 py-1.5 rounded-lg text-left text-rose-500 hover:bg-rose-500/10 cursor-pointer">
+        Eliminar hoja
+      </button>
+    }
+  </div>
+}
+@if(cellContextError){
+  <div role="alert" class="fixed bottom-12 right-4 z-50 rounded-lg border px-4 py-2 text-sm"
+       [class.bg-red-50]="!themeService.isDark()"
+       [class.border-red-300]="!themeService.isDark()"
+       [class.text-red-800]="!themeService.isDark()"
+       [class.bg-red-950/90]="themeService.isDark()"
+       [class.border-red-800]="themeService.isDark()"
+       [class.text-red-200]="themeService.isDark()">{{cellContextError}}</div>
+}

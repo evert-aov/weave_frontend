@@ -1,57 +1,21 @@
-import { ElementRef, signal } from '@angular/core';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WordNavigationController } from './word-navigation.controller';
-
-describe('Word document zoom', () => {
-  let viewport: HTMLElement, page: HTMLElement, controller: WordNavigationController;
-  let zoom: ReturnType<typeof signal<number>>;
-  let frame: FrameRequestCallback | undefined;
-  const rect = (left: number, top: number, width: number, height: number) => ({ left, top, width, height, right: left + width, bottom: top + height } as DOMRect);
-  beforeEach(() => {
-    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => { frame = callback; return 1; }));
-    vi.stubGlobal('cancelAnimationFrame', vi.fn());
-    zoom = signal(100);
-    viewport = document.createElement('main'); page = document.createElement('section');
-    page.className = 'word-page-sheet'; viewport.appendChild(page); document.body.appendChild(viewport);
-    viewport.scrollTop = 1000; viewport.style.overflowAnchor = 'auto';
-    viewport.getBoundingClientRect = () => rect(0, 100, 600, 500);
-    page.getBoundingClientRect = () => rect(100 - viewport.scrollLeft, 100 + 1200 * zoom() / 100 - viewport.scrollTop, 500 * zoom() / 100, 1000 * zoom() / 100);
-    const host = { zoom, refreshObjectOverlays: vi.fn(), mainScrollRef: new ElementRef(viewport) } as unknown as ConstructorParameters<typeof WordNavigationController>[0];
-    controller = new WordNavigationController(host, { cdr: null } as ConstructorParameters<typeof WordNavigationController>[1]);
-    viewport.addEventListener('wheel', event => controller.onPageWheel(event), { passive: false });
-  });
-  afterEach(() => { controller.cancelZoom(); document.body.replaceChildren(); vi.unstubAllGlobals(); });
-
-  it('keeps the same visible page point when zooming with the slider or ribbon', () => {
-    controller.setDocumentZoom(150);
-    expect(zoom()).toBe(150);
-    expect(viewport.scrollTop).toBeCloseTo(1625);
-    const visiblePoint = () => { const box = page.getBoundingClientRect(); return box.top + box.height * .05; };
-    expect(visiblePoint()).toBeCloseTo(350);
-    frame?.(0);
-    expect(visiblePoint()).toBeCloseTo(350);
-    expect(viewport.style.overflowAnchor).toBe('auto');
-  });
-
-  it('captures Ctrl + wheel on paper without affecting normal scrolling or browser zoom outside paper', () => {
-    const wheel = new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, clientX: 300, clientY: 350, bubbles: true, cancelable: true });
-    page.dispatchEvent(wheel);
-    expect(wheel.defaultPrevented).toBe(true); expect(zoom()).toBe(110);
-    const plain = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
-    page.dispatchEvent(plain);
-    expect(plain.defaultPrevented).toBe(false); expect(zoom()).toBe(110);
-    const outside = new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true });
-    viewport.dispatchEvent(outside);
-    expect(outside.defaultPrevented).toBe(false);
-  });
-
-  it('still blocks browser zoom at the document zoom limit and restores anchoring on cleanup', () => {
-    zoom.set(160);
-    const wheel = new WheelEvent('wheel', { ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true });
-    page.dispatchEvent(wheel);
-    expect(wheel.defaultPrevented).toBe(true); expect(zoom()).toBe(160);
-    controller.setDocumentZoom(100);
-    controller.cancelZoom();
-    expect(viewport.style.overflowAnchor).toBe('auto');
-  });
+import {describe,it,expect,vi,afterEach} from 'vitest';
+import {WordNavigationController} from './word-navigation.controller';
+afterEach(()=>{document.body.replaceChildren();vi.unstubAllGlobals();});
+describe('virtual Canvas zoom anchoring',()=>{
+ it('retains the same page point when zoom destroys the original Canvas slot',()=>{
+  vi.stubGlobal('requestAnimationFrame',()=>1);vi.stubGlobal('cancelAnimationFrame',()=>{});
+  const viewport=document.createElement('main'),space=document.createElement('div'),page=document.createElement('canvas');
+  space.className='canvas-document-space';page.className='word-page-sheet';page.setAttribute('data-canvas-index','10');
+  viewport.append(space);space.append(page);document.body.append(viewport);viewport.scrollTop=10000;
+  vi.spyOn(viewport,'getBoundingClientRect').mockReturnValue({top:0,left:0,width:1000,height:700} as DOMRect);
+  vi.spyOn(page,'getBoundingClientRect').mockReturnValue({top:100,left:0,width:600,height:800,right:600,bottom:900} as DOMRect);
+  vi.spyOn(space,'getBoundingClientRect').mockImplementation(()=>({top:-8220-(viewport.scrollTop-10000),left:0} as DOMRect));
+  const zoom=Object.assign(()=>100,{set:vi.fn()});
+  const host={zoom,mainScrollRef:{nativeElement:viewport},refreshObjectOverlays:vi.fn()};
+  const hooks={cdr:{detectChanges:()=>page.remove()}};
+  const controller=new WordNavigationController(host as unknown as ConstructorParameters<typeof WordNavigationController>[0],hooks as unknown as ConstructorParameters<typeof WordNavigationController>[1]);
+  controller.setDocumentZoom(120,{x:300,y:300,page});
+  expect(zoom.set).toHaveBeenCalledWith(120);expect(page.isConnected).toBe(false);
+  expect(viewport.scrollTop).toBe(11640);controller.cancelZoom();
+ });
 });

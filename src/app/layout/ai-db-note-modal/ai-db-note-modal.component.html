@@ -1,0 +1,190 @@
+<div
+  class="ai-db-modal-backdrop"
+  (click)="close.emit()"
+  (keydown)="trapFocus($event)"
+  role="presentation"
+>
+  <div
+    #dialog
+    class="ai-db-modal-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ai-db-modal-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="ai-db-modal-header">
+      <div class="ai-db-modal-title-box">
+        <div class="ai-db-modal-header-icon">
+          <app-icon name="database" [size]="20" />
+        </div>
+        <div class="ai-db-modal-header-texts">
+          <h2 id="ai-db-modal-title" class="ai-db-picker-title">
+            Documentos en la base de datos
+          </h2>
+          <p class="ai-db-modal-subtitle">
+            Selecciona un archivo existente para adjuntarlo al chat y analizarlo con IA
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="ai-db-modal-close-btn"
+        (click)="close.emit()"
+        aria-label="Cerrar ventana"
+      >
+        <app-icon name="close" [size]="16" />
+      </button>
+    </header>
+
+    <div class="ai-db-modal-filters">
+      <div class="ai-db-modal-search-row">
+        <div class="ai-db-search-input-wrapper">
+          <app-icon name="search" [size]="15" class="ai-db-search-icon" />
+          <input
+            #searchInput
+            type="text"
+            class="ai-db-search-input"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+            placeholder="Buscar por título, espacio o tipo de documento..."
+            aria-label="Buscar documentos"
+          />
+          @if (searchQuery()) {
+            <button
+              type="button"
+              class="ai-db-clear-search-btn"
+              (click)="searchQuery.set('')"
+              aria-label="Borrar búsqueda"
+            >
+              <app-icon name="close" [size]="12" />
+            </button>
+          }
+        </div>
+
+        @if (availableSpaces().length > 1) {
+          <select
+            class="ai-db-space-filter"
+            [ngModel]="selectedSpace()"
+            (ngModelChange)="selectedSpace.set($event)"
+            aria-label="Filtrar por espacio"
+          >
+            <option value="all">Todos los espacios</option>
+            @for (sp of availableSpaces(); track sp) {
+              <option [value]="sp">{{ sp }}</option>
+            }
+          </select>
+        }
+      </div>
+
+      <div class="ai-db-type-tabs" role="tablist" aria-label="Filtrar por tipo">
+        <button
+          type="button"
+          class="ai-db-type-tab"
+          [class.active]="selectedDocType() === 'all'"
+          (click)="selectedDocType.set('all')"
+        >
+          <span>Todos</span>
+          <span class="ai-db-tab-count">{{ dbNotesList().length }}</span>
+        </button>
+        <button
+          type="button"
+          class="ai-db-type-tab"
+          [class.active]="selectedDocType() === 'sheet'"
+          (click)="selectedDocType.set('sheet')"
+        >
+          <app-icon name="sheet" [size]="13" />
+          <span>Excel</span>
+          <span class="ai-db-tab-count">{{ docTypeCount('sheet') }}</span>
+        </button>
+        <button
+          type="button"
+          class="ai-db-type-tab"
+          [class.active]="selectedDocType() === 'doc'"
+          (click)="selectedDocType.set('doc')"
+        >
+          <app-icon name="file-text" [size]="13" />
+          <span>Word</span>
+          <span class="ai-db-tab-count">{{ docTypeCount('doc') }}</span>
+        </button>
+        <button
+          type="button"
+          class="ai-db-type-tab"
+          [class.active]="selectedDocType() === 'block'"
+          (click)="selectedDocType.set('block')"
+        >
+          <app-icon name="file-text" [size]="13" />
+          <span>Notas</span>
+          <span class="ai-db-tab-count">{{ docTypeCount('block') }}</span>
+        </button>
+        <button
+          type="button"
+          class="ai-db-type-tab"
+          [class.active]="selectedDocType() === 'canvas'"
+          (click)="selectedDocType.set('canvas')"
+        >
+          <app-icon name="grid" [size]="13" />
+          <span>Lienzo</span>
+          <span class="ai-db-tab-count">{{ docTypeCount('canvas') }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="ai-db-modal-body ai-db-picker-list">
+      @if (isLoading()) {
+        <div class="ai-db-modal-state">
+          <span class="ai-spinner"></span>
+          <p class="ai-db-picker-empty">Cargando documentos de la base...</p>
+        </div>
+      } @else {
+        @for (note of filteredNotes(); track note._id) {
+          <button
+            type="button"
+            class="ai-db-modal-card ai-db-picker-item"
+            (click)="chooseNote(note)"
+          >
+            <div class="ai-db-card-icon-box" [attr.data-doctype]="note.docType || 'block'">
+              <app-icon [name]="getDocIconName(note.docType)" [size]="20" />
+            </div>
+            <div class="ai-db-item-info">
+              <div class="ai-db-card-title-row">
+                <span class="ai-db-note-title" [title]="note.title">{{ note.title || 'Sin título' }}</span>
+                <span class="ai-db-type-badge badge-{{ note.docType || 'block' }}">
+                  {{ getDocTypeLabel(note.docType) }}
+                </span>
+              </div>
+              @if (note.space) {
+                <div class="ai-db-note-space" [title]="note.space">
+                  <app-icon name="folder" [size]="12" />
+                  <span class="ai-db-space-name">{{ note.space }}</span>
+                </div>
+              }
+            </div>
+            <div class="ai-db-card-action">
+              <app-icon name="plus" [size]="14" />
+              <span>Adjuntar</span>
+            </div>
+          </button>
+        } @empty {
+          <div class="ai-db-modal-state">
+            <app-icon name="search" [size]="28" class="ai-db-empty-icon" />
+            <p class="ai-db-picker-empty">No se encontraron documentos en la base.</p>
+            @if (searchQuery() || selectedSpace() !== 'all' || selectedDocType() !== 'all') {
+              <button type="button" class="ai-db-clear-filters-btn" (click)="resetFilters()">
+                Restablecer filtros
+              </button>
+            }
+          </div>
+        }
+      }
+    </div>
+
+    <footer class="ai-db-modal-footer">
+      <span class="ai-db-footer-status">
+        Mostrando {{ filteredNotes().length }} de {{ dbNotesList().length }} documentos
+      </span>
+      <button type="button" class="ai-db-modal-cancel-btn" (click)="close.emit()">
+        Cerrar
+      </button>
+    </footer>
+  </div>
+</div>

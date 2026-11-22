@@ -1,5 +1,4 @@
-import { Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   LucideDynamicIcon,
@@ -16,6 +15,8 @@ import {
   LucideSliders,
   LucideCheck,
   LucideLayers,
+  LucideLayoutTemplate,
+  LucidePaintBucket,
 } from '@lucide/angular';
 import {
   DocumentLayoutConfig,
@@ -36,7 +37,8 @@ export interface ThemePreset {
 @Component({
   selector: 'app-word-design-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, LucideDynamicIcon],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormsModule, LucideDynamicIcon],
   providers: [
     provideLucideIcons(
       LucidePalette,
@@ -50,7 +52,9 @@ export interface ThemePreset {
       LucideChevronDown,
       LucideSliders,
       LucideCheck,
-      LucideLayers
+      LucideLayers,
+      LucideLayoutTemplate,
+      LucidePaintBucket
     ),
   ],
   templateUrl: './word-design-toolbar.component.html',
@@ -184,5 +188,26 @@ export class WordDesignToolbarComponent {
     if (!this.host.nativeElement.contains(event.target as Node)) {
       this.openMenu.set(null);
     }
+  }
+
+  /** Ensures dark rule ink remains legible on dark-mode miniature template cards. */
+  resolveMiniColor(color?: string, isDivider = false): string {
+    if (!this.darkMode) {
+      return color || (isDivider ? '#2563eb' : '#1e293b');
+    }
+    const normalized = (color || '').trim().toLowerCase();
+    const tooDark =
+      !normalized ||
+      normalized === '#000' ||
+      normalized === '#000000' ||
+      normalized === '#0f172a' ||
+      normalized === '#1e293b' ||
+      normalized === '#111827' ||
+      normalized === '#334155' ||
+      normalized === 'black';
+    if (tooDark) {
+      return isDivider ? '#3b82f6' : '#e4e4e7';
+    }
+    return color!;
   }
 }

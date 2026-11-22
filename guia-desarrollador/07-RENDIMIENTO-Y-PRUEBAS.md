@@ -153,3 +153,10 @@ La paginación incremental de secciones automáticas inicia una página antes de
 Scroll usa un listener pasivo fuera de Angular; scroll, resize y selectionchange se agrupan por requestAnimationFrame y cancelan al destruir el editor. Las hojas animan solamente la sombra, nunca el tamaño durante la paginación. No se desmontan páginas lejanas todavía: selección, búsqueda, exportación y operaciones sobre el documento completo continúan disponiendo del DOM.
 
 Medición aislada en Firefox: 140 páginas simuladas, 35 párrafos por página, 50 capturas; serialización completa 96 ms, caché con edición de una página por captura 3 ms. Es una medición del coste de captura, no de latencia total de escritura ni de memoria del documento real.
+
+
+### Edición durante la migración Canvas
+
+Mientras la distribución visible use medidas DOM, la página con foco o selección editable conserva cursor y contenido nativos. No se calculan cajas de todos sus grafemas por pulsación. Las páginas inactivas compatibles conservan Canvas; las incompatibles no se reintentan por movimientos de selección ajenos. Los búferes de la página activa y los de páginas fuera del viewport se liberan.
+
+La clase visual `word-hybrid-source` no pertenece a la firma de geometría de paginación: mostrar/ocultar Canvas no debe provocar recomposición global. Los cambios en atributos del contenedor tampoco invalidan capturas de su `innerHTML`; los atributos de hijos sí lo hacen. Las regresiones verifican ambas separaciones, además de escritura/borrado sin mediciones Canvas. Ver [el registro del motor](20-MOTOR-WORD-HIBRIDO-Y-CANVAS.md#corrección-de-latencia-al-activar-la-edición) para los límites de la comprobación en navegador.

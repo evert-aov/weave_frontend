@@ -33,3 +33,6 @@
 </div>
 @if (references.request()) { <app-document-reference-picker /> }
 @if (dialogs.request(); as request) { <app-dialog [request]="request" /> }
+@if (aiService.dbNotePickerOpen()) {
+  <app-ai-db-note-modal (select)="aiService.requestAttachDbNote($event)" (close)="aiService.closeDbNotePicker()" />
+}

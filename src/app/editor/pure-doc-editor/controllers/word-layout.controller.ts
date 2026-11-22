@@ -1,4 +1,5 @@
-import { DocumentLayoutConfig, DocumentPage, SectionColumnsPreset } from '../models/word-document.model';
+import { DocumentLayoutConfig, DocumentPage, SectionColumnsPreset, SectionPageConfig } from '../models/word-document.model';
+import { findLogicalSectionStartPageIndex } from '../utils/page-section-layout';
 import { selectedParagraphs } from '../utils/document-formatting';
 
 import type { PureDocEditorComponent } from '../pure-doc-editor.component';
@@ -152,7 +153,11 @@ export class WordLayoutController {
   }
 
   handleApplyParagraphSpacingAndIndent(patch: {
-    indentLeftCm?: number; indentRightCm?: number; spaceBeforePt?: number; spaceAfterPt?: number;
+    indentLeftCm?: number;
+    indentRightCm?: number;
+    firstLineIndentPt?: number;
+    spaceBeforePt?: number;
+    spaceAfterPt?: number;
   }): void {
     const range = this.hooks.prepareRibbonSelection();
     if (!range) return;
@@ -160,19 +165,26 @@ export class WordLayoutController {
     selectedParagraphs(this.hooks.liveBodies(), range).forEach(element => {
       if (patch.indentLeftCm !== undefined) element.style.marginLeft = `${patch.indentLeftCm}cm`;
       if (patch.indentRightCm !== undefined) element.style.marginRight = `${patch.indentRightCm}cm`;
+      if (patch.firstLineIndentPt !== undefined) element.style.textIndent = `${patch.firstLineIndentPt}pt`;
       if (patch.spaceBeforePt !== undefined) element.style.marginTop = `${patch.spaceBeforePt}pt`;
       if (patch.spaceAfterPt !== undefined) element.style.marginBottom = `${patch.spaceAfterPt}pt`;
     });
     this.hooks.finishDocumentMutation();
   }
 
-  handleAddNewPageAt(insertAfterIndex: number): void {
+  handleAddNewPageAt(
+    insertAfterIndex: number,
+    options?: { sectionBreak?: 'nextPage'; sectionConfig?: SectionPageConfig },
+  ): void {
     this.editor.pushUndoSnapshot();
     const newPageId = `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const hasConfig = options?.sectionConfig && Object.keys(options.sectionConfig).length > 0;
     const newPage: DocumentPage = {
       id: newPageId,
       html: `<p><br/></p>`,
       breakBefore: 'manual',
+      ...(options?.sectionBreak ? { sectionBreak: options.sectionBreak } : {}),
+      ...(hasConfig ? { sectionConfig: { ...options!.sectionConfig } } : {}),
     };
 
     this.editor.pages.update((prev) => {
@@ -188,7 +200,9 @@ export class WordLayoutController {
 
     this.editor.activePageIndex.set(insertAfterIndex + 1);
     this.hooks.showToast(
-      `Página ${insertAfterIndex + 2} (${this.editor.activePaperPreset().name}) añadida (Ctrl+Z para deshacer)`
+      options?.sectionBreak === 'nextPage'
+        ? `Salto de sección insertado en Página ${insertAfterIndex + 2} (Ctrl+Z para deshacer)`
+        : `Página ${insertAfterIndex + 2} (${this.editor.activePaperPreset().name}) añadida (Ctrl+Z para deshacer)`
     );
 
     setTimeout(() => {
@@ -198,6 +212,39 @@ export class WordLayoutController {
         newEl.focus();
       }
     }, 80);
+  }
+
+  handleInsertSectionBreak(sectionConfig: SectionPageConfig = {}): void {
+    this.handleAddNewPageAt(this.editor.activePageIndex(), {
+      sectionBreak: 'nextPage',
+      sectionConfig,
+    });
+  }
+
+  handleUpdateSectionConfig(patch: Partial<SectionPageConfig>, targetPageIndex?: number): void {
+    this.editor.pushUndoSnapshot();
+    const pageIdx = targetPageIndex ?? this.editor.activePageIndex();
+    const currentPages = this.hooks.getLivePagesSnapshot();
+    const sectionStartIdx = findLogicalSectionStartPageIndex(currentPages, pageIdx);
+    const nextPages = currentPages.map((page, idx) => {
+      if (idx !== sectionStartIdx) return page;
+      const merged: SectionPageConfig = { ...(page.sectionConfig ?? {}), ...patch };
+      for (const [k, v] of Object.entries(merged) as Array<[keyof SectionPageConfig, unknown]>) {
+        if (v === undefined) delete merged[k];
+      }
+      const hasKeys = Object.keys(merged).length > 0;
+      const copy: DocumentPage = { ...page };
+      if (hasKeys) copy.sectionConfig = merged;
+      else delete copy.sectionConfig;
+      return copy;
+    });
+    this.hooks.renderDocumentPages(nextPages);
+    if (sectionStartIdx === 0 && patch.differentFirstPage !== undefined) {
+      this.handleUpdateLayout(prev => ({ ...prev, differentFirstPage: patch.differentFirstPage }));
+    } else if (this.editor.documentReady()) {
+      this.hooks.scheduleAutoSave(this.hooks.collectDocData());
+    }
+    this.hooks.showToast('Configuración de sección actualizada');
   }
 
   handleInsertPageBreak(): void {

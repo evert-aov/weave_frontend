@@ -166,7 +166,7 @@ export class ExcelBordersMenuComponent {
   readonly themeService = inject(ThemeService);
 
   get automaticColor(): string {
-    return this.themeService.isDark() ? '#e2e8f0' : '#000000';
+    return '#000000';
   }
 
   activeSubmenu: 'none' | 'lineColor' | 'lineStyle' = 'none';

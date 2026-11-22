@@ -77,6 +77,12 @@
         <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="updateToc.emit()">
           <svg lucideIcon="rotate-cw" [size]="22"></svg>{{ t('word.toc.update') }}
         </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertObjectIndex.emit('table')">
+          <svg lucideIcon="table" [size]="22"></svg>{{ t('word.toc.insert_tables') }}
+        </button>
+        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertObjectIndex.emit('figure')">
+          <svg lucideIcon="image" [size]="22"></svg>{{ t('word.toc.insert_figures') }}
+        </button>
         <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('sources')">
           <svg lucideIcon="book-open" [size]="22"></svg>{{ t('word.academic.sources') }}
         </button>
@@ -97,6 +103,103 @@
         </button>
       </div>
     }
+    @if (activeTab === 'review') {
+      <div class="flex items-center h-full w-full overflow-x-auto">
+        <div class="ribbon-group">
+          <div class="control-row">
+            <button
+              type="button"
+              (click)="addAnchoredComment.emit()"
+              class="btn-vertical"
+              title="Agregar comentario anclado a la selección o cursor"
+            >
+              <svg class="w-5 h-5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                <line x1="12" y1="8" x2="12" y2="14"></line>
+                <line x1="9" y1="11" x2="15" y2="11"></line>
+              </svg>
+              <span class="btn-label">Nuevo comentario</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="toggleCommentsPanel.emit()"
+              [class.active]="commentsPanelOpen"
+              class="btn-vertical"
+              title="Mostrar u ocultar panel lateral de comentarios"
+            >
+              <svg class="w-5 h-5 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span class="btn-label">Comentarios ({{ commentsCount }})</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="toggleHideCommentsOnExport.emit()"
+              [class.active]="hideCommentsOnExport"
+              class="btn-vertical"
+              title="Ocultar marcas de comentarios al exportar PDF, DOCX o HTML"
+            >
+              <svg class="w-5 h-5" [ngClass]="hideCommentsOnExport ? 'text-amber-600' : 'text-slate-500'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+              <span class="btn-label">Ocultar en export</span>
+            </button>
+          </div>
+          <div class="group-label">Comentarios</div>
+        </div>
+
+        <div class="ribbon-group">
+          <div class="control-row">
+            <button
+              type="button"
+              (click)="toggleTrackChanges.emit()"
+              [class.active]="trackChangesEnabled"
+              class="btn-vertical"
+              title="Activar o desactivar control de cambios (inserciones y borrados)"
+            >
+              <svg class="w-5 h-5" [ngClass]="trackChangesEnabled ? 'text-emerald-600' : 'text-slate-600'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+              </svg>
+              <span class="btn-label font-semibold">Control cambios</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="acceptAllRevisions.emit()"
+              [disabled]="pendingRevisionsCount === 0"
+              class="btn-vertical disabled:opacity-45"
+              title="Aceptar todos los cambios pendientes"
+            >
+              <svg class="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span class="btn-label">Aceptar ({{ pendingRevisionsCount }})</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="rejectAllRevisions.emit()"
+              [disabled]="pendingRevisionsCount === 0"
+              class="btn-vertical disabled:opacity-45"
+              title="Rechazar todos los cambios pendientes"
+            >
+              <svg class="w-5 h-5 text-rose-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              <span class="btn-label">Rechazar ({{ pendingRevisionsCount }})</span>
+            </button>
+          </div>
+          <div class="group-label">Seguimiento</div>
+        </div>
+      </div>
+    }
+
     <!-- ==================== HOME TAB ==================== -->
     @if (activeTab === 'home') {
       <app-word-home-toolbar
@@ -128,9 +231,11 @@
     @if (activeTab === 'insert') {
       <app-word-insert-toolbar
         [darkMode]="darkMode"
+        [totalPages]="totalPages"
         (captureSelection)="captureSelection.emit()"
         (addNewPage)="addNewPage.emit()"
         (insertPageBreak)="insertPageBreak.emit()"
+        (deletePage)="deletePage.emit()"
         (insertTable)="insertTable.emit($event)"
         (insertImage)="insertImage.emit()"
         (insertShapeHtml)="insertShapeHtml.emit($event)"
@@ -162,8 +267,13 @@
         [layoutConfig]="layoutConfig"
         [formats]="formats"
         [activePaperPreset]="activePaperPreset"
+        [activeSectionInfo]="activeSectionInfo"
+        [totalPages]="totalPages"
         (updateLayout)="updateLayout.emit($event)"
         (insertPageBreak)="insertPageBreak.emit()"
+        (insertSectionBreak)="insertSectionBreak.emit($event)"
+        (updateSectionConfig)="updateSectionConfig.emit($event)"
+        (deletePage)="deletePage.emit()"
         (applyColumns)="applyColumns($event)"
         (applyIndentLeft)="applyIndentLeft($event)"
         (applyIndentRight)="applyIndentRight($event)"

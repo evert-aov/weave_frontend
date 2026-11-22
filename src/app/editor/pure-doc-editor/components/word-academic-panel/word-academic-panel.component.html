@@ -60,7 +60,7 @@
           <p class="hint">{{ t('objects_hint') }}</p>
           <form (ngSubmit)="caption.emit({id: objectId, title, note, sourceId: objectSource, attribution})">
             <label>{{ t('object') }}<select name="object" [(ngModel)]="objectId" (ngModelChange)="chooseObject()">
-              @for (object of objects; track object.id; let index = $index) { <option [value]="object.id">{{ index + 1 }} · {{ t(object.kind) }} {{ object.prefix || '' }}{{ object.number || '' }}{{ object.title ? ': ' + object.title : '' }}</option> }
+              @for (option of objectOptions; track option.object.id) { <option [value]="option.object.id">{{ t(option.object.kind) }}-{{ option.ordinal }}{{ option.object.title ? ': ' + option.object.title : '' }}</option> }
             </select></label>
             <label>{{ t('caption_title') }} *<input name="title" [(ngModel)]="title" required maxlength="500"></label>
             <label>{{ t('note') }}<textarea name="note" [(ngModel)]="note" rows="3"></textarea></label>

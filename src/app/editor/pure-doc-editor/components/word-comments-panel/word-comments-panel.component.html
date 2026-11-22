@@ -1,0 +1,318 @@
+<aside
+  class="w-80 shrink-0 border-l flex flex-col min-h-0 select-none no-print transition-colors"
+  [ngClass]="darkMode ? 'bg-[#18181b] border-[#27272a] text-[#f4f4f5]' : 'bg-slate-50 border-slate-200 text-slate-800'"
+  aria-label="Panel de revisión y comentarios"
+>
+  <header
+    class="px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0"
+    [ngClass]="darkMode ? 'border-[#27272a] bg-[#202024]' : 'border-slate-200 bg-white'"
+  >
+    <div class="flex items-center gap-2 min-w-0">
+      <svg class="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+      <div class="min-w-0">
+        <h2 class="text-xs font-semibold truncate">Revisión y comentarios</h2>
+        <p class="text-[11px]" [ngClass]="darkMode ? 'text-slate-400' : 'text-slate-500'">
+          {{ openCount() }} abiertos · {{ revisions.length }} cambios
+        </p>
+      </div>
+    </div>
+    <button
+      type="button"
+      (click)="close.emit()"
+      class="p-1 rounded-md opacity-70 hover:opacity-100 transition-opacity"
+      aria-label="Cerrar panel de revisión"
+      title="Cerrar"
+    >
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <div class="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
+    <!-- New anchored comment composer -->
+    @if (!readOnly) {
+      <section
+        class="rounded-xl border p-2.5 space-y-2"
+        [ngClass]="darkMode ? 'bg-[#202024] border-[#323238]' : 'bg-white border-slate-200 shadow-2xs'"
+      >
+        <label class="block text-[11px] font-semibold uppercase tracking-wide" [ngClass]="darkMode ? 'text-slate-300' : 'text-slate-600'">
+          Nuevo comentario anclado
+        </label>
+        <textarea
+          [ngModel]="draftComment()"
+          (ngModelChange)="draftComment.set($event)"
+          rows="2"
+          placeholder="Escribe una observación sobre la selección o el cursor…"
+          class="w-full rounded-lg border px-2.5 py-1.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+          [ngClass]="darkMode ? 'bg-[#18181b] border-[#3f3f46] text-slate-100 placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400'"
+        ></textarea>
+        <div class="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            (click)="toggleHideCommentsOnExport.emit()"
+            class="text-[11px] px-2 py-1 rounded-md border transition-colors"
+            [ngClass]="hideCommentsOnExport
+              ? (darkMode ? 'bg-amber-950/60 border-amber-700 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800')
+              : (darkMode ? 'border-[#3f3f46] text-slate-400 hover:text-slate-200' : 'border-slate-200 text-slate-600 hover:bg-slate-100')"
+          >
+            {{ hideCommentsOnExport ? 'Ocultos al exportar' : 'Visibles al exportar' }}
+          </button>
+          <button
+            type="button"
+            [disabled]="!draftComment().trim()"
+            (click)="submitComment()"
+            class="px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-45 text-white text-xs font-semibold transition-colors"
+          >
+            Comentar
+          </button>
+        </div>
+      </section>
+    }
+
+    <!-- Filter bar -->
+    <div class="flex items-center gap-1 rounded-lg p-1 border" [ngClass]="darkMode ? 'bg-[#202024] border-[#323238]' : 'bg-slate-100 border-slate-200'">
+      @for (tab of [{ id: 'all', label: 'Todos' }, { id: 'open', label: 'Abiertos' }, { id: 'resolved', label: 'Resueltos' }]; track tab.id) {
+        <button
+          type="button"
+          (click)="filter.set($any(tab.id))"
+          class="flex-1 py-1 px-2 rounded-md text-[11px] font-medium transition-colors"
+          [ngClass]="filter() === tab.id
+            ? (darkMode ? 'bg-[#2e2e36] text-white shadow-2xs' : 'bg-white text-slate-900 shadow-2xs')
+            : (darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900')"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+
+    <!-- Comments threads list -->
+    <section class="space-y-2.5" aria-label="Hilos de comentarios">
+      @if (!filteredComments().length) {
+        <p class="text-xs text-center py-4 px-2 rounded-lg border border-dashed" [ngClass]="darkMode ? 'border-[#323238] text-slate-400' : 'border-slate-300 text-slate-500'">
+          No hay comentarios en esta vista.
+        </p>
+      }
+      @for (thread of filteredComments(); track thread.id) {
+        <article
+          class="rounded-xl border p-2.5 space-y-2 transition-colors cursor-pointer"
+          (click)="selectComment.emit(thread.id)"
+          [ngClass]="activeCommentId === thread.id
+            ? (darkMode ? 'bg-[#25231b] border-amber-500/70' : 'bg-amber-50/70 border-amber-400 shadow-xs')
+            : (darkMode ? 'bg-[#202024] border-[#323238] hover:border-[#3f3f46]' : 'bg-white border-slate-200 hover:border-slate-300')"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-semibold truncate">{{ thread.author }}</span>
+                <span class="text-[10px]" [ngClass]="darkMode ? 'text-slate-400' : 'text-slate-400'">
+                  {{ formatDate(thread.createdAt) }}
+                </span>
+              </div>
+              @if (thread.quote) {
+                <p class="mt-0.5 text-[11px] italic border-l-2 border-amber-400 pl-1.5 line-clamp-2" [ngClass]="darkMode ? 'text-amber-200/80' : 'text-amber-900/80'">
+                  "{{ thread.quote }}"
+                </p>
+              }
+            </div>
+            @if (thread.resolved) {
+              <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 text-[10px] font-semibold shrink-0">
+                Resuelto
+              </span>
+            }
+          </div>
+
+          <p class="text-xs leading-relaxed whitespace-pre-wrap" [ngClass]="thread.resolved ? 'opacity-65 line-through' : ''">
+            {{ thread.text }}
+          </p>
+
+          @if (thread.replies.length) {
+            <div class="space-y-1.5 pt-1.5 border-t" [ngClass]="darkMode ? 'border-[#323238]' : 'border-slate-100'">
+              @for (reply of thread.replies; track reply.id) {
+                <div class="pl-2 border-l-2" [ngClass]="darkMode ? 'border-slate-700' : 'border-slate-200'">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] font-semibold">{{ reply.author }}</span>
+                    <span class="text-[10px] opacity-60">{{ formatDate(reply.createdAt) }}</span>
+                  </div>
+                  <p class="text-[11px] leading-snug">{{ reply.text }}</p>
+                </div>
+              }
+            </div>
+          }
+
+          @if (!readOnly) {
+            <div class="flex items-center justify-between gap-1 pt-1" (click)="$event.stopPropagation()">
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  (click)="replyingId.set(replyingId() === thread.id ? null : thread.id)"
+                  class="px-2 py-0.5 rounded text-[11px] font-medium border transition-colors"
+                  [ngClass]="darkMode ? 'border-[#3f3f46] text-slate-300 hover:bg-[#2a2a30]' : 'border-slate-200 text-slate-600 hover:bg-slate-100'"
+                >
+                  Responder
+                </button>
+                <button
+                  type="button"
+                  (click)="resolveComment.emit({ commentId: thread.id, resolved: !thread.resolved })"
+                  class="px-2 py-0.5 rounded text-[11px] font-medium border transition-colors"
+                  [ngClass]="thread.resolved
+                    ? (darkMode ? 'border-amber-700 text-amber-300' : 'border-amber-200 text-amber-700 bg-amber-50')
+                    : (darkMode ? 'border-emerald-800 text-emerald-300 hover:bg-emerald-950/40' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50')"
+                >
+                  {{ thread.resolved ? 'Reabrir' : 'Resolver' }}
+                </button>
+              </div>
+              <button
+                type="button"
+                (click)="deleteComment.emit(thread.id)"
+                class="p-1 rounded text-red-500/80 hover:text-red-600 hover:bg-red-500/10 transition-colors"
+                title="Eliminar comentario"
+                aria-label="Eliminar comentario"
+              >
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 6h18"></path>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </div>
+
+            @if (replyingId() === thread.id) {
+              <div class="pt-1.5 space-y-1.5" (click)="$event.stopPropagation()">
+                <input
+                  type="text"
+                  [ngModel]="getReplyDraft(thread.id)"
+                  (ngModelChange)="setReplyDraft(thread.id, $event)"
+                  (keydown.enter)="submitReply(thread.id)"
+                  placeholder="Escribe una respuesta…"
+                  class="w-full rounded-md border px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  [ngClass]="darkMode ? 'bg-[#18181b] border-[#3f3f46] text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'"
+                />
+                <div class="flex justify-end gap-1.5">
+                  <button
+                    type="button"
+                    (click)="replyingId.set(null)"
+                    class="px-2 py-0.5 rounded text-[11px]"
+                    [ngClass]="darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    (click)="submitReply(thread.id)"
+                    [disabled]="!getReplyDraft(thread.id).trim()"
+                    class="px-2.5 py-0.5 rounded bg-blue-600 text-white text-[11px] font-semibold disabled:opacity-45"
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </div>
+            }
+          }
+        </article>
+      }
+    </section>
+
+    <!-- Track Changes section -->
+    <section class="pt-2 border-t space-y-2.5" [ngClass]="darkMode ? 'border-[#27272a]' : 'border-slate-200'">
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-xs font-semibold">Control de cambios</span>
+        @if (!readOnly) {
+          <button
+            type="button"
+            (click)="toggleTrackChanges.emit()"
+            class="px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors"
+            [ngClass]="trackChangesEnabled
+              ? 'bg-emerald-600 border-emerald-600 text-white'
+              : (darkMode ? 'border-[#3f3f46] text-slate-300' : 'border-slate-300 text-slate-600 bg-white')"
+          >
+            {{ trackChangesEnabled ? 'Activo' : 'Inactivo' }}
+          </button>
+        }
+      </div>
+
+      @if (revisions.length && !readOnly) {
+        <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            (click)="acceptAllRevisions.emit()"
+            class="flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+          >
+            Aceptar todos
+          </button>
+          <button
+            type="button"
+            (click)="rejectAllRevisions.emit()"
+            class="flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors"
+          >
+            Rechazar todos
+          </button>
+        </div>
+      }
+
+      @if (!revisions.length) {
+        <p class="text-[11px]" [ngClass]="darkMode ? 'text-slate-400' : 'text-slate-500'">
+          Sin cambios rastreados pendientes.
+        </p>
+      } @else {
+        <div class="space-y-1.5">
+          @for (rev of revisions; track rev.id) {
+            <div
+              (click)="jumpToRevision.emit(rev.id)"
+              class="rounded-lg border p-2 flex items-start justify-between gap-2 cursor-pointer transition-colors"
+              [ngClass]="darkMode ? 'bg-[#202024] border-[#323238] hover:border-[#3f3f46]' : 'bg-white border-slate-200 hover:border-slate-300'"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                    [ngClass]="rev.kind === 'ins' ? 'bg-emerald-500/15 text-emerald-600' : 'bg-rose-500/15 text-rose-600'"
+                  >
+                    {{ rev.kind === 'ins' ? 'Inserción' : 'Eliminación' }}
+                  </span>
+                  <span class="text-[10px] opacity-65">Pág. {{ rev.pageIndex + 1 }}</span>
+                </div>
+                <p
+                  class="mt-1 text-xs truncate"
+                  [ngClass]="rev.kind === 'del' ? 'line-through text-rose-600' : 'underline text-emerald-700 dark:text-emerald-400'"
+                >
+                  {{ rev.text || '(sin texto)' }}
+                </p>
+              </div>
+              @if (!readOnly) {
+                <div class="flex items-center gap-1 shrink-0" (click)="$event.stopPropagation()">
+                  <button
+                    type="button"
+                    (click)="acceptRevision.emit(rev.id)"
+                    class="p-1 rounded text-emerald-600 hover:bg-emerald-500/15 transition-colors"
+                    title="Aceptar cambio"
+                    aria-label="Aceptar cambio"
+                  >
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    (click)="rejectRevision.emit(rev.id)"
+                    class="p-1 rounded text-rose-600 hover:bg-rose-500/15 transition-colors"
+                    title="Rechazar cambio"
+                    aria-label="Rechazar cambio"
+                  >
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</aside>

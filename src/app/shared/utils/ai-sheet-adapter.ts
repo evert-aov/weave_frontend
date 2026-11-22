@@ -1,3 +1,4 @@
+import {applyWorkbookOperations,workbookControlField} from './ai-workbook-control';
 import type { AiEditorAdapter } from '../../core/services/ai-document.service';
 import { cleanSheetCellText } from '../../core/utils/ai-edit-text';
 
@@ -11,8 +12,8 @@ export function sheetAiAdapter(
   persist: (snapshot: any) => void,
   prefix: () => string = () => ''
 ): AiEditorAdapter {
-  const cells = () => {
-    const book = workbook();
+  const cells = (bookOverride?: any) => {
+    const book = bookOverride ?? workbook();
     if (!book) return [];
 
     // Compatibilidad con fachadas de hoja que expongan getSheets() y save()
@@ -45,7 +46,7 @@ export function sheetAiAdapter(
             row,
             col,
           });
-          if (result.length >= 250) return result;
+          if (result.length >= 8000) return result;
         }
       }
       return result;
@@ -62,7 +63,7 @@ export function sheetAiAdapter(
           ? [{ id: 'sheet-1', name: 'Hoja 1', data: book.data }]
           : [];
 
-    for (const sheet of sheetsList) {
+    for (const sheet of [...sheetsList].sort((a,b)=>Number(b.id===book.activeSheetId)-Number(a.id===book.activeSheetId))) {
       const data = sheet?.data ?? {};
       const sheetId = sheet?.id ?? 'sheet-1';
 
@@ -77,13 +78,13 @@ export function sheetAiAdapter(
           col: 0,
           row: 0,
         });
-        if (result.length >= 250) return result;
+        if (result.length >= 8000) return result;
       }
 
-      // Si hay pocas celdas, ofrecer cuadrícula básica 10x6
+      // Si hay pocas celdas, ofrecer cuadrícula básica 12x8
       if (result.length < 30) {
-        for (let r = 1; r <= 10; r++) {
-          for (let c = 0; c < 6; c++) {
+        for (let r = 1; r <= 12; r++) {
+          for (let c = 0; c < 8; c++) {
             const letter = String.fromCharCode(65 + c);
             const cellId = `${letter}${r}`;
             if (!data[cellId]) {
@@ -96,7 +97,7 @@ export function sheetAiAdapter(
                 row: r - 1,
               });
             }
-            if (result.length >= 250) return result;
+            if (result.length >= 8000) return result;
           }
         }
       }
@@ -107,12 +108,24 @@ export function sheetAiAdapter(
 
   return {
     owner,
-    fields: () => cells().map(({ id, text }) => ({ id, text })),
+    fields: () => {
+      const book=workbook();
+      const control=Array.isArray(book?.sheets)?[workbookControlField(book,prefix())]:[];
+      return [...control,...cells().map(({id,text})=>({id,text}))];
+    },
     apply: (values) => {
-      const book = workbook();
+      let book = workbook();
       if (!book) return;
 
-      const available = cells();
+      const control=values.get(`${prefix()}workbook:control`);
+      if(control!==undefined){
+        book = applyWorkbookOperations(book, control);
+        if (values.size === 1) {
+          persist(book);
+          return;
+        }
+      }
+      const available = cells(book);
 
       if (typeof book.getSheets === 'function') {
         for (const cell of available) {
@@ -139,8 +152,10 @@ export function sheetAiAdapter(
             ? [{ id: 'sheet-1', name: 'Hoja 1', data: updatedBook.data }]
             : [];
 
+      const appliedKeys = new Set<string>();
       for (const cellItem of available) {
         if (values.has(cellItem.id) && cellItem.cellId) {
+          appliedKeys.add(cellItem.id);
           const text = cleanSheetCellText(values.get(cellItem.id)!);
           const targetSheet = sheetsList.find((s: any) => (s?.id ?? 'sheet-1') === cellItem.sheetId);
           if (targetSheet) {
@@ -150,6 +165,24 @@ export function sheetAiAdapter(
               raw: text,
             };
           }
+        }
+      }
+      const cellPrefix = `${prefix()}cell:`;
+      for (const [key, rawVal] of values) {
+        if (appliedKeys.has(key) || !key.startsWith(cellPrefix)) continue;
+        const rest = key.slice(cellPrefix.length);
+        const sep = rest.indexOf(':');
+        if (sep < 0) continue;
+        const sheetId = rest.slice(0, sep);
+        const cellId = rest.slice(sep + 1);
+        if (!/^[A-Z]{1,3}[1-9]\d{0,6}$/.test(cellId)) continue;
+        const targetSheet = sheetsList.find((s: any) => (s?.id ?? 'sheet-1') === sheetId);
+        if (targetSheet) {
+          if (!targetSheet.data) targetSheet.data = {};
+          targetSheet.data[cellId] = {
+            ...(targetSheet.data[cellId] || {}),
+            raw: cleanSheetCellText(rawVal),
+          };
         }
       }
 

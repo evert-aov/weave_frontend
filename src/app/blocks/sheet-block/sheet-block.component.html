@@ -10,7 +10,7 @@
        [class.bg-slate-800]="themeService.isDark()"
        [class.border-slate-200]="!themeService.isDark()"
        [class.bg-slate-50]="!themeService.isDark()">
-    
+
     <div class="flex items-center gap-2">
       <div class="w-5 h-5 rounded bg-emerald-600 flex items-center justify-center text-white font-bold text-[10px]">
         X
@@ -35,72 +35,55 @@
     </div>
   </div>
 
-  <!-- Scrollable Table -->
-  <div class="overflow-auto max-h-[380px] p-1"
-       [style.zoom]="currentZoom()">
-    <table class="border-collapse table-fixed w-full text-xs">
-      <thead>
-        <tr class="h-6">
-          <th class="w-8 border text-slate-400 text-[10px] font-normal"
-              [class.bg-slate-800]="themeService.isDark()"
-              [class.border-slate-700]="themeService.isDark()"
-              [class.bg-slate-100]="!themeService.isDark()"
-              [class.border-slate-200]="!themeService.isDark()">#</th>
-          @for (letter of colLetters; track letter; let c = $index) {
-            <th class="w-24 border text-slate-400 text-[10px] font-normal"
-                [class.bg-slate-800]="themeService.isDark()"
-                [class.border-slate-700]="themeService.isDark()"
-                [class.bg-slate-100]="!themeService.isDark()"
-                [class.border-slate-200]="!themeService.isDark()">
-              {{ letter }}
-            </th>
-          }
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of rowIndices; track row) {
-          <tr class="h-6">
-            <th class="border text-slate-400 text-[10px] font-normal"
-                [class.bg-slate-800]="themeService.isDark()"
-                [class.border-slate-700]="themeService.isDark()"
-                [class.bg-slate-100]="!themeService.isDark()"
-                [class.border-slate-200]="!themeService.isDark()">
-              {{ row + 1 }}
-            </th>
+  <!-- Scrollable Canvas Sheet -->
+  <div class="overflow-auto max-h-[380px] p-1">
+    <div class="relative inline-block"
+         [style.width.px]="Math.round(contentWidth * currentZoom())"
+         [style.height.px]="Math.round(contentHeight * currentZoom())">
+      <canvas
+        #blockCanvas
+        tabindex="0"
+        role="grid"
+        [attr.aria-label]="canvasA11ySummary"
+        [attr.aria-rowcount]="totalRows"
+        [attr.aria-colcount]="totalCols"
+        [style.width.px]="Math.round(contentWidth * currentZoom())"
+        [style.height.px]="Math.round(contentHeight * currentZoom())"
+        class="block select-none cursor-cell outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xs"
+        (click)="onCanvasClick($event)"
+        (dblclick)="onCanvasDblClick($event)"
+        (keydown)="onCanvasKeyDown($event)"
+      ></canvas>
 
-            @for (letter of colLetters; track letter; let col = $index) {
-              @let isSelected = selectedCell.col === col && selectedCell.row === row;
+      @if (isEditing && !notesService.isReadingMode()) {
+        <input
+          #blockEditorInput
+          type="text"
+          [(ngModel)]="editingValue"
+          (ngModelChange)="onEditorInput()"
+          (keyup)="onEditorInput()"
+          (blur)="commitEdit()"
+          (keydown.enter)="$event.preventDefault(); commitEdit()"
+          (keydown.escape)="$event.preventDefault(); cancelEdit()"
+          [style.left.px]="editorBoxRect.left"
+          [style.top.px]="editorBoxRect.top"
+          [style.width.px]="editorBoxRect.width"
+          [style.height.px]="editorBoxRect.height"
+          class="absolute z-20 px-1.5 font-mono text-xs outline-none border-2 border-emerald-600 bg-white text-slate-900 shadow-xs"
+        />
+      }
 
-              <td (click)="onCellClick(col, row)"
-                  (dblclick)="onCellDblClick(col, row)"
-                  [ngStyle]="getCellStyle(col, row)"
-                  class="px-2 border truncate relative"
-                  [class.border-slate-700]="themeService.isDark()"
-                  [class.border-slate-200]="!themeService.isDark()"
-                  [class.ring-2]="isSelected && !notesService.isReadingMode()"
-                  [class.ring-emerald-500]="isSelected && !notesService.isReadingMode()"
-                  [class.z-10]="isSelected">
-                
-                @if (isSelected && isEditing) {
-                  <input type="text"
-                         [(ngModel)]="editingValue"
-                         (blur)="commitEdit()"
-                         (keydown.enter)="$event.preventDefault(); commitEdit()"
-                         (keydown.escape)="$event.preventDefault(); isEditing = false"
-                         autofocus
-                         class="absolute inset-0 w-full h-full px-1.5 font-mono text-xs outline-none border border-emerald-500"
-                         [class.bg-slate-800]="themeService.isDark()"
-                         [class.text-white]="themeService.isDark()"
-                         [class.bg-white]="!themeService.isDark()"
-                         [class.text-slate-900]="!themeService.isDark()" />
-                } @else {
-                  <span class="truncate block">{{ getCellDisplay(col, row) }}</span>
-                }
-              </td>
-            }
-          </tr>
-        }
-      </tbody>
-    </table>
+      <div class="sr-only" aria-hidden="false">
+        <div role="row" [attr.aria-rowindex]="selectedCell.row + 1">
+          <div
+            role="gridcell"
+            aria-selected="true"
+            aria-live="polite"
+            [attr.aria-colindex]="selectedCell.col + 1"
+            [attr.data-active-cell]="activeCellId"
+          >{{ activeCellA11yLabel }}</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>

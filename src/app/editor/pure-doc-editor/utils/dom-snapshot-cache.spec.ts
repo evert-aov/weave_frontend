@@ -23,4 +23,14 @@ describe('DOM snapshot cache', () => {
     page.textContent='Antes';cache.read(page);cache.retain([]);
     page.textContent='Después';expect(cache.read(page)).toBe('Después');cache.destroy();
   });
+  it('ignores Canvas host attributes but captures child formatting changes',async()=>{
+    const cache=new DomSnapshotCache(),page=document.createElement('div');page.innerHTML='<p>Texto</p>';
+    const read=vi.spyOn(page,'innerHTML','get');cache.read(page);
+    page.classList.add('word-hybrid-source');cache.read(page);
+    page.classList.remove('word-hybrid-source');await Promise.resolve();cache.read(page);
+    expect(read).toHaveBeenCalledTimes(1);
+    page.firstElementChild!.setAttribute('style','font-weight: bold');
+    expect(cache.read(page)).toContain('font-weight: bold');expect(read).toHaveBeenCalledTimes(2);
+    cache.destroy();vi.restoreAllMocks();
+  });
 });

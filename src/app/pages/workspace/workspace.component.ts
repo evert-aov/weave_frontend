@@ -16,6 +16,8 @@ import { DocumentNavigationService } from '../../core/services/document-navigati
 import { isDocumentId } from '../../core/utils/document-link';
 import { DialogService } from '../../core/services/dialog.service';
 import { AppDialogComponent } from '../../shared/components/app-dialog/app-dialog.component';
+import { AiDbNoteModalComponent } from '../../layout/ai-db-note-modal/ai-db-note-modal.component';
+import { AiService } from '../../core/services/ai.service';
 
 /**
  * Vista principal del Espacio de Trabajo de Weave.
@@ -35,12 +37,14 @@ import { AppDialogComponent } from '../../shared/components/app-dialog/app-dialo
     DocumentReferencesDirective,
     DocumentReferencePickerComponent,
     AppDialogComponent,
+    AiDbNoteModalComponent,
   ],
   templateUrl: './workspace.component.html',
   styleUrl: './workspace.component.scss',
 })
 export class WorkspaceComponent implements OnDestroy {
   readonly notesService = inject(NotesService);
+  readonly aiService = inject(AiService);
   readonly i18n = inject(I18nService);
   readonly references = inject(DocumentReferenceService);
   readonly navigation = inject(DocumentNavigationService);

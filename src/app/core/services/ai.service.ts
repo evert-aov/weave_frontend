@@ -1,10 +1,13 @@
-import { Injectable, inject, signal } from '@angular/core';
+import type { AiAttachment } from '../models/ai.model';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Subscription, firstValueFrom, catchError, finalize, of, tap } from 'rxjs';
 import { AiDocumentService, EditSnapshot } from './ai-document.service';
 import { AiConversation } from '../models/ai.model';
 import { NotesService } from './notes.service';
+import { NoteSummary } from '../models/note.model';
 import { AI_REQUEST_LIMITS, boundedAiText, htmlToAiExcerpt } from '../utils/ai-request';
+import { noteToAiAttachment } from '../utils/ai-note-reader';
 import {
   AiChatMessage,
   AiChatRequest,
@@ -17,6 +20,9 @@ import { environment } from '../../../environments/environment';
 
 const STORAGE_KEY_OPEN = 'weave_ai_sidebar_open';
 const STORAGE_KEY_INCLUDE_DOC = 'weave_ai_include_doc';
+const STORAGE_KEY_PIN_ATTACHMENTS = 'weave_ai_pin_attachments';
+const STORAGE_KEY_WORKSPACE_INDEX = 'weave_ai_workspace_index';
+const MAX_CHAT_ATTACHMENTS = 10;
 
 @Injectable({
   providedIn: 'root',
@@ -37,15 +43,51 @@ export class AiService {
     this.readPreference(STORAGE_KEY_INCLUDE_DOC, true)
   );
 
+  // Conservar archivos y notas adjuntos durante toda la conversación activa
+  readonly keepAttachmentsInConversation = signal<boolean>(
+    this.readPreference(STORAGE_KEY_PIN_ATTACHMENTS, true)
+  );
+
+  // Incluir índice de documentos del espacio para descubrir referencias automáticamente
+  readonly includeWorkspaceIndex = signal<boolean>(
+    this.readPreference(STORAGE_KEY_WORKSPACE_INDEX, true)
+  );
+
   // Estado de generación en curso
   readonly isGenerating = signal<boolean>(false);
   readonly documentContextTruncated = signal(false);
   readonly activeModel = signal<string>('gemini-3.8-flash');
 
+  private readonly pinnedAttachmentsByChat = signal<Map<string, AiAttachment[]>>(new Map());
+  readonly activePinnedAttachments = computed<AiAttachment[]>(() =>
+    this.pinnedAttachmentsByChat().get(this.activeConversationId()) ?? []
+  );
+  readonly queuedPrompts = signal<{ id: string; prompt: string; attachments: AiAttachment[] }[]>([]);
+  private cancelledInFlight = false;
+
+  // Modal para adjuntar documentos de la base de datos (desacoplado del visor)
+  readonly dbNotePickerOpen = signal<boolean>(false);
+  readonly attachDbNoteRequested = signal<NoteSummary | null>(null);
+
+  openDbNotePicker(): void {
+    this.dbNotePickerOpen.set(true);
+  }
+
+  closeDbNotePicker(): void {
+    this.dbNotePickerOpen.set(false);
+  }
+
+  requestAttachDbNote(note: NoteSummary): void {
+    this.attachDbNoteRequested.set(note);
+    this.closeDbNotePicker();
+  }
+
   readonly availableModels = [
     { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Recomendado', desc: 'Rápido, multimodal y contexto de 1M tokens' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Ligero', desc: 'Respuestas veloces y eficientes' },
     { id: 'gemini-4-argon', name: 'Gemini 4 Argon', tag: 'Razonamiento', desc: 'Modelo frontera para razonamiento profundo' },
+    { id: 'gemini-4-hydrogen', name: 'Gemini 4 Hydrogen', tag: 'Gemini 4', desc: 'Modelo rápido y eficiente de la familia Gemini 4' },
+    { id: 'gemini-4-carbon', name: 'Gemini 4 Carbon', tag: 'Gemini 4', desc: 'Modelo de alta capacidad de la familia Gemini 4' },
   ] as const;
 
   readonly selectedModel = signal<string>(
@@ -163,6 +205,68 @@ export class AiService {
     this.savePreference(STORAGE_KEY_INCLUDE_DOC, next);
   }
 
+  toggleKeepAttachmentsInConversation(): void {
+    const next = !this.keepAttachmentsInConversation();
+    this.keepAttachmentsInConversation.set(next);
+    this.savePreference(STORAGE_KEY_PIN_ATTACHMENTS, next);
+  }
+
+  toggleIncludeWorkspaceIndex(): void {
+    const next = !this.includeWorkspaceIndex();
+    this.includeWorkspaceIndex.set(next);
+    this.savePreference(STORAGE_KEY_WORKSPACE_INDEX, next);
+  }
+
+  pinAttachments(items: AiAttachment[]): void {
+    if (!items.length) return;
+    const chatId = this.activeConversationId() || 'default';
+    this.pinnedAttachmentsByChat.update((map) => {
+      const next = new Map(map);
+      const current = next.get(chatId) ?? [];
+      const byName = new Map<string, AiAttachment>();
+      for (const item of current) byName.set(item.name, item);
+      for (const item of items) byName.set(item.name, item);
+      next.set(chatId, Array.from(byName.values()).slice(-MAX_CHAT_ATTACHMENTS));
+      return next;
+    });
+  }
+
+  unpinAttachment(name: string): void {
+    const chatId = this.activeConversationId() || 'default';
+    this.pinnedAttachmentsByChat.update((map) => {
+      const next = new Map(map);
+      const filtered = (next.get(chatId) ?? []).filter(a => a.name !== name);
+      if (filtered.length) next.set(chatId, filtered);
+      else next.delete(chatId);
+      return next;
+    });
+  }
+
+  clearPinnedAttachments(chatId = this.activeConversationId() || 'default'): void {
+    this.pinnedAttachmentsByChat.update((map) => {
+      const next = new Map(map);
+      next.delete(chatId);
+      return next;
+    });
+  }
+
+  removeQueuedPrompt(id: string): void {
+    this.queuedPrompts.update(items => items.filter(item => item.id !== id));
+  }
+
+  clearQueue(): void {
+    this.queuedPrompts.set([]);
+  }
+
+  cancelGeneration(): void {
+    if (!this.isGenerating()) return;
+    this.cancelledInFlight = true;
+    this.chatSubscription?.unsubscribe();
+    this.chatSubscription = undefined;
+    this.isGenerating.set(false);
+    this.editStatus.set('Generación cancelada.');
+  }
+
   /** Recupera mensajes persistidos en FastAPI; el navegador no conserva una copia durable. */
   loadHistory(older = false): void {
     if (this.isLoadingHistory() || this.isGenerating() || this.isClearingHistory()) return;
@@ -210,6 +314,7 @@ export class AiService {
       tap(() => {
         if (version !== this.sessionVersion) return;
         this.resetSession(true);
+        this.clearPinnedAttachments();
         this.historyReady.set(true);
       }),
       catchError(() => {
@@ -224,9 +329,12 @@ export class AiService {
   resetSession(keepConversations = false): void {
     this.conversationSubscription?.unsubscribe();
     this.isManagingChats.set(false); this.editStatus.set('');
+    this.queuedPrompts.set([]);
+    this.cancelledInFlight = true;
     if (!keepConversations) {
       this.conversations.set([]); this.conversationsReady.set(false);
       this.activeConversationId.set('default'); this.editMode.set(false);
+      this.pinnedAttachmentsByChat.set(new Map());
     }
     this.sessionVersion++;
     this.historySubscription?.unsubscribe();
@@ -246,18 +354,79 @@ export class AiService {
     return { ...message, timestamp: new Date(message.timestamp) };
   }
 
+  private mergeUniqueAttachments(...groups: (readonly AiAttachment[])[]): AiAttachment[] {
+    const byName = new Map<string, AiAttachment>();
+    for (const group of groups) {
+      for (const item of group) {
+        if (item?.name) byName.set(item.name, item);
+      }
+    }
+    return Array.from(byName.values()).slice(0, MAX_CHAT_ATTACHMENTS);
+  }
+
+  private collectWorkspaceAttachments(userPrompt: string, existing: readonly AiAttachment[]): AiAttachment[] {
+    if (!this.includeWorkspaceIndex()) return [];
+    const list = this.notesService.notesList?.();
+    if (!list?.length || existing.length >= MAX_CHAT_ATTACHMENTS) return [];
+    const lowerPrompt = userPrompt.toLowerCase();
+    const activeId = this.notesService.currentNote()?._id;
+    const seen = new Set(existing.map(a => a.name));
+    const discovered: AiAttachment[] = [];
+
+    for (const summary of list) {
+      if (existing.length + discovered.length >= MAX_CHAT_ATTACHMENTS) break;
+      if (summary._id === activeId) continue;
+      const title = (summary.title || '').trim();
+      if (title.length < 4 || !lowerPrompt.includes(title.toLowerCase())) continue;
+      const cached = this.notesService.getCachedNote?.(summary._id);
+      if (!cached) continue;
+      const att = noteToAiAttachment(cached);
+      if (att && !seen.has(att.name)) {
+        seen.add(att.name);
+        discovered.push(att);
+      }
+    }
+    return discovered;
+  }
+
+  private appendWorkspaceIndex(content: string): string {
+    if (!this.includeWorkspaceIndex()) return content;
+    const list = this.notesService.notesList?.();
+    if (!list || list.length <= 1) return content;
+    const activeId = this.notesService.currentNote()?._id;
+    const entries = list
+      .filter(item => item._id !== activeId)
+      .slice(0, 60)
+      .map(item => `- ${item.title || 'Sin título'} (${item.docType || 'block'}, id: ${item._id})`);
+    if (!entries.length) return content;
+    const indexBlock = `\n\n[Documentos en tu espacio (${entries.length}):\n${entries.join('\n')}\n]`;
+    return boundedAiText(content + indexBlock, AI_REQUEST_LIMITS.document);
+  }
+
   /**
    * Envía un mensaje al agente de IA con o sin el contexto del documento actual.
    */
-  sendMessage(userPrompt: string): boolean {
-    const trimmed = userPrompt.trim();
-    if (!trimmed || this.isGenerating() || this.isLoadingHistory() || this.isClearingHistory()) return false;
-    if (!this.historyReady()) { this.loadHistory(); return false; }
+  sendMessage(userPrompt: string, attachments: AiAttachment[] = []): boolean {
+    const trimmed = userPrompt.trim() + (attachments.length ? '\n\n[Adjuntos: ' + attachments.map(a => a.name).join(', ') + ']' : '');
+    if (!trimmed || this.isLoadingHistory() || this.isClearingHistory()) return false;
 
     if (trimmed.length > AI_REQUEST_LIMITS.message) {
-      this.addErrorMessage('El mensaje supera los 12 000 caracteres. Divide tu consulta en partes para enviarla.');
+      this.addErrorMessage('El mensaje supera los 250 000 caracteres. Divide tu consulta en partes para enviarla.');
       return false;
     }
+
+    if (this.isGenerating()) {
+      const queueItem = {
+        id: `q-${Date.now()}-${++this.messageSequence}`,
+        prompt: userPrompt,
+        attachments: [...attachments],
+      };
+      this.queuedPrompts.update(prev => [...prev, queueItem]);
+      this.editStatus.set(`Mensaje en cola (${this.queuedPrompts().length}). Se enviará al terminar el actual.`);
+      return true;
+    }
+
+    if (!this.historyReady()) { this.loadHistory(); return false; }
 
     let editSnapshot: EditSnapshot | undefined;
     if (this.editMode()) {
@@ -266,6 +435,22 @@ export class AiService {
       catch (error) { this.editStatus.set(error instanceof Error ? error.message : 'No se pudo preparar el documento.'); return false; }
     }
     this.editStatus.set('');
+    this.cancelledInFlight = false;
+
+    const pinned = this.keepAttachmentsInConversation() ? this.activePinnedAttachments() : [];
+    const baseAttachments = this.mergeUniqueAttachments(pinned, attachments);
+    const workspaceMatched = this.collectWorkspaceAttachments(userPrompt, baseAttachments);
+    const effectiveAttachments = this.mergeUniqueAttachments(baseAttachments, workspaceMatched);
+    const attachmentPayloadChars = effectiveAttachments.reduce((sum, item) => sum + (item.data?.length || item.text?.length || 0), 0);
+    const attachmentTextChars = effectiveAttachments.reduce((sum, item) => sum + (item.text?.length || 0), 0);
+    if (effectiveAttachments.length > 10 || attachmentPayloadChars > 32 * 1024 * 1024 || attachmentTextChars > 2_400_000) {
+      this.addErrorMessage('Los adjuntos superan el límite combinado de 32 MiB o 2,4 millones de caracteres de texto. Quita archivos o envíalos en varios mensajes.');
+      return false;
+    }
+    if (this.keepAttachmentsInConversation() && attachments.length) {
+      this.pinAttachments(attachments);
+    }
+
     const version = this.sessionVersion;
     const userMsgId = `user-${Date.now()}-${++this.messageSequence}`;
     const userMsg: AiChatMessage = {
@@ -286,6 +471,7 @@ export class AiService {
 
     const requestPayload: AiChatRequest = {
       message: trimmed,
+      ...(effectiveAttachments.length ? { attachments: effectiveAttachments } : {}),
       model: this.selectedModel(),
       conversationId: this.activeConversationId(),
       ...(editSnapshot ? { editTargets: editSnapshot.targets } : {}),
@@ -329,16 +515,37 @@ export class AiService {
           this.addErrorMessage(err.status === 413
             ? 'La solicitud es demasiado grande. Desactiva el contexto del documento o divide el mensaje e inténtalo de nuevo.'
             : err.status === 400
-              ? 'La consulta no cumple los límites del chat. Reduce el mensaje y vuelve a intentarlo.'
+              ? this.safeRequestError(err.error?.message) || 'La consulta o sus adjuntos superan los límites del chat. Divide los archivos o la solicitud e inténtalo de nuevo.'
               : err.status === 502 || err.status === 503
                 ? 'El servicio de IA no pudo completar la generación o validar sus cambios. No se aplicaron cambios de esta respuesta. Intenta de nuevo o divide la petición en secciones.'
                 : 'No se pudo completar la respuesta de IA. Verifica la conexión o inténtalo de nuevo.');
           return of(null);
         }),
-        finalize(() => { if (version === this.sessionVersion) this.isGenerating.set(false); })
+        finalize(() => {
+          if (version !== this.sessionVersion) return;
+          this.isGenerating.set(false);
+          const shouldDispatch = !this.cancelledInFlight;
+          this.cancelledInFlight = false;
+          if (shouldDispatch) {
+            const next = this.queuedPrompts()[0];
+            if (next) {
+              this.queuedPrompts.update(items => items.slice(1));
+              this.sendMessage(next.prompt, next.attachments);
+            }
+          }
+        })
       )
       .subscribe();
     return true;
+  }
+
+  /** Expone diagnósticos de validación del API, que solo incluyen campos y reglas, nunca valores. */
+  private safeRequestError(value: unknown): string | null {
+    const messages = Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string').slice(0, 3)
+      : typeof value === 'string' ? [value] : [];
+    const result = messages.join('; ').replace(/[\r\n\t]+/g, ' ').trim();
+    return result ? result.slice(0, 320) : null;
   }
 
   /**
@@ -378,7 +585,11 @@ export class AiService {
         const coverage = truncated
           ? '[COBERTURA PARCIAL: hay contenido omitido. No se puede concluir que una sección no exista por no aparecer en este extracto.]\n'
           : '[Contenido disponible del documento activo.]\n';
-        return { title: boundedAiText(note.title, AI_REQUEST_LIMITS.title), docType, content: boundedAiText(coverage + parts.join(''), AI_REQUEST_LIMITS.document) };
+        return {
+          title: boundedAiText(note.title, AI_REQUEST_LIMITS.title),
+          docType,
+          content: this.appendWorkspaceIndex(boundedAiText(coverage + parts.join(''), AI_REQUEST_LIMITS.document)),
+        };
       } catch { /* Durante la carga se conserva el extractor de datos persistidos. */ }
     }
     if (docType === 'block') {
@@ -416,7 +627,7 @@ export class AiService {
     return {
       title: boundedAiText(note.title || 'Documento sin título', AI_REQUEST_LIMITS.title),
       docType: boundedAiText(docType, AI_REQUEST_LIMITS.docType),
-      content: parts.join(''),
+      content: this.appendWorkspaceIndex(parts.join('')),
     };
   }
 

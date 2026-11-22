@@ -112,8 +112,13 @@ describe('ExcelChartRendererComponent', () => {
   });
 
   it('shows values on hover and clears stale tooltips when changing chart type', () => {
-    const bar = fixture.nativeElement.querySelector('svg rect') as SVGRectElement;
-    bar.dispatchEvent(new MouseEvent('mouseenter', { clientX: 100, clientY: 100 }));
+    const canvas = fixture.nativeElement.querySelector('canvas.plot-canvas') as HTMLCanvasElement;
+    expect(canvas).toBeTruthy();
+    Object.defineProperty(canvas, 'getBoundingClientRect', { value: () => ({ left: 0, top: 0, width: 500, height: 240 }) });
+    const bar = component.barGroups()[0].bars[0];
+    const clientX = component.x(bar.x + bar.width / 2);
+    const clientY = component.y(bar.y + bar.height / 2);
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX, clientY }));
     fixture.detectChanges();
     expect(component.hoverTooltip()?.val).toBe(150);
     expect(component.hoverTooltip()?.series).toBe('Q1');
@@ -233,15 +238,16 @@ describe('ExcelChartRendererComponent', () => {
     fixture.componentRef.setInput('category', 'line'); fixture.componentRef.setInput('subType', 'line');
     fixture.detectChanges();
     const key = component.animationKey;
-    const svg = fixture.nativeElement.querySelector('.plot-svg');
+    const canvas = fixture.nativeElement.querySelector('canvas.plot-canvas') as HTMLCanvasElement;
+    expect(canvas).toBeTruthy();
     fixture.componentRef.setInput('seriesColors', { 'column:1': '#ff5500' }); fixture.detectChanges();
     expect(component.getColor(0)).toBe('#ff5500');
-    expect(fixture.nativeElement.querySelector('.animated-line').getAttribute('stroke')).toBe('#ff5500');
+    expect(component.toPlotState().getColor(0)).toBe('#ff5500');
     expect((fixture.nativeElement.querySelector('.chart-legend .font-medium') as HTMLElement).style.color).toBe('rgb(255, 85, 0)');
     expect(component.animationKey).toBe(key);
-    expect(fixture.nativeElement.querySelector('.plot-svg')).toBe(svg);
-    Object.defineProperty(svg, 'getBoundingClientRect', { value: () => ({ left: 0, top: 0, width: 500, height: 240 }) });
-    svg.querySelector('.axis-hover-target').dispatchEvent(new MouseEvent('mousemove', { clientX: 75, clientY: 40 }));
+    expect(fixture.nativeElement.querySelector('canvas.plot-canvas')).toBe(canvas);
+    Object.defineProperty(canvas, 'getBoundingClientRect', { value: () => ({ left: 0, top: 0, width: 500, height: 240 }) });
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 75, clientY: 40 }));
     fixture.detectChanges();
     expect(component.axisHover()?.values[0].color).toBe('#ff5500');
     fixture.componentRef.setInput('dataConfig', { xColumn: 0, seriesColumns: [2], hasHeaders: true });
@@ -256,7 +262,13 @@ describe('ExcelChartRendererComponent', () => {
     expect(component.colorItems().map(item => item.key)).toEqual(['row:1', 'row:2']);
     expect(component.getColor(0)).toBe('#bb2255');
     expect(component.getColor(1)).toBe('#22aa88');
-    expect(fixture.nativeElement.querySelector('svg g > path').getAttribute('fill')).toBe('#bb2255');
+    expect(component.toPlotState().getColor(0)).toBe('#bb2255');
+    const canvas = fixture.nativeElement.querySelector('canvas.plot-canvas') as HTMLCanvasElement;
+    Object.defineProperty(canvas, 'getBoundingClientRect', { value: () => ({ left: 0, top: 0, width: 500, height: 240 }) });
+    // Slice 0 spans from top (12 o'clock) clockwise into upper-right quadrant around (290, 90)
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 290, clientY: 90 }));
+    fixture.detectChanges();
+    expect(component.hoverTooltip()?.color).toBe('#bb2255');
   });
 
 
@@ -276,47 +288,48 @@ describe('ExcelChartRendererComponent', () => {
     expect(component.animationKey).toBe(initial + 1);
   });
 
-  it('uses the available plot height while keeping text and markers in pixels at preview size', () => {
+  it('uses the available plot height while keeping Canvas dimensions synced at preview size', () => {
+    const dpr = Math.min(2, (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1);
     fixture.componentRef.setInput('category', 'line');
     fixture.componentRef.setInput('subType', 'line');
     component.viewport.set({ width: 248, height: 115 });
+    component.paintCanvas();
     fixture.detectChanges();
-    const svg = fixture.nativeElement.querySelector('.plot-svg') as SVGSVGElement;
-    expect(svg.getAttribute('viewBox')).toBe('0 0 248 115');
+    const canvas = fixture.nativeElement.querySelector('canvas.plot-canvas') as HTMLCanvasElement;
+    expect(canvas.width).toBe(Math.round(248 * dpr));
+    expect(canvas.height).toBe(Math.round(115 * dpr));
     expect(component.y(25)).toBe(10);
     expect(component.y(200)).toBe(89);
     expect(component.x(55)).toBe(70);
     expect(component.x(480)).toBe(232);
-    expect(svg.querySelector('circle')?.getAttribute('r')).toBe('5');
-    expect(svg.querySelector('text')?.getAttribute('transform')).toBeNull();
     expect(component.visibleXLabels.length).toBe(2);
     component.viewport.set({ width: 448, height: 210 });
+    component.paintCanvas();
     fixture.detectChanges();
-    expect(svg.getAttribute('viewBox')).toBe('0 0 448 210');
+    expect(canvas.width).toBe(Math.round(448 * dpr));
+    expect(canvas.height).toBe(Math.round(210 * dpr));
     expect(component.y(200)).toBe(184);
-    expect(svg.querySelector('circle')?.getAttribute('r')).toBe('5');
   });
 
   it('tracks categories across the plot, showing a vertical cursor and all series values', () => {
     fixture.componentRef.setInput('category', 'line');
     fixture.componentRef.setInput('subType', 'line');
     fixture.detectChanges();
-    const svg = fixture.nativeElement.querySelector('.plot-svg') as SVGSVGElement;
-    Object.defineProperty(svg, 'getBoundingClientRect', { value: () => ({ left: 0, top: 0, width: 500, height: 240 }) });
-    const target = svg.querySelector('.axis-hover-target') as SVGRectElement;
+    const canvas = fixture.nativeElement.querySelector('canvas.plot-canvas') as HTMLCanvasElement;
+    Object.defineProperty(canvas, 'getBoundingClientRect', { value: () => ({ left: 0, top: 0, width: 500, height: 240 }) });
     // Hover well above the data points: selection depends on horizontal position.
-    target.dispatchEvent(new MouseEvent('mousemove', { clientX: 400, clientY: 30 }));
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 400, clientY: 30 }));
     fixture.detectChanges();
     expect(component.axisHover()?.label).toBe('Monitores');
     expect(component.axisHover()?.values.map(item => item.value)).toEqual([80, 110]);
-    expect(svg.querySelector('.axis-cursor')?.getAttribute('x1')).toBe(String(component.x(480)));
+    expect(component.toPlotState().activeAxisHover?.x).toBe(component.x(480));
     expect(fixture.nativeElement.querySelector('.axis-tooltip').textContent).toContain('Q2 : 110');
-    target.dispatchEvent(new MouseEvent('mousemove', { clientX: 75, clientY: 30 }));
+    canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 75, clientY: 30 }));
     fixture.detectChanges();
     expect(component.axisHover()?.label).toBe('Laptops');
-    target.dispatchEvent(new MouseEvent('mouseleave'));
+    canvas.dispatchEvent(new MouseEvent('mouseleave'));
     fixture.detectChanges();
-    expect(svg.querySelector('.axis-cursor')).toBeNull();
+    expect(component.axisHover()).toBeNull();
     expect(fixture.nativeElement.querySelector('.axis-tooltip')).toBeNull();
   });
 
@@ -342,5 +355,26 @@ describe('Chart selection extraction', () => {
     const result = extractChartDataFromGrid({ A1: { raw: 'Product' }, B1: { raw: 'Sales' }, A2: { raw: 'SUMA TOTAL' }, B2: { raw: '42' } }, { startCol: 1, startRow: 1, endCol: 0, endRow: 0 });
     expect(result.rows[0]['Sales']).toBe(42);
     expect(result.rows[0]['name']).toBe('SUMA TOTAL');
+  });
+
+  it('extracts row-oriented chart data with series across rows and categories across columns', () => {
+    const rowGrid: SheetGrid = {
+      B37: { raw: 'Concepto' }, C37: { raw: '2026' }, D37: { raw: '2027' },
+      B38: { raw: 'Ingresos' }, C38: { raw: '100' }, D38: { raw: '120' },
+      B40: { raw: 'Utilidad' }, C40: { raw: '30' },  D40: { raw: '45' },
+    };
+    const result = extractChartDataFromGrid(rowGrid, { startCol: 1, startRow: 36, endCol: 3, endRow: 39 }, {
+      orientation: 'row',
+      xRow: 36,
+      xColumn: null,
+      seriesRows: [37, 39],
+      seriesColumns: [2, 3],
+      hasHeaders: false,
+      seriesNames: { 37: 'Ingresos', 39: 'Utilidad' },
+    });
+    expect(result.seriesKeys).toEqual(['Ingresos', 'Utilidad']);
+    expect(result.rows.length).toBe(2);
+    expect(result.rows[0]).toMatchObject({ name: '2026', Ingresos: 100, Utilidad: 30 });
+    expect(result.rows[1]).toMatchObject({ name: '2027', Ingresos: 120, Utilidad: 45 });
   });
 });

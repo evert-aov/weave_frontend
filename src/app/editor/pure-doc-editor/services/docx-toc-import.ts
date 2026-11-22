@@ -23,14 +23,14 @@ export class DocxTocImport {
       const names = Array.from(p.getElementsByTagNameNS(WORD, 'bookmarkStart')).map(node => attr(node,'name')).filter(name => name && name !== '_GoBack');
       if (names.length) { const id = `docx-target-${++sequence}`; this.targets.set(p,id); names.forEach(name => this.bookmarks.set(name,id)); }
     }
-    type Field = { instruction: string; result: boolean; controls: Set<Element> };
+    type Field = { instruction: string; result: boolean; controls: Set<Element>; startParagraph: Element | null };
     const stack: Field[] = [], fields: Field[] = [];
     const visit = (node: Element, paragraph: Element | null): void => {
       if (node.localName === 'del') return;
       if (node.localName === 'p') paragraph = node;
       if (node.localName === 'fldChar') {
         const kind = attr(node,'fldCharType');
-        if (kind === 'begin') { const field: Field = {instruction:'',result:false,controls:new Set()}; stack.push(field); fields.push(field); }
+        if (kind === 'begin') { const field: Field = {instruction:'',result:false,controls:new Set(),startParagraph:paragraph}; stack.push(field); fields.push(field); }
         if (paragraph && stack.length) stack[stack.length-1].controls.add(paragraph);
         if (kind === 'separate' && stack.length) stack[stack.length-1].result=true;
         if (kind === 'end') stack.pop();
@@ -43,6 +43,37 @@ export class DocxTocImport {
       for (const child of Array.from(node.children)) visit(child,paragraph);
     };
     visit(body,null);
+    // Algunos DOCX dejan abierto el campo complejo del TOC. Word y LibreOffice
+    // recuperan el flujo al llegar al primer encabezado real; imitamos esa regla
+    // para no clasificar todo el resto del documento como filas del índice.
+    const paragraphs = Array.from(body.getElementsByTagNameNS(WORD, 'p'));
+    const paragraphStyleId = (paragraph: Element): string => {
+      const pPr = Array.from(paragraph.children).find(node => node.localName === 'pPr');
+      const pStyle = pPr && Array.from(pPr.children).find(node => node.localName === 'pStyle');
+      return pStyle ? attr(pStyle, 'val') : '';
+    };
+    const hasOutlineLevel = (paragraph: Element): boolean => {
+      const pPr = Array.from(paragraph.children).find(node => node.localName === 'pPr');
+      return Boolean(pPr && Array.from(pPr.children).some(node => node.localName === 'outlineLvl'));
+    };
+    for (const field of stack.filter(item => /^\s*TOC(?:\s|$)/i.test(item.instruction))) {
+      const start = Math.max(0, paragraphs.indexOf(field.startParagraph || paragraphs[0]));
+      let sawTocStyle = false;
+      for (let index = start; index < paragraphs.length; index++) {
+        const paragraph = paragraphs[index];
+        const styleId = paragraphStyleId(paragraph);
+        if (/^(?:toc|tdc|tableofcontents|indice)\s*\d*$/i.test(styleId)) {
+          sawTocStyle = true;
+          continue;
+        }
+        if (sawTocStyle && (hasOutlineLevel(paragraph) || /^(?:heading|titulo|título|encabezado|weavechapter)\s*\d*$/i.test(styleId))) {
+          for (let remaining = index; remaining < paragraphs.length; remaining++) {
+            this.fieldParagraphs.delete(paragraphs[remaining]);
+          }
+          break;
+        }
+      }
+    }
     fields.filter(field => /^\s*TOC(?:\s|$)/i.test(field.instruction)).forEach(field => field.controls.forEach(p => { if (!text(p).trim()) this.controls.add(p); }));
   }
   visibleText(paragraph: Element): string { return text(paragraph); }

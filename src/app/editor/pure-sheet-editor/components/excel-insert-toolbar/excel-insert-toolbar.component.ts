@@ -67,10 +67,14 @@ export class ExcelInsertToolbarComponent {
   @Output() openAllChartsModal = new EventEmitter<{ tab: 'recommended' | 'all'; category?: ChartCategory }>();
   @Output() openShapes = new EventEmitter<void>();
   @Output() openIcons = new EventEmitter<void>();
+  @Output() insertPicture = new EventEmitter<void>();
+  @Output() openPivot = new EventEmitter<void>();
   @Output() insertCheckbox = new EventEmitter<void>();
   @Output() insertEquation = new EventEmitter<void>();
   @Output() insertSymbol = new EventEmitter<void>();
   @Output() formatSelectionAsTable = new EventEmitter<void>();
+  @Output() openSparklineModal = new EventEmitter<void>();
+  @Output() openHyperlinkModal = new EventEmitter<void>();
 
   readonly themeService = inject(ThemeService);
 

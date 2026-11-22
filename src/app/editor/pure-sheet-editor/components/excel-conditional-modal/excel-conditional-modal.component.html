@@ -30,6 +30,7 @@
           {{ i18n.currentLang() === 'es' ? 'Tipo de Regla' : 'Rule Type' }}
         </label>
         <select [(ngModel)]="ruleType"
+                data-testid="conditional-rule-type"
                 class="w-full text-xs rounded-lg px-2.5 py-2 border font-medium cursor-pointer"
                 [class.bg-slate-700]="themeService.isDark()"
                 [class.border-slate-600]="themeService.isDark()"
@@ -40,6 +41,11 @@
           <option value="lessThan">{{ i18n.currentLang() === 'es' ? 'Es menor que…' : 'Less than…' }}</option>
           <option value="between">{{ i18n.currentLang() === 'es' ? 'Está entre…' : 'Between…' }}</option>
           <option value="equalTo">{{ i18n.currentLang() === 'es' ? 'Es igual a…' : 'Equal to…' }}</option>
+          <option value="containsText">{{ i18n.currentLang() === 'es' ? 'Texto que contiene…' : 'Text contains…' }}</option>
+          <option value="duplicates">{{ i18n.currentLang() === 'es' ? 'Valores duplicados' : 'Duplicate values' }}</option>
+          <option value="aboveAverage">{{ i18n.currentLang() === 'es' ? 'Por encima del promedio' : 'Above average' }}</option>
+          <option value="dataBar">{{ i18n.currentLang() === 'es' ? 'Barras de datos (Canvas)' : 'Data Bars (Canvas)' }}</option>
+          <option value="iconSet">{{ i18n.currentLang() === 'es' ? 'Conjuntos de iconos (Canvas)' : 'Icon Sets (Canvas)' }}</option>
           <option value="colorScale">{{ i18n.currentLang() === 'es' ? 'Escala de colores (Gradiente)' : 'Color Scale (Gradient)' }}</option>
         </select>
       </div>
@@ -89,10 +95,12 @@
         </div>
       }
 
-      @if (ruleType === 'equalTo') {
+      @if (ruleType === 'equalTo' || ruleType === 'containsText') {
         <div>
           <label class="block text-xs font-medium text-slate-400 mb-1">
-            {{ i18n.currentLang() === 'es' ? 'Texto o valor exacto' : 'Exact text or value' }}
+            {{ ruleType === 'containsText'
+              ? (i18n.currentLang() === 'es' ? 'Subcadena a buscar' : 'Substring to match')
+              : (i18n.currentLang() === 'es' ? 'Texto o valor exacto' : 'Exact text or value') }}
           </label>
           <input type="text" [(ngModel)]="textVal"
                  class="w-full text-xs rounded-lg px-2.5 py-1.5 border"
@@ -104,7 +112,41 @@
         </div>
       }
 
-      @if (ruleType !== 'colorScale') {
+      @if (ruleType === 'dataBar') {
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">
+            {{ i18n.currentLang() === 'es' ? 'Color de la barra' : 'Data bar color' }}
+          </label>
+          <div class="flex items-center gap-2">
+            @for (color of dataBarColors; track color) {
+              <button type="button"
+                      (click)="dataBarColor = color"
+                      class="w-6 h-6 rounded-md border-2 cursor-pointer transition-transform"
+                      [style.background]="color"
+                      [class.scale-110]="dataBarColor === color"
+                      [class.border-white]="dataBarColor === color && themeService.isDark()"
+                      [class.border-slate-900]="dataBarColor === color && !themeService.isDark()"
+                      [class.border-transparent]="dataBarColor !== color"></button>
+            }
+          </div>
+        </div>
+      } @else if (ruleType === 'iconSet') {
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">
+            {{ i18n.currentLang() === 'es' ? 'Estilo de iconos' : 'Icon set style' }}
+          </label>
+          <select [(ngModel)]="iconSetStyle"
+                  class="w-full text-xs rounded-lg px-2.5 py-2 border font-medium cursor-pointer"
+                  [class.bg-slate-700]="themeService.isDark()"
+                  [class.border-slate-600]="themeService.isDark()"
+                  [class.text-white]="themeService.isDark()"
+                  [class.bg-slate-50]="!themeService.isDark()"
+                  [class.border-slate-200]="!themeService.isDark()">
+            <option value="trafficLights">{{ i18n.currentLang() === 'es' ? 'Semáforos (Verde / Ámbar / Rojo)' : 'Traffic lights' }}</option>
+            <option value="arrows">{{ i18n.currentLang() === 'es' ? 'Flechas direccionales' : 'Directional arrows' }}</option>
+          </select>
+        </div>
+      } @else if (usesPresetStyle) {
         <div>
           <label class="block text-xs font-medium text-slate-400 mb-1">
             {{ i18n.currentLang() === 'es' ? 'Estilo a aplicar' : 'Format style' }}
@@ -137,6 +179,30 @@
             <option value="red-yellow-green">{{ i18n.currentLang() === 'es' ? 'Rojo - Amarillo - Verde' : 'Red - Yellow - Green' }}</option>
             <option value="blue-white-red">{{ i18n.currentLang() === 'es' ? 'Azul - Blanco - Rojo' : 'Blue - White - Red' }}</option>
           </select>
+        </div>
+      }
+
+      @if (existingRules.length > 0) {
+        <div class="pt-2 border-t"
+             [class.border-slate-700]="themeService.isDark()"
+             [class.border-slate-200]="!themeService.isDark()">
+          <div class="text-[11px] font-medium text-slate-400 mb-1.5">
+            {{ i18n.currentLang() === 'es' ? 'Reglas activas en la hoja' : 'Active sheet rules' }} ({{ existingRules.length }})
+          </div>
+          <div class="max-h-28 overflow-y-auto space-y-1">
+            @for (rule of existingRules; track rule.id) {
+              <div class="flex items-center justify-between gap-2 px-2 py-1 rounded text-[11px]"
+                   [class.bg-slate-700/60]="themeService.isDark()"
+                   [class.bg-slate-100]="!themeService.isDark()">
+                <span class="truncate">{{ describeRule(rule) }}</span>
+                <button type="button"
+                        (click)="removeRule.emit(rule.id)"
+                        class="text-rose-500 hover:underline shrink-0 cursor-pointer">
+                  {{ i18n.currentLang() === 'es' ? 'Quitar' : 'Remove' }}
+                </button>
+              </div>
+            }
+          </div>
         </div>
       }
     </div>

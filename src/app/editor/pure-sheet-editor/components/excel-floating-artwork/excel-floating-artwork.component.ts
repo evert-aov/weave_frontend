@@ -1,17 +1,20 @@
-import { Component, EventEmitter, HostListener, Input, Output, inject } from '@angular/core';
-import { DomSanitizer } from '@angular/platform-browser';
-import { LucideDynamicIcon, provideLucideIcons } from '@lucide/angular';
-import { WORD_ICON_DEFINITIONS } from '../../../pure-doc-editor/components/word-icons-modal/word-icons-modal.component';
-import { SHAPE_ITEMS } from '../../../pure-doc-editor/constants/word-insert.constants';
+import { AfterViewInit, Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, ViewChild, inject } from '@angular/core';
 import { FloatingArtwork } from '../../models/excel.model';
+import { ThemeService } from '../../../../core/services/theme.service';
+import { paintFloatingArtworkItem } from '../../services/artwork-canvas-renderer';
 
 @Component({
-  selector: 'app-excel-floating-artwork', standalone: true, imports: [LucideDynamicIcon],
-  providers: [provideLucideIcons(...WORD_ICON_DEFINITIONS)],
+  selector: 'app-excel-floating-artwork',
+  standalone: true,
   template: `
-    <div class="artwork" [class.selected]="selected" (mousedown)="begin($event, false)">
-      @if (artwork.kind === 'icon') { <svg class="inserted-icon" [lucideIcon]="artwork.itemId" [size]="32"></svg> }
-      @else { <div class="shape" [innerHTML]="shapeSvg"></div> }
+    <div
+      class="artwork"
+      role="img"
+      [attr.aria-label]="artwork.kind === 'icon' ? 'Icono ' + artwork.itemId : 'Forma ' + artwork.itemId"
+      [class.selected]="selected"
+      (mousedown)="begin($event, false)"
+    >
+      <canvas #artworkCanvas class="artwork-canvas" (mousedown)="begin($event, false)"></canvas>
       @if (selected) {
         <button type="button" class="delete" aria-label="Eliminar objeto" title="Eliminar" (mousedown)="$event.stopPropagation()" (click)="remove.emit()">×</button>
         <button type="button" class="resize" aria-label="Cambiar tamaño" (mousedown)="begin($event, true)"></button>
@@ -21,12 +24,12 @@ import { FloatingArtwork } from '../../models/excel.model';
     :host { display: block; position: absolute; z-index: 35; }
     .artwork { position: relative; width: 100%; height: 100%; cursor: move; user-select: none; color: #2563eb; }
     .artwork.selected { outline: 2px solid #059669; }
-    .shape, .inserted-icon { display: block; width: 100%; height: 100%; pointer-events: none; }
+    .artwork-canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
     .delete { position: absolute; top: -24px; right: 0; width: 24px; height: 24px; border-radius: 4px; background: white; color: #475569; border: 1px solid #cbd5e1; cursor: pointer; }
     .resize { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: #059669; border: 1px solid white; border-radius: 50%; cursor: nwse-resize; }
   `],
 })
-export class ExcelFloatingArtworkComponent {
+export class ExcelFloatingArtworkComponent implements AfterViewInit, OnChanges {
   @Input({ required: true }) artwork!: FloatingArtwork;
   @Input() selected = false;
   @Input() zoom = 1;
@@ -35,12 +38,47 @@ export class ExcelFloatingArtworkComponent {
   @Output() geometryChange = new EventEmitter<Pick<FloatingArtwork, 'x' | 'y' | 'width' | 'height'>>();
   @Output() endChange = new EventEmitter<void>();
   @Output() remove = new EventEmitter<void>();
-  private readonly sanitizer = inject(DomSanitizer);
+
+  private readonly themeService = inject(ThemeService);
+  private canvasEl?: HTMLCanvasElement;
   private drag?: { clientX: number; clientY: number; x: number; y: number; width: number; height: number; resize: boolean };
-  get shapeSvg() {
-    const shape = SHAPE_ITEMS.find(item => item.id === this.artwork.itemId);
-    return shape ? this.sanitizer.bypassSecurityTrustHtml(`<svg width="100%" height="100%" viewBox="${shape.viewBox}" preserveAspectRatio="none">${shape.svgInner}</svg>`) : '';
+
+  @ViewChild('artworkCanvas') set artworkCanvas(el: ElementRef<HTMLCanvasElement> | undefined) {
+    this.canvasEl = el?.nativeElement;
+    if (this.canvasEl) this.paintCanvas();
   }
+
+  ngAfterViewInit(): void {
+    this.paintCanvas();
+  }
+
+  ngOnChanges(): void {
+    this.paintCanvas();
+  }
+
+  paintCanvas(): void {
+    const canvas = this.canvasEl;
+    if (!canvas || !this.artwork) return;
+    const w = Math.max(16, Math.round(this.artwork.width));
+    const h = Math.max(16, Math.round(this.artwork.height));
+    const dpr = Math.min(2, (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1);
+    if (canvas.width !== Math.round(w * dpr)) canvas.width = Math.round(w * dpr);
+    if (canvas.height !== Math.round(h * dpr)) canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    paintFloatingArtworkItem(ctx, this.artwork, {
+      x: 0,
+      y: 0,
+      selected: false,
+      isDark: this.themeService.isDark(),
+      interactiveButtons: false,
+    });
+    ctx.restore();
+  }
+
   begin(event: MouseEvent, resize: boolean): void {
     if (event.button !== 0) return;
     event.preventDefault(); event.stopPropagation();

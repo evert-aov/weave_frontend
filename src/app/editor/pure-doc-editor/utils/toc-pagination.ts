@@ -3,7 +3,7 @@ import { createDocumentMeasurement } from './document-measurement';
 /** Distribuye filas según su altura real, sin el zoom del viewport ni reservas duplicadas. */
 export function paginateMeasuredToc(html: string, body: HTMLElement | undefined, maxHeight: number,
   measure?: (canvas: HTMLElement) => number): string[] | null {
-  if (!body || body.clientWidth < 200 || !body.clientHeight) return null;
+  if (!body || body.clientWidth < 200) return null;
   const root=document.createElement('div');root.innerHTML=html;
   const original=root.querySelector<HTMLElement>('.word-toc-page-section');
   if (!original) return null;
@@ -11,7 +11,7 @@ export function paginateMeasuredToc(html: string, body: HTMLElement | undefined,
   if (!rows.length) return [original.outerHTML];
   const canvas=createDocumentMeasurement(body);
   document.body.append(canvas);
-  const limit=Math.min(maxHeight,body.clientHeight)+0.5;
+  const limit=maxHeight+0.5;
   const height=measure || ((element:HTMLElement)=>Math.max(element.scrollHeight,element.getBoundingClientRect().height));
   const pages:string[]=[];
   let section=original.cloneNode(false) as HTMLElement;

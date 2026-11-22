@@ -11,7 +11,7 @@ export interface SheetEditorHooks {
   readonly viewChanges: ChangeDetectorRef | null;
   readonly referenceDrag: {
     col: number; row: number; prefix: string; suffix: string;
-    caret: number; input?: HTMLInputElement;
+    caret: number; input?: HTMLInputElement | HTMLTextAreaElement;
   } | undefined;
   pushUndoSnapshot(): void;
   stopInkReplay(): void;
@@ -21,4 +21,6 @@ export interface SheetEditorHooks {
   finishFormulaReference(): void;
   handleFormulaArrow(event: KeyboardEvent): boolean;
   updateFormulaReference(col: number, row: number): void;
+  scheduleCanvasRender?(): void;
+  scheduleFormulaRecalc?(): void;
 }

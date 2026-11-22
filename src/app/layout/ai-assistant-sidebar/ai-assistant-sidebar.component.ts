@@ -1,7 +1,13 @@
+import { readAiAttachment } from '../../core/utils/ai-attachments';
+import { noteToAiAttachment, getDocTypeLabel } from '../../core/utils/ai-note-reader';
+import type { AiAttachment } from '../../core/models/ai.model';
+import type { NoteSummary } from '../../core/models/note.model';
+import { firstValueFrom } from 'rxjs';
 import {
   Component,
   ElementRef,
   ViewChild,
+  HostListener,
   inject,
   signal,
   effect,
@@ -49,6 +55,72 @@ export class AiAssistantSidebarComponent {
   newChat(): void { this.aiService.createConversation(); this.chatsOpen.set(false); }
   selectChat(id: string): void { this.aiService.selectConversation(id); this.chatsOpen.set(false); }
 
+  readonly attachments=signal<AiAttachment[]>([]);
+  readonly attachmentBusy=signal(false);
+  readonly attachmentError=signal('');
+  async attachFiles(event:Event):Promise<void>{
+    const input=event.target as HTMLInputElement,files=Array.from(input.files||[]);input.value='';
+    await this.addAttachmentFiles(files);
+  }
+  async pasteAttachments(event:ClipboardEvent):Promise<void>{
+    const isSupportedPaste=(type:string)=>type.startsWith('image/')||type.startsWith('audio/');
+    const items=Array.from(event.clipboardData?.items||[]);
+    const files=items.filter(item=>item.kind==='file'&&isSupportedPaste(item.type)).map(item=>item.getAsFile()).filter((file):file is File=>Boolean(file));
+    if(!files.length)files.push(...Array.from(event.clipboardData?.files||[]).filter(file=>isSupportedPaste(file.type)));
+    if(!files.length)return;
+    event.preventDefault();event.stopPropagation();
+    await this.addAttachmentFiles(files);
+  }
+  private async addAttachmentFiles(files:File[]):Promise<void>{
+    if(!files.length||this.attachmentBusy())return;
+    if(files.length+this.attachments().length>10){this.attachmentError.set('Máximo 10 adjuntos por mensaje.');return;}
+    const chat=this.aiService.activeConversationId();this.attachmentBusy.set(true);this.attachmentError.set('');
+    try{const pending=await Promise.all(files.map(readAiAttachment));
+      if(chat===this.aiService.activeConversationId()){
+        const next=[...this.attachments(),...pending];
+        if(next.reduce((n,a)=>n+(a.data?.length||a.text?.length||0),0)>20000000)throw Error('Los adjuntos superan el tamaño total permitido.');
+        this.attachments.set(next);
+      }
+    }catch(error){this.attachmentError.set(error instanceof Error?error.message:'No se pudo adjuntar el archivo.');}
+    finally{this.attachmentBusy.set(false);}
+  }
+  removeAttachment(index:number):void{this.attachments.update(files=>files.filter((_,i)=>i!==index));}
+
+  openDatabaseNotePicker(): void {
+    if (this.attachmentBusy() || this.aiService.isGenerating()) return;
+    this.aiService.openDbNotePicker();
+  }
+
+  async attachDatabaseNote(summary: NoteSummary): Promise<void> {
+    if (this.attachmentBusy() || this.aiService.isGenerating()) return;
+    if (this.attachments().length >= 4) {
+      this.attachmentError.set('Máximo 4 adjuntos por mensaje.');
+      return;
+    }
+
+    const chat = this.aiService.activeConversationId();
+    this.attachmentBusy.set(true);
+    this.attachmentError.set('');
+    try {
+      const note = await firstValueFrom(this.notesService.getNoteById(summary._id));
+      if (!note) throw Error('No se pudo cargar el documento de la base.');
+
+      const attachment = noteToAiAttachment(note);
+      if (chat === this.aiService.activeConversationId()) {
+        const next = [...this.attachments(), attachment];
+        if (next.reduce((n, a) => n + (a.data?.length || a.text?.length || 0), 0) > 8000000) {
+          throw Error('Los adjuntos superan el tamaño total permitido.');
+        }
+        this.attachments.set(next);
+        this.aiService.closeDbNotePicker();
+      }
+    } catch (error) {
+      this.attachmentError.set(error instanceof Error ? error.message : 'No se pudo leer el documento de la base.');
+    } finally {
+      this.attachmentBusy.set(false);
+    }
+  }
+
   readonly inputText = signal<string>('');
   readonly copiedMessageId = signal<string | null>(null);
 
@@ -56,7 +128,14 @@ export class AiAssistantSidebarComponent {
     if (this.aiService.isSidebarOpen()) this.aiService.initialize();
     effect(() => {
       this.aiService.activeConversationId();
-      this.inputText.set(''); this.copiedMessageId.set(null);
+      this.inputText.set(''); this.attachments.set([]);this.attachmentError.set('');this.copiedMessageId.set(null);
+    });
+    effect(() => {
+      const requestedNote = this.aiService.attachDbNoteRequested();
+      if (requestedNote) {
+        this.aiService.attachDbNoteRequested.set(null);
+        void this.attachDatabaseNote(requestedNote);
+      }
     });
     // Auto-scroll al final al recibir nuevos mensajes
     effect(() => {
@@ -78,12 +157,48 @@ export class AiAssistantSidebarComponent {
       destructive: true, submitLabel: 'Eliminar', onSubmit: () => this.aiService.deleteConversation() });
   }
 
+  pinnedAttachments(): { name: string }[] {
+    return this.aiService.activePinnedAttachments?.() ?? [];
+  }
+
+  queuedPrompts(): { id: string; prompt: string }[] {
+    return this.aiService.queuedPrompts?.() ?? [];
+  }
+
+  keepAttachmentsEnabled(): boolean {
+    return this.aiService.keepAttachmentsInConversation?.() ?? false;
+  }
+
+  workspaceIndexEnabled(): boolean {
+    return this.aiService.includeWorkspaceIndex?.() ?? false;
+  }
+
+  toggleKeepAttachments(): void {
+    this.aiService.toggleKeepAttachmentsInConversation?.();
+  }
+
+  toggleWorkspaceIndex(): void {
+    this.aiService.toggleIncludeWorkspaceIndex?.();
+  }
+
+  unpinAttachment(name: string): void {
+    this.aiService.unpinAttachment?.(name);
+  }
+
+  cancelGeneration(): void {
+    this.aiService.cancelGeneration?.();
+  }
+
+  removeQueuedPrompt(id: string): void {
+    this.aiService.removeQueuedPrompt?.(id);
+  }
+
   onSend(): void {
     const text = this.inputText().trim();
-    if (!text || this.aiService.isGenerating()) return;
+    if ((!text&&!this.attachments().length)||this.attachmentBusy())return;
 
-    if (!this.aiService.sendMessage(text)) return;
-    this.inputText.set('');
+    if (!this.aiService.sendMessage(text||'Analiza los archivos adjuntos.',this.attachments())) return;
+    this.inputText.set('');this.attachments.set([]);
     setTimeout(() => this.scrollToBottom(), 50);
   }
 

@@ -22,6 +22,6 @@ export function tocRowHeight(source: string): number {
   if (!style) return 30;
   const px=(value:string)=>{const number=parseFloat(value)||0;return value.endsWith('pt') ? number*96/72 : number;};
   const font=px(style.fontSize)||14.67;
-  const line=Number(style.lineHeight)>0 ? Number(style.lineHeight)*font : px(style.lineHeight)||font*1.3;
+  const line=Number(style.lineHeight)>0 ? Number(style.lineHeight)*font*1.15 : px(style.lineHeight)||font*1.3*1.15;
   return Math.max(30,line+px(style.marginTop)+px(style.marginBottom)+2);
 }

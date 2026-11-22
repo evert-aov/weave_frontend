@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, EventEmitter, Input, Output, ViewChild, inject } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, inject, input, output, viewChild } from '@angular/core';
 import { LucideDynamicIcon, LucideX, LucideChevronUp, LucideChevronDown, provideLucideIcons } from '@lucide/angular';
 import { I18nService } from '../../../../core/services/i18n.service';
 
@@ -7,21 +7,22 @@ export type WordSearchAction = 'close' | 'next' | 'previous' | 'replace' | 'all'
 
 @Component({
   selector: 'app-word-search-panel', standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [LucideDynamicIcon],
   providers: [provideLucideIcons(LucideX, LucideChevronUp, LucideChevronDown)],
   template: `
-    <section class="word-search-panel" [class.dark-mode]="darkMode" [attr.aria-label]="t('word.search.panel_label')" (keydown.escape)="action.emit('close')" (mousedown)="keepSelection($event)">
-      <label>{{ t('word.search.find_label') }} <input #queryInput [attr.aria-label]="t('word.search.input_placeholder')" type="search" maxlength="1000" [value]="query" (input)="change.emit({ query: $any($event.target).value })" (keydown.enter)="action.emit($any($event).shiftKey ? 'previous' : 'next'); $event.preventDefault()" /></label>
+    <section class="word-search-panel" [class.dark-mode]="darkMode()" [attr.aria-label]="t('word.search.panel_label')" (keydown.escape)="action.emit('close')" (mousedown)="keepSelection($event)">
+      <label>{{ t('word.search.find_label') }} <input #queryInput [attr.aria-label]="t('word.search.input_placeholder')" type="search" maxlength="1000" [value]="query()" (input)="change.emit({ query: $any($event.target).value })" (keydown.enter)="action.emit($any($event).shiftKey ? 'previous' : 'next'); $event.preventDefault()" /></label>
       <button type="button" [title]="t('word.search.prev')" [attr.aria-label]="t('word.search.prev')" (click)="action.emit('previous')"><svg lucideIcon="chevron-up" [size]="16"></svg></button>
       <button type="button" [title]="t('word.search.next')" [attr.aria-label]="t('word.search.next')" (click)="action.emit('next')"><svg lucideIcon="chevron-down" [size]="16"></svg></button>
-      <label><input type="checkbox" [checked]="matchCase" (change)="change.emit({ matchCase: $any($event.target).checked })" />{{ t('word.search.case') }}</label>
-      <label><input type="checkbox" [checked]="wholeWord" (change)="change.emit({ wholeWord: $any($event.target).checked })" />{{ t('word.search.whole') }}</label>
-      @if (mode === 'replace') {
-        <label>{{ t('word.search.replace_label') }} <input [attr.aria-label]="t('word.search.replace_label')" [value]="replacement" (input)="change.emit({ replacement: $any($event.target).value })" (keydown.enter)="action.emit('replace'); $event.preventDefault()" /></label>
+      <label><input type="checkbox" [checked]="matchCase()" (change)="change.emit({ matchCase: $any($event.target).checked })" />{{ t('word.search.case') }}</label>
+      <label><input type="checkbox" [checked]="wholeWord()" (change)="change.emit({ wholeWord: $any($event.target).checked })" />{{ t('word.search.whole') }}</label>
+      @if (mode() === 'replace') {
+        <label>{{ t('word.search.replace_label') }} <input [attr.aria-label]="t('word.search.replace_label')" [value]="replacement()" (input)="change.emit({ replacement: $any($event.target).value })" (keydown.enter)="action.emit('replace'); $event.preventDefault()" /></label>
         <button type="button" (click)="action.emit('replace')">{{ t('word.search.replace_btn') }}</button>
         <button type="button" (click)="action.emit('all')">{{ t('word.search.all_btn') }}</button>
       }
-      <span role="status">{{ status }}</span>
+      <span role="status">{{ status() }}</span>
       <button type="button" [title]="t('word.search.close')" [attr.aria-label]="t('word.search.close')" (click)="action.emit('close')"><svg lucideIcon="x" [size]="16"></svg></button>
     </section>
   `,
@@ -46,16 +47,16 @@ export class WordSearchPanelComponent implements AfterViewInit {
     return this.i18n?.t ? this.i18n.t(key, params) : key;
   }
 
-  @Input() darkMode = false;
-  @Input() mode: 'find' | 'replace' = 'find';
-  @Input() query = '';
-  @Input() replacement = '';
-  @Input() matchCase = false;
-  @Input() wholeWord = false;
-  @Input() status = '';
-  @Output() change = new EventEmitter<Partial<WordSearchConfig>>();
-  @Output() action = new EventEmitter<WordSearchAction>();
-  @ViewChild('queryInput') input?: ElementRef<HTMLInputElement>;
-  ngAfterViewInit(): void { this.input?.nativeElement.focus(); this.input?.nativeElement.select(); }
+  readonly darkMode = input(false);
+  readonly mode = input<'find' | 'replace'>('find');
+  readonly query = input('');
+  readonly replacement = input('');
+  readonly matchCase = input(false);
+  readonly wholeWord = input(false);
+  readonly status = input('');
+  readonly change = output<Partial<WordSearchConfig>>();
+  readonly action = output<WordSearchAction>();
+  readonly queryInput = viewChild<ElementRef<HTMLInputElement>>('queryInput');
+  ngAfterViewInit(): void { const el = this.queryInput()?.nativeElement; el?.focus(); el?.select(); }
   keepSelection(event: MouseEvent): void { if ((event.target as Element).closest('button')) event.preventDefault(); }
 }

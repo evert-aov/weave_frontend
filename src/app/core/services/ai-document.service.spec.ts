@@ -30,22 +30,25 @@ describe('document edits from the main assistant', () => {
     service.apply(service.capture(), [{ target: 'first', before: 'uno', after: '$&nuevo' }]);
     expect(values.get('first')).toBe('$&nuevo');
   });
-  it('rejects other documents, reading mode and destroyed editors', () => {
+  it('applies across tab switches while still rejecting reading mode and destroyed editors', () => {
     const apply = vi.fn();
     const unregister = service.register({ owner: () => 'a', fields: () => [{ id: 'text', text: 'hola' }], apply });
     const snapshot = service.capture(); const edits = [{ target: 'text', before: 'hola', after: 'adiós' }];
-    currentNote.set({ _id: 'b' }); expect(() => service.apply(snapshot, edits)).toThrow();
+    currentNote.set({ _id: 'b' });
+    service.apply(snapshot, edits);
+    expect(apply).toHaveBeenCalledTimes(1);
+
     currentNote.set({ _id: 'a' }); isReadingMode.set(true); expect(() => service.apply(snapshot, edits)).toThrow();
     isReadingMode.set(false); unregister(); expect(() => service.apply(snapshot, edits)).toThrow();
-    expect(apply).not.toHaveBeenCalled();
+    expect(apply).toHaveBeenCalledTimes(1);
   });
   it('bounds document context before transport without removing unseen source', () => {
-    let text = 'a'.repeat(50_000);
+    let text = 'a'.repeat(120_000);
     service.register({ owner: () => 'a', fields: () => [{ id: 'latex', text }], apply: changes => { text = changes.get('latex')!; } });
     const snapshot = service.capture();
-    expect(snapshot.targets[0].text.length).toBe(15_000); expect(snapshot.truncated).toBe(true);
+    expect(snapshot.targets[0].text.length).toBe(100_000); expect(snapshot.truncated).toBe(true);
     service.apply(snapshot, [{ target: 'latex', before: '', after: 'END' }]);
-    expect(text).toBe('a'.repeat(50_000) + 'END');
+    expect(text).toBe('a'.repeat(120_000) + 'END');
   });
   it('reads readonly editor content and stops before materializing later document pages', () => {
     const body = document.createElement('div'); body.contentEditable = 'false';
@@ -53,7 +56,7 @@ describe('document edits from the main assistant', () => {
     expect([...domTextFields(body, 'page')].map(field => field.text)).toEqual(['Texto legible', '']);
     service.register({ owner: () => 'a', fields: function* () {
       for (let i = 0; i < 30; i++) {
-        yield { id: `field-${i}`, text: 'a'.repeat(15_000) };
+        yield { id: `field-${i}`, text: 'a'.repeat(60_000) };
       }
       throw new Error('Unnecessary page extraction');
     }, apply: () => {} });
@@ -156,5 +159,34 @@ describe('document edits from the main assistant', () => {
 
     expect(cleanLatexSource('```latex\n## Método\nTexto **clave**\n```', true)).toBe('\\subsection{Método}\nTexto \\textbf{clave}');
     expect(unwrapCodeFence('```mermaid\ngraph TD\nA-->B\n```')).toBe('graph TD\nA-->B');
+  });
+
+  it('reconciles non-overlapping concurrent edits and updates multiple open documents in one pass', () => {
+    let docAText = 'Intro inicial. Desarrollo pendiente.';
+    let docBText = 'Resumen B';
+    service.register({
+      owner: () => 'a',
+      fields: () => [{ id: 'p1', text: docAText }],
+      apply: changes => { docAText = changes.get('p1') ?? docAText; },
+    });
+    service.register({
+      owner: () => 'b',
+      fields: () => [{ id: 'p2', text: docBText }],
+      apply: changes => { docBText = changes.get('p2') ?? docBText; },
+    });
+
+    const snapshot = service.capture();
+    expect(snapshot.targets.map(t => t.id)).toEqual(['p1', 'doc:b:p2']);
+
+    // User edits the intro concurrently while AI only replaces "Desarrollo pendiente."
+    docAText = 'Intro editada por usuario. Desarrollo pendiente.';
+
+    service.apply(snapshot, [
+      { target: 'p1', before: 'Desarrollo pendiente.', after: 'Desarrollo completado.' },
+      { target: 'doc:b:p2', before: 'Resumen B', after: 'Resumen B actualizado' },
+    ]);
+
+    expect(docAText).toBe('Intro editada por usuario. Desarrollo completado.');
+    expect(docBText).toBe('Resumen B actualizado');
   });
 });

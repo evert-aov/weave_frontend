@@ -69,8 +69,9 @@ export class SheetChartsController {
     this.hooks.pushUndoSnapshot();
     if (!this.editor.activeSheet.charts) this.editor.activeSheet.charts = [];
 
-    if (this.editor.chartEditingId) {
-      const ch = this.editor.activeSheet.charts.find((item) => item.id === this.editor.chartEditingId);
+    const targetId = this.editor.chartEditingId || this.editor.selectedChartId;
+    if (targetId) {
+      const ch = this.editor.activeSheet.charts.find((item) => item.id === targetId);
       if (ch) {
         ch.category = event.category;
         ch.subType = event.subType;
@@ -84,6 +85,8 @@ export class SheetChartsController {
     const source = this.editor.chartSourceRange || this.editor.selectionRange;
     const minCol = Math.min(source.startCol, source.endCol), maxCol = Math.max(source.startCol, source.endCol);
     const minRow = Math.min(source.startRow, source.endRow), maxRow = Math.max(source.startRow, source.endRow);
+    const chartCount = this.editor.activeSheet.charts.length;
+    const initialOffset = (chartCount * 28) % 140;
     const newChart: EmbeddedChart = {
       id: `chart-${crypto.randomUUID()}`,
       title: event.category.charAt(0).toUpperCase() + event.category.slice(1),
@@ -95,8 +98,8 @@ export class SheetChartsController {
         endCol: maxCol,
         endRow: maxRow,
       },
-      x: 100,
-      y: 80,
+      x: 100 + initialOffset,
+      y: 80 + initialOffset,
       width: 480,
       height: 300,
       colorPalette: 'excel',
@@ -129,7 +132,7 @@ export class SheetChartsController {
     this.hooks.pushUndoSnapshot();
     if (event.dataEdited !== false) {
       chart.range = { ...event.range };
-      chart.dataConfig = { ...event.config, seriesColumns: [...event.config.seriesColumns] };
+      chart.dataConfig = { ...event.config, seriesColumns: [...(event.config.seriesColumns || [])], seriesRows: event.config.seriesRows ? [...event.config.seriesRows] : undefined };
     }
     if (event.seriesColors) chart.seriesColors = { ...event.seriesColors };
     if (event.appearance) chart.appearance = { ...event.appearance };

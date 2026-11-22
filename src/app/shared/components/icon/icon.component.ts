@@ -56,6 +56,8 @@ export type IconName =
   | 'brush'
   | 'sparkles'
   | 'bot'
+  | 'database'
+  | 'mic'
   | 'send';
 
 /**

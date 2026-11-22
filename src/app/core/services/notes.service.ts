@@ -289,6 +289,14 @@ export class NotesService {
   }
 
   /**
+   * Obtiene el listado de metadatos de todas las notas del usuario en todos los espacios
+   * sin modificar la selección ni el estado activo de la barra lateral.
+   */
+  getAllNotesSummary(): Observable<NoteSummary[]> {
+    return this.http.get<NoteSummary[]>(`${this.apiUrl}?view=summary`);
+  }
+
+  /**
    * Selecciona o carga una nota por su ID.
    */
   loadNoteById(id: string, historyIndex?: number): Observable<Note> {
@@ -318,6 +326,66 @@ export class NotesService {
         }),
       );
     });
+  }
+
+  /**
+   * Obtiene una nota ya cargada en memoria sin hacer peticiones ni cambiar la pestaña activa.
+   */
+  getCachedNote(id: string): Note | undefined {
+    if (this.currentNote()?._id === id) return this.currentNote()!;
+    return this.loadedNotes.get(id);
+  }
+
+  /**
+   * Lista las notas hidratadas actualmente en memoria para lectura o edición cruzada.
+   */
+  getCachedNotes(): Note[] {
+    const map = new Map<string, Note>(this.loadedNotes);
+    const active = this.currentNote();
+    if (active?._id) map.set(active._id, active);
+    return Array.from(map.values());
+  }
+
+  /**
+   * Aplica una actualización controlada a una nota (activa o en segundo plano) y activa autoguardado.
+   */
+  applyBackgroundPatch(noteId: string, updater: (note: Note) => Note): boolean {
+    const existing = this.getCachedNote(noteId);
+    if (!existing) return false;
+    const updated = updater(existing);
+    this.loadedNotes.set(noteId, updated);
+    if (this.currentNote()?._id === noteId) {
+      this.currentNote.set(updated);
+    }
+    this.notesList.update((list) =>
+      list.map((n) => (n._id === noteId ? this.summarize(updated) : n)),
+    );
+    this.openTabs.update((tabs) =>
+      tabs.map((t) =>
+        t.noteId === noteId
+          ? { ...t, title: updated.title || 'Untitled', docType: updated.docType || 'block' }
+          : t,
+      ),
+    );
+    this.triggerAutoSave(updated);
+    return true;
+  }
+
+  /**
+   * Obtiene una nota por su ID sin alterar la nota activa ni el historial de navegación.
+   * Si ya está cargada en memoria, la reutiliza directamente.
+   */
+  getNoteById(id: string): Observable<Note> {
+    if (this.currentNote()?._id === id) {
+      return of(this.currentNote()!);
+    }
+    const cached = this.loadedNotes.get(id);
+    if (cached) {
+      return of(cached);
+    }
+    return this.http.get<Note>(`${this.apiUrl}/${id}`).pipe(
+      tap((note) => this.loadedNotes.set(note._id, note))
+    );
   }
 
   /**

@@ -1,20 +1,22 @@
+import { academicObjectOptions } from '../../models/academic.model';
 import type { AcademicSection, AcademicSectionRequest, AcademicNote, AcademicNoteRequest, ApaIssue } from '../../models/academic-sections.model';
 import { WordAcademicStructureComponent } from '../word-academic-structure/word-academic-structure.component';
 import type { ApaPageConfig } from '../../models/word-document.model';
-import { Component, ElementRef, EventEmitter, Input, Output, ViewChild, inject, OnChanges, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Input, Output, ViewChild, inject, OnChanges, AfterViewInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { I18nService } from '../../../../core/services/i18n.service';
 import { emptySource, BIBLIOGRAPHIC_KINDS, type BibliographicSource, type AcademicObject, type CaptionRequest, type CitationRequest } from '../../models/academic.model';
 import { referenceHtml } from '../../utils/apa-references';
 
 @Component({
-  selector: 'app-word-academic-panel', standalone: true, imports: [FormsModule, WordAcademicStructureComponent],
+  selector: 'app-word-academic-panel', standalone: true, changeDetection: ChangeDetectionStrategy.OnPush, imports: [FormsModule, WordAcademicStructureComponent],
   templateUrl: './word-academic-panel.component.html', styleUrl: './word-academic-panel.component.scss',
 })
 export class WordAcademicPanelComponent implements OnChanges, AfterViewInit {
   readonly i18n = inject(I18nService);
   @Input() sources: BibliographicSource[] = [];
   @Input() objects: AcademicObject[] = [];
+  objectOptions: { object: AcademicObject; ordinal: number }[] = [];
   @Input() section: AcademicSection = 'sources';
   @Output() sectionChanged = new EventEmitter<AcademicSection>();
   switchSection(section: AcademicSection): void { this.section = section; this.sectionChanged.emit(section); }
@@ -55,6 +57,7 @@ export class WordAcademicPanelComponent implements OnChanges, AfterViewInit {
   t(key: string): string { return this.i18n.t(`word.academic.${key}`); }
   ngOnChanges(): void {
     this.pageMode = this.pageConfig?.mode || 'student'; this.runningHead = this.pageConfig?.runningHead || '';
+    this.objectOptions = academicObjectOptions(this.objects);
     if (!this.objectId && this.objects.length) { this.objectId = this.objects[0].id; this.chooseObject(); }
     if (!this.sources.some(source => source.id === this.selectedSource)) this.selectedSource = this.sources[0]?.id || '';
   }

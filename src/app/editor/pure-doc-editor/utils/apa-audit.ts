@@ -14,27 +14,40 @@ export function auditApaDocument(pages: DocumentPage[], layout: DocumentLayoutCo
   let previous = 0;
   const headingRecords: { level: number; page: number }[] = [];
   pages.forEach((page, index) => {
+    const hasHeadings = /<h[1-6]/i.test(page.html);
+    const hasAuditAttrs = /data-(?:apa|word)/i.test(page.html);
+    const hasStyles = /margin/i.test(page.html);
+    if (!hasHeadings && !hasAuditAttrs && !hasStyles) return;
+
     const body = document.createElement('div'); body.innerHTML = page.html;
-    body.querySelectorAll<HTMLElement>(APA_HEADING_SELECTOR).forEach(h => {
-      if (h.closest('[data-word-continuation],.word-toc-page-section,[data-native-word-toc]')) return;
-      const level = headingLevel(h); if (level > 5 || level > previous + 1) add(index, 'audit_hierarchy');
-      if (/^\s*(?:\d+[.)]|[IVX]+[.)])\s/.test(h.textContent || '')) add(index, 'audit_typed_numbering');
-      previous = level; headingRecords.push({ level, page: index });
-    });
-    body.querySelectorAll<HTMLElement>('p,h1,h2,h3,h4,h5').forEach(p => {
-      if (p.closest('[data-word-note-list],[data-apa-section="cover"]')) return;
-      if (parseFloat(p.style.marginTop) > 0 || parseFloat(p.style.marginBottom) > 0) add(index, 'audit_spacing');
-    });
-    body.querySelectorAll<HTMLElement>('h4,h5,h6').forEach(() => add(index, 'audit_run_in'));
-    body.querySelectorAll<HTMLElement>('[data-apa-role="abstract"]').forEach(p => { if (wordCount(p.textContent || '') < 150 || wordCount(p.textContent || '') > 250) add(index, 'audit_abstract'); });
-    body.querySelectorAll<HTMLElement>('[data-word-citation]').forEach(cite => {
-      if (citationSourceIds(cite).some(id => !sources.some(s => s.id === id))) add(index, 'audit_missing_source');
-      if (cite.closest('[data-apa-quote],[data-apa-short-quote]') && !cite.dataset['locator']) add(index, 'audit_locator');
-    });
-    body.querySelectorAll<HTMLElement>('[data-apa-captioned="true"]').forEach(object => {
-      if (!object.dataset['apaTitle']?.trim()) add(index, 'audit_caption');
-      if (object.dataset['apaSource'] && !object.dataset['apaAttribution']?.trim()) add(index, 'audit_attribution');
-    });
+    if (hasHeadings) {
+      body.querySelectorAll<HTMLElement>(APA_HEADING_SELECTOR).forEach(h => {
+        if (h.closest('[data-word-continuation],.word-toc-page-section,[data-native-word-toc]')) return;
+        const level = headingLevel(h); if (level > 5 || level > previous + 1) add(index, 'audit_hierarchy');
+        if (/^\s*(?:\d+[.)]|[IVX]+[.)])\s/.test(h.textContent || '')) add(index, 'audit_typed_numbering');
+        previous = level; headingRecords.push({ level, page: index });
+      });
+      if (/<h[4-6]/i.test(page.html)) {
+        body.querySelectorAll<HTMLElement>('h4,h5,h6').forEach(() => add(index, 'audit_run_in'));
+      }
+    }
+    if (hasStyles) {
+      body.querySelectorAll<HTMLElement>('p,h1,h2,h3,h4,h5').forEach(p => {
+        if (p.closest('[data-word-note-list],[data-apa-section="cover"]')) return;
+        if (parseFloat(p.style.marginTop) > 0 || parseFloat(p.style.marginBottom) > 0) add(index, 'audit_spacing');
+      });
+    }
+    if (hasAuditAttrs) {
+      body.querySelectorAll<HTMLElement>('[data-apa-role="abstract"]').forEach(p => { if (wordCount(p.textContent || '') < 150 || wordCount(p.textContent || '') > 250) add(index, 'audit_abstract'); });
+      body.querySelectorAll<HTMLElement>('[data-word-citation]').forEach(cite => {
+        if (citationSourceIds(cite).some(id => !sources.some(s => s.id === id))) add(index, 'audit_missing_source');
+        if (cite.closest('[data-apa-quote],[data-apa-short-quote]') && !cite.dataset['locator']) add(index, 'audit_locator');
+      });
+      body.querySelectorAll<HTMLElement>('[data-apa-captioned="true"]').forEach(object => {
+        if (!object.dataset['apaTitle']?.trim()) add(index, 'audit_caption');
+        if (object.dataset['apaSource'] && !object.dataset['apaAttribution']?.trim()) add(index, 'audit_attribution');
+      });
+    }
   });
   for (let i = 0; i < headingRecords.length; i++) {
     const parent = headingRecords[i]; let direct = 0;

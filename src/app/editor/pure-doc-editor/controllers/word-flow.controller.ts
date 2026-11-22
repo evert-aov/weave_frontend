@@ -42,6 +42,8 @@ export class WordFlowController {
 
   readonly snapshotCache = new DomSnapshotCache();
 
+  private parsedBodiesMap = new Map<string, { html: string; body: HTMLDivElement }>();
+
   pageBodyMap = new Map<string, HTMLElement>();
 
   private headerMap = new Map<string, HTMLElement>();
@@ -162,10 +164,19 @@ export class WordFlowController {
 
   getLivePagesSnapshot(): DocumentPage[] {
     if (this.pendingRenderPages) return this.pendingRenderPages.map(page => ({ ...page }));
-    return this.editor.pages().map((p) => {
+    const sessionPages = (this.editor as unknown as { canvasEditor?: { session?: { pages: DocumentPage[] } } }).canvasEditor?.session?.pages;
+    const pages = sessionPages && sessionPages.length ? sessionPages : this.editor.pages();
+    return pages.map((p) => {
       const body = this.getPageBody(p.id);
-      const html = body ? this.snapshotCache.read(body) : p.html;
-      return { ...p, html };
+      if (body) {
+        const html = this.snapshotCache.read(body);
+        return { ...p, html };
+      }
+      const parsed = this.parsedBodiesMap.get(p.id);
+      if (parsed) {
+        return { ...p, html: parsed.body.innerHTML };
+      }
+      return { ...p };
     });
   }
 
@@ -270,8 +281,10 @@ export class WordFlowController {
     // single-character fragments and persist that broken pagination.
     if (!first || first.clientWidth < 200 || first.clientHeight === 0) return false;
     const styles = getComputedStyle(first);
+    // Canvas visibility is presentation only, not a reason to repaginate the document.
+    const layoutClasses = Array.from(first.classList).filter(name => name !== 'word-hybrid-source').join(' ');
     const geometry = [first.clientWidth, first.clientHeight, styles.font, styles.lineHeight,
-      styles.hyphens, styles.overflowWrap, styles.whiteSpace, styles.letterSpacing, styles.wordSpacing, first.className, first.lang, this.editor.viewMode()].join('|');
+      styles.hyphens, styles.overflowWrap, styles.whiteSpace, styles.letterSpacing, styles.wordSpacing, layoutClasses, first.lang, this.editor.viewMode()].join('|');
     const inputOnly = !sourcePages && this.inputOnlyFlow;
     this.inputOnlyFlow = false;
     const livePages = sourcePages || (inputOnly ? this.editor.pages() : this.getLivePagesSnapshot());
@@ -311,7 +324,26 @@ export class WordFlowController {
   }
 
   liveBodies(): HTMLElement[] {
-    return this.editor.pages().map((page) => this.getPageBody(page.id)).filter((el): el is HTMLDivElement => !!el);
+    const sessionPages = (this.editor as unknown as { canvasEditor?: { session?: { pages: DocumentPage[] } } }).canvasEditor?.session?.pages;
+    const pages = sessionPages && sessionPages.length ? sessionPages : this.editor.pages();
+    const validIds = new Set(pages.map(p => p.id));
+    for (const id of this.parsedBodiesMap.keys()) {
+      if (!validIds.has(id)) this.parsedBodiesMap.delete(id);
+    }
+    return pages.map((page) => {
+      const live = this.getPageBody(page.id);
+      if (live) return live;
+      const cached = this.parsedBodiesMap.get(page.id);
+      if (cached && (cached.html === page.html || cached.body.innerHTML === page.html)) {
+        cached.html = page.html;
+        return cached.body;
+      }
+      const div = document.createElement('div') as HTMLDivElement;
+      div.setAttribute('data-page-body-id', page.id);
+      div.innerHTML = page.html || '';
+      this.parsedBodiesMap.set(page.id, { html: page.html, body: div });
+      return div;
+    });
   }
 
   private scrollCaretIntoView(): void {

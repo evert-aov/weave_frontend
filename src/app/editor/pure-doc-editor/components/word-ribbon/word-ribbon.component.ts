@@ -1,5 +1,6 @@
 import type { AcademicSection } from '../../models/academic-sections.model';
 import {
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   EventEmitter,
@@ -91,9 +92,11 @@ import {
   PaperFormatPreset,
   RibbonTab,
   SectionColumnsPreset,
+  SectionPageConfig,
   StyleTargetTag,
   StyleTemplate,
 } from '../../models/word-document.model';
+import type { ResolvedPageSectionInfo } from '../../utils/page-section-layout';
 import {
   CODE_LANGUAGES,
   FONT_FAMILIES,
@@ -134,6 +137,7 @@ const BORDER_STYLES_LIST: { id: PageBorderStyle; label: string; preview: string 
 @Component({
   selector: 'app-word-ribbon',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     LucideDynamicIcon,
@@ -229,11 +233,20 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Input() showRuler = false;
   @Input() showGridlines = false;
   @Input() showTocSidebar = false;
+  @Input() commentsCount = 0;
+  @Input() commentsPanelOpen = false;
+  @Input() hideCommentsOnExport = false;
+  @Input() trackChangesEnabled = false;
+  @Input() pendingRevisionsCount = 0;
   @Input() zoom = 100;
   @Input() pdfExporting = false;
+  @Input() totalPages = 1;
+  @Input() activeSectionInfo: ResolvedPageSectionInfo | null = null;
 
   @Output() setActiveTab = new EventEmitter<RibbonTab>();
   @Output() updateLayout = new EventEmitter<(prev: DocumentLayoutConfig) => DocumentLayoutConfig>();
+  @Output() insertSectionBreak = new EventEmitter<SectionPageConfig>();
+  @Output() updateSectionConfig = new EventEmitter<Partial<SectionPageConfig>>();
   @Output() focusHeaderArea = new EventEmitter<void>();
   @Output() applyTemplateToDocument = new EventEmitter<StyleTemplate>();
   @Output() applyRuleToSelection = new EventEmitter<ElementStyleRule>();
@@ -246,8 +259,10 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() insertTable = new EventEmitter<{ rows: number; cols: number }>();
   @Output() updateToc = new EventEmitter<void>();
   @Output() insertToc = new EventEmitter<void>();
+  @Output() insertObjectIndex = new EventEmitter<'table' | 'figure'>();
   @Output() insertPageBreak = new EventEmitter<void>();
   @Output() addNewPage = new EventEmitter<void>();
+  @Output() deletePage = new EventEmitter<void>();
   @Output() insertChecklist = new EventEmitter<void>();
   @Output() insertImage = new EventEmitter<void>();
   @Output() insertLink = new EventEmitter<void>();
@@ -303,6 +318,12 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() setShowGridlines = new EventEmitter<boolean>();
   @Output() setShowTocSidebar = new EventEmitter<boolean>();
   @Output() setZoom = new EventEmitter<number>();
+  @Output() addAnchoredComment = new EventEmitter<void>();
+  @Output() toggleCommentsPanel = new EventEmitter<void>();
+  @Output() toggleHideCommentsOnExport = new EventEmitter<void>();
+  @Output() toggleTrackChanges = new EventEmitter<void>();
+  @Output() acceptAllRevisions = new EventEmitter<void>();
+  @Output() rejectAllRevisions = new EventEmitter<void>();
 
   @ViewChild('toolbarRef') toolbarRef?: ElementRef<HTMLDivElement>;
 
@@ -326,6 +347,7 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
     { id: 'styles', labelKey: 'word.tab.styles' },
     { id: 'layout', labelKey: 'word.tab.layout' },
     { id: 'references', labelKey: 'word.academic.tab' },
+    { id: 'review', labelKey: 'word.tab.review' },
     { id: 'view', labelKey: 'word.tab.view' },
   ];
   readonly paperFormatList = PAPER_FORMAT_LIST;
@@ -413,17 +435,24 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
     e.preventDefault();
   }
 
+  private expandedByClickAt = 0;
+
   toggleCollapse(event?: MouseEvent): void {
     if (event) {
+      event.stopPropagation();
       const target = event.target as HTMLElement;
       if (target?.closest?.('input, textarea, select')) return;
+      if (event.type === 'dblclick' && Date.now() - this.expandedByClickAt < 400) {
+        this.expandedByClickAt = 0;
+        return;
+      }
     }
     this.isCollapsed.update((c) => !c);
   }
 
   onTabsHeaderDblClick(event: MouseEvent): void {
     const target = event.target as HTMLElement;
-    if (target?.closest?.('button.nav-panel-btn, button.collapse-toggle-btn')) return;
+    if (target?.closest?.('button')) return;
     this.toggleCollapse();
   }
 
@@ -437,6 +466,7 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   selectTab(tabId: RibbonTab): void {
     if (this.isCollapsed()) {
       this.isCollapsed.set(false);
+      this.expandedByClickAt = Date.now();
     }
     this.setActiveTab.emit(tabId);
     this.openDropdown.set(null);

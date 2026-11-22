@@ -1,5 +1,7 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ExcelChartDataModalComponent } from './excel-chart-data-modal.component';
+import { ExcelChartRendererComponent } from '../excel-chart-renderer/excel-chart-renderer.component';
 import { ChartDataConfig, SelectionRange } from '../../models/excel.model';
 
 describe('Chart data selection', () => {
@@ -56,7 +58,10 @@ describe('Chart data selection', () => {
     color.value = '#ff5500'; color.dispatchEvent(new Event('input')); fixture.detectChanges();
     expect(fixture.componentInstance.seriesColors['column:1']).toBe('#ff5500');
     expect('seriesColors' in chart).toBe(false);
-    expect(fixture.nativeElement.querySelector('.animated-line').getAttribute('stroke')).toBe('#ff5500');
+    const renderer = fixture.debugElement.query(By.directive(ExcelChartRendererComponent)).componentInstance as ExcelChartRendererComponent;
+    expect(renderer.toPlotState().getColor(0)).toBe('#ff5500');
+    expect((fixture.nativeElement.querySelector('.chart-legend .font-medium') as HTMLElement).style.color).toBe('rgb(255, 85, 0)');
+    expect(fixture.nativeElement.querySelector('.preview-chart canvas.plot-canvas')).toBeTruthy();
     fixture.componentInstance.resetSeriesColor('column:1');
     expect(fixture.componentInstance.seriesColors).toEqual({});
     fixture.componentInstance.setSeriesColor('column:1', '#00aa55');

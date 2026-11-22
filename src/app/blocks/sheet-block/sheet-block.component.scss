@@ -4,10 +4,8 @@
 }
 
 .sheet-block-wrapper {
-  table {
-    border-spacing: 0;
-  }
-  td, th {
+  canvas {
+    display: block;
     box-sizing: border-box;
   }
 }

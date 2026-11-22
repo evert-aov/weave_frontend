@@ -68,7 +68,13 @@
               "png-chunks-encode",
               "lodash.throttle",
               "es6-promise-pool",
-              "pica"
+              "pica",
+              "core-js",
+              "raf",
+              "rgbcolor",
+              "exceljs",
+              "html2canvas",
+              "saxes"
             ]
           },
           "configurations": {
@@ -116,7 +122,9 @@
               "exclude": [
                 "mermaid"
               ]
-            }
+            },
+            "port": 5000,
+            "proxyConfig": "proxy.conf.json"
           },
           "configurations": {
             "production": {

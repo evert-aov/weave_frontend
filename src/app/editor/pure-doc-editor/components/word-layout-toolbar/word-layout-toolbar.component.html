@@ -102,6 +102,26 @@
               <span>{{ t('word.layout.landscape', 'Horizontal') }}</span>
               <span class="text-xs text-slate-400">{{ t('word.layout.landscape_desc', 'Página apaisada horizontal') }}</span>
             </button>
+            <div class="dropdown-divider my-1 border-t border-slate-200"></div>
+            <div class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Solo sección {{ (activeSectionInfo?.sectionIndex ?? 0) + 1 }}
+            </div>
+            <button
+              type="button"
+              class="menu-row-btn"
+              [class.selected]="activeSectionInfo?.orientation === 'portrait'"
+              (click)="setSectionOrientation('portrait')"
+            >
+              <span>Vertical (esta sección)</span>
+            </button>
+            <button
+              type="button"
+              class="menu-row-btn"
+              [class.selected]="activeSectionInfo?.orientation === 'landscape'"
+              (click)="setSectionOrientation('landscape')"
+            >
+              <span>Horizontal (esta sección)</span>
+            </button>
           </div>
         }
       </div>
@@ -180,16 +200,110 @@
 
       <!-- Stacked Items Column beside Columns (Breaks, Line Numbers, Hyphenation - Matching Image 1) -->
       <div class="stacked-setup-col">
-        <!-- Breaks -->
+        <!-- Breaks & Section Setup -->
+        <div class="relative">
+          <button
+            type="button"
+            class="btn-compact-row"
+            [class.active]="openMenu() === 'breaks'"
+            (click)="toggle('breaks')"
+            [title]="t('word.layout.page_breaks', 'Saltos de página y sección')"
+          >
+            <svg lucideIcon="scissors" [size]="13" class="text-indigo-600"></svg>
+            <span>{{ t('word.layout.breaks', 'Saltos') }}</span>
+            <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+          </button>
+
+          @if (openMenu() === 'breaks') {
+            <div class="layout-dropdown-menu" style="min-width: 265px;">
+              <div class="dropdown-header">Saltos de página y sección</div>
+              <button type="button" class="menu-row-btn" (click)="triggerPageBreak()">
+                <div>
+                  <div class="font-medium text-slate-800">Salto de página</div>
+                  <div class="text-[10px] text-slate-400">Misma sección y numeración</div>
+                </div>
+              </button>
+              <button type="button" class="menu-row-btn" (click)="triggerSectionBreak({})">
+                <div>
+                  <div class="font-medium text-slate-800">Salto de sección (Página siguiente)</div>
+                  <div class="text-[10px] text-slate-400">Inicia una sección independiente</div>
+                </div>
+              </button>
+              <button type="button" class="menu-row-btn" (click)="triggerSectionBreak({ pageNumberFormat: 'roman-lower', restartPageNumbering: 1 })">
+                <div>
+                  <div class="font-medium text-slate-800">Sección en romanos (i, ii, iii)</div>
+                  <div class="text-[10px] text-slate-400">Ideal para páginas preliminares / índice</div>
+                </div>
+              </button>
+              <button type="button" class="menu-row-btn" (click)="triggerSectionBreak({ pageNumberFormat: 'decimal', restartPageNumbering: 1 })">
+                <div>
+                  <div class="font-medium text-slate-800">Sección en arábigos (Reiniciar en 1)</div>
+                  <div class="text-[10px] text-slate-400">Cuerpo principal desde página 1</div>
+                </div>
+              </button>
+              <button type="button" class="menu-row-btn" (click)="triggerSectionBreak({ orientation: 'landscape' })">
+                <div>
+                  <div class="font-medium text-slate-800">Sección horizontal (Apaisada)</div>
+                  <div class="text-[10px] text-slate-400">Tablas o gráficos anchos sin rotar lo demás</div>
+                </div>
+              </button>
+              <div class="border-t border-slate-200 my-1.5"></div>
+              <div class="dropdown-header">
+                Sección activa ({{ (activeSectionInfo?.sectionIndex ?? 0) + 1 }})
+              </div>
+              <button
+                type="button"
+                class="menu-row-btn"
+                [class.selected]="activeSectionInfo?.differentFirstPage ?? layoutConfig.differentFirstPage"
+                (click)="toggleDifferentFirstPage()"
+              >
+                <div>
+                  <div class="font-medium text-slate-800">Primera página diferente</div>
+                  <div class="text-[10px] text-slate-400">Oculta encabezado, pie y número en portada</div>
+                </div>
+              </button>
+              <div class="px-2 pt-1.5 pb-1 flex items-center gap-1">
+                <button
+                  type="button"
+                  class="px-2 py-1 rounded border text-[10px] font-medium transition-colors"
+                  [ngClass]="(activeSectionInfo?.pageNumberFormat ?? 'decimal') === 'decimal' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'"
+                  (click)="setSectionNumberFormat('decimal')"
+                >1, 2, 3</button>
+                <button
+                  type="button"
+                  class="px-2 py-1 rounded border text-[10px] font-medium transition-colors"
+                  [ngClass]="activeSectionInfo?.pageNumberFormat === 'roman-lower' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'"
+                  (click)="setSectionNumberFormat('roman-lower')"
+                >i, ii, iii</button>
+                <button
+                  type="button"
+                  class="px-2 py-1 rounded border text-[10px] font-medium transition-colors"
+                  [ngClass]="activeSectionInfo?.pageNumberFormat === 'roman-upper' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'"
+                  (click)="setSectionNumberFormat('roman-upper')"
+                >I, II, III</button>
+                <button
+                  type="button"
+                  class="px-2 py-1 rounded border text-[10px] font-medium ml-auto transition-colors"
+                  [ngClass]="activeSectionInfo?.restartPageNumbering === 1 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'"
+                  (click)="setSectionRestartNumbering(activeSectionInfo?.restartPageNumbering === 1 ? undefined : 1)"
+                  title="Reiniciar numeración de esta sección en 1 o continuar desde la sección anterior"
+                >{{ activeSectionInfo?.restartPageNumbering === 1 ? 'Reinicia en 1' : 'Reiniciar en 1' }}</button>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Delete page -->
         <button
           type="button"
           class="btn-compact-row"
-          (click)="insertPageBreak.emit()"
-          [title]="t('word.layout.page_breaks', 'Saltos de página')"
+          [disabled]="totalPages <= 1"
+          [class.opacity-40]="totalPages <= 1"
+          (click)="deletePage.emit()"
+          [title]="t('word.insert.delete_page_tooltip', 'Eliminar la página actual del documento')"
         >
-          <svg lucideIcon="scissors" [size]="13" class="text-indigo-600"></svg>
-          <span>{{ t('word.layout.breaks', 'Saltos') }}</span>
-          <svg lucideIcon="chevron-down" [size]="9" class="text-slate-400 ml-auto"></svg>
+          <svg lucideIcon="trash-2" [size]="13" class="text-red-500"></svg>
+          <span class="text-red-600">{{ t('word.insert.delete_page', 'Eliminar página') }}</span>
         </button>
 
         <!-- Line Numbers -->

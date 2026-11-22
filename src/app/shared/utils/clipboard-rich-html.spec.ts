@@ -1,0 +1,35 @@
+import { describe, expect, it } from 'vitest';
+import { hasRichClipboardFormatting, sanitizeClipboardHtml } from './clipboard-rich-html';
+
+describe('clipboard-rich-html', () => {
+  it('normalizes Google Docs wrapper, headings, inline styles, superscripts, and nested list paragraphs', () => {
+    const googleDocsHtml = `
+      <meta charset="utf-8">
+      <b id="docs-internal-guid-1234" style="font-weight:normal;">
+        <h1 style="line-height:1.5; margin-bottom:6pt;"><span style="font-weight:700; color:#1e293b;">Título Principal</span></h1>
+        <p style="line-height:1.15;"><span style="font-weight:700;">Negrita</span> y <span style="font-style:italic;">cursiva</span> y x<span style="vertical-align:super;">2</span></p>
+        <ul>
+          <li><p><span>Primer ítem</span></p></li>
+          <li><p><span>Segundo ítem</span></p></li>
+        </ul>
+      </b>
+      <script>alert("xss")</script>
+    `;
+
+    expect(hasRichClipboardFormatting(googleDocsHtml)).toBe(true);
+    const cleaned = sanitizeClipboardHtml(googleDocsHtml)!;
+    expect(cleaned).not.toContain('docs-internal-guid');
+    expect(cleaned).not.toContain('<script');
+    expect(cleaned).toContain('<h1');
+    expect(cleaned).toContain('font-weight: 700');
+    expect(cleaned).toContain('font-style: italic');
+    expect(cleaned).toContain('<sup>2</sup>');
+    expect(cleaned).toContain('<li><span>Primer ítem</span></li>');
+    expect(cleaned).not.toMatch(/<li>\s*<p>/);
+  });
+
+  it('detects plain text HTML without rich formatting as non-rich', () => {
+    expect(hasRichClipboardFormatting('<span>solo texto</span>')).toBe(false);
+    expect(hasRichClipboardFormatting('<strong>negrita</strong>')).toBe(true);
+  });
+});

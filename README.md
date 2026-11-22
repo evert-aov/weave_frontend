@@ -134,7 +134,7 @@ npm start
 # o
 ng serve
 ```
-Abre tu navegador en `http://localhost:4200/`. La aplicación se recarga automáticamente tras guardar cambios.
+Abre tu navegador en `http://localhost:5000/`. La aplicación se recarga automáticamente tras guardar cambios.
 
 ### 3. Compilación para producción
 ```bash

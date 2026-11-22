@@ -183,7 +183,10 @@ export interface TextMatch { range: Range; pageIndex: number; }
 export function findDocumentText(bodies: HTMLElement[], query: string, matchCase = false, wholeWord = false): TextMatch[] {
   if (!query) return [];
   const matches: TextMatch[] = [];
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const stripDiacritics = (str: string): string => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const foldedQuery = stripDiacritics(query);
+  const useFolded = foldedQuery.length > 0;
+  const escaped = (useFolded ? foldedQuery : query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const expression = new RegExp(escaped, matchCase ? 'gu' : 'giu');
   bodies.forEach((body, pageIndex) => {
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
@@ -197,10 +200,28 @@ export function findDocumentText(bodies: HTMLElement[], query: string, matchCase
       runs.push({ node, start: text.length, end: text.length + node.length });
       text += node.data;
     }
+    let searchText = text;
+    const indexMap: number[] = [];
+    if (useFolded) {
+      searchText = '';
+      let i = 0;
+      while (i < text.length) {
+        const cp = text.codePointAt(i)!;
+        const unitLen = cp > 0xffff ? 2 : 1;
+        const clean = stripDiacritics(text.slice(i, i + unitLen));
+        for (let k = 0; k < clean.length; k++) {
+          searchText += clean[k];
+          indexMap.push(i);
+        }
+        i += unitLen;
+      }
+      indexMap.push(text.length);
+    }
     let firstRunIndex = 0;
     expression.lastIndex = 0;
-    for (let match = expression.exec(text); match; match = expression.exec(text)) {
-      const position = match.index, end = position + match[0].length;
+    for (let match = expression.exec(searchText); match; match = expression.exec(searchText)) {
+      const position = useFolded ? indexMap[match.index] : match.index;
+      const end = useFolded ? indexMap[match.index + match[0].length] : position + match[0].length;
       const word = /[\p{L}\p{N}_]/u;
       if (!wholeWord || (!word.test(text[position - 1] || '') && !word.test(text[end] || ''))) {
         while (runs[firstRunIndex] && runs[firstRunIndex].end <= position) firstRunIndex++;
@@ -218,4 +239,49 @@ export function findDocumentText(bodies: HTMLElement[], query: string, matchCase
     }
   });
   return matches;
+}
+
+/** Elimina los marcadores DOM de resaltado de búsqueda y normaliza nodos de texto. */
+export function clearDomSearchHighlights(bodies: HTMLElement[]): void {
+  for (const body of bodies) {
+    const marks = Array.from(body.querySelectorAll('mark[data-word-search-match]'));
+    if (!marks.length) continue;
+    for (const mark of marks) {
+      const parent = mark.parentNode;
+      if (!parent) continue;
+      while (mark.firstChild) {
+        parent.insertBefore(mark.firstChild, mark);
+      }
+      parent.removeChild(mark);
+    }
+    body.normalize();
+  }
+}
+
+/** Resalta simultáneamente todas las coincidencias visibles en modo DOM diferenciando la activa. */
+export function applyDomSearchHighlights(
+  bodies: HTMLElement[],
+  matches: readonly TextMatch[],
+  activeIndex: number,
+): void {
+  clearDomSearchHighlights(bodies);
+  if (!matches.length) return;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const range = matches[i].range;
+    try {
+      const mark = document.createElement('mark');
+      mark.setAttribute('data-word-search-match', 'true');
+      const isActive = i === activeIndex;
+      if (isActive) mark.setAttribute('data-word-search-active', 'true');
+      mark.style.backgroundColor = isActive ? '#fb923c' : '#fef08a';
+      mark.style.color = '#0f172a';
+      mark.style.borderRadius = '2px';
+      if (isActive) mark.style.outline = '1.5px solid #ea580c';
+      const frag = range.extractContents();
+      mark.appendChild(frag);
+      range.insertNode(mark);
+    } catch {
+      // Ignore partial cross-boundary edge ranges safely
+    }
+  }
 }

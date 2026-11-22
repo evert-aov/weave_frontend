@@ -39,6 +39,48 @@
       color: #e4e4e7 !important;
     }
 
+    .builder-hint,
+    .strip-label {
+      color: #a1a1aa !important;
+    }
+
+    .visual-tool-btn,
+    .quick-sym-btn {
+      background: #202024 !important;
+      border-color: #323238 !important;
+      color: #f4f4f5 !important;
+
+      .tool-label {
+        color: #a1a1aa !important;
+      }
+
+      &:hover {
+        background: #27272a !important;
+        border-color: #3b82f6 !important;
+
+        .tool-glyph,
+        .tool-label {
+          color: #93c5fd !important;
+        }
+      }
+    }
+
+    .visual-canvas {
+      background: #141416 !important;
+      border-color: #2e2e34 !important;
+    }
+
+    .btn-advanced-toggle {
+      background: #202024 !important;
+      border-color: #323238 !important;
+      color: #a1a1aa !important;
+
+      &:hover {
+        background: #27272a !important;
+        color: #f4f4f5 !important;
+      }
+    }
+
     .btn-clear {
       color: #a1a1aa !important;
       &:hover {

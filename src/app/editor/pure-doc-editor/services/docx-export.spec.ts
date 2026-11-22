@@ -163,3 +163,129 @@ describe('native double spacing after taking a live snapshot',()=>{
     const margins=doc.getElementsByTagName('w:pgMar')[0];expect(margins.getAttribute('w:top')).toBe('1440');expect(margins.getAttribute('w:left')).toBe('1440');
   });
 });
+
+describe('section breaks, first-page headers, numbering formats and dynamic fields in DOCX', () => {
+  it('emits <w:titlePg/>, lowerRoman/decimal restarts, landscape section orientation, and PAGE/NUMPAGES fields', async () => {
+    const pages = [
+      { id: 'cover', html: '<p>Portada de tesis</p>' },
+      {
+        id: 'prelim',
+        html: '<p>Índice preliminar</p>',
+        breakBefore: 'manual' as const,
+        sectionBreak: 'nextPage' as const,
+        sectionConfig: { pageNumberFormat: 'roman-lower' as const, restartPageNumbering: 1 },
+      },
+      {
+        id: 'chapter1',
+        html: '<p>Cuerpo página {{page}} de {{totalPages}}</p>',
+        breakBefore: 'manual' as const,
+        sectionBreak: 'nextPage' as const,
+        sectionConfig: { pageNumberFormat: 'decimal' as const, restartPageNumbering: 1, orientation: 'landscape' as const },
+      },
+    ];
+    const customLayout = {
+      ...DEFAULT_LAYOUT_CONFIG,
+      showHeaderFooter: true,
+      differentFirstPage: true,
+      headerHtml: '<p>Encabezado - Pág. {{page}} / {{totalPages}}</p>',
+      footerHtml: '<p>Pie {{page}}</p>',
+    };
+    const files = await parts(createDocxBlob(pages, customLayout));
+    const doc = xmlPart(files, 'word/document.xml');
+    const sectPrs = Array.from(doc.getElementsByTagName('w:sectPr'));
+    expect(sectPrs).toHaveLength(3);
+
+    // Cover section has differentFirstPage (<w:titlePg/>)
+    expect(sectPrs[0].getElementsByTagName('w:titlePg')).toHaveLength(1);
+    // Prelim section has lowerRoman restarting at 1
+    const prelimPgNum = sectPrs[1].getElementsByTagName('w:pgNumType')[0];
+    expect(prelimPgNum?.getAttribute('w:fmt')).toBe('lowerRoman');
+    expect(prelimPgNum?.getAttribute('w:start')).toBe('1');
+    // Chapter section is landscape and restarts at decimal 1 without duplicate pageBreakBefore
+    const chapPgSz = sectPrs[2].getElementsByTagName('w:pgSz')[0];
+    expect(chapPgSz?.getAttribute('w:orient')).toBe('landscape');
+    expect(sectPrs[2].getElementsByTagName('w:pgNumType')[0]?.getAttribute('w:start')).toBe('1');
+    expect(doc.getElementsByTagName('w:pageBreakBefore')).toHaveLength(0);
+
+    // Body and header/footer expand {{page}} / {{totalPages}} into OOXML PAGE / NUMPAGES fields
+    const bodyXml = strFromU8(files['word/document.xml']);
+    expect(bodyXml).toContain('w:instr=" PAGE "');
+    expect(bodyXml).toContain('w:instr=" NUMPAGES "');
+    expect(strFromU8(files['word/header1.xml'])).toContain('w:instr=" PAGE "');
+    expect(strFromU8(files['word/header1.xml'])).toContain('w:instr=" NUMPAGES "');
+  });
+
+  it('exports custom table cell shading, cantSplit, vertical alignment and repeatHeader toggle in DOCX', async () => {
+    const html = [
+      '<table><thead><tr><th style="background-color:#dbeafe;vertical-align:middle">Encabezado</th></tr></thead><tbody><tr><td>Dato</td></tr></tbody></table>',
+      '<table data-repeat-header="false"><thead><tr><th>Sin repetir</th></tr></thead><tbody><tr><td>Fila</td></tr></tbody></table>',
+    ].join('');
+    const files = await parts(createDocxBlob([{ id: 't1', html }], layout));
+    const doc = xmlPart(files, 'word/document.xml');
+    const docXml = strFromU8(files['word/document.xml']);
+    expect(doc.getElementsByTagName('w:cantSplit').length).toBeGreaterThanOrEqual(4);
+    // Only the first table keeps <w:tblHeader/> since the second sets data-repeat-header="false"
+    expect(doc.getElementsByTagName('w:tblHeader')).toHaveLength(1);
+    expect(docXml).toContain('w:fill="dbeafe"');
+    expect(docXml).toContain('<w:vAlign w:val="center"/>');
+  });
+
+  it('keeps APA and non-APA table cells compact without double spacing, body margins, or first-line indent', async () => {
+    const html = [
+      '<table data-apa-table="true"><tbody>',
+      '<tr><td colspan="2" style="padding:4px 8px"><p style="margin-bottom:8pt;line-height:1.5">Integrantes:</p></td></tr>',
+      '<tr><td style="padding:4px 8px"><p data-word-line-spacing="2" style="margin-top:6pt;margin-bottom:8pt;text-indent:36pt">Cala Gonzalez Dayana Vivian</p></td><td style="padding:4px 8px"></td></tr>',
+      '</tbody></table>',
+      '<table><tbody><tr><td><p>Celda normal</p></td></tr></tbody></table>',
+    ].join('');
+    const files = await parts(createDocxBlob([{ id: 'cover', html }], layout));
+    const doc = xmlPart(files, 'word/document.xml');
+    const cellParagraphs = Array.from(doc.getElementsByTagName('w:tc')).flatMap(tc => Array.from(tc.getElementsByTagName('w:p')));
+    expect(cellParagraphs).toHaveLength(4);
+    for (const p of cellParagraphs) {
+      const spacing = p.getElementsByTagName('w:spacing')[0];
+      expect(spacing?.getAttribute('w:before')).toBe('0');
+      expect(spacing?.getAttribute('w:after')).toBe('0');
+      expect(spacing?.getAttribute('w:line')).toBe('264');
+      expect(spacing?.getAttribute('w:lineRule')).toBe('auto');
+      expect(p.getElementsByTagName('w:ind')).toHaveLength(0);
+    }
+    const firstMargins = doc.getElementsByTagName('w:tcMar')[0];
+    expect(firstMargins.getElementsByTagName('w:top')[0].getAttribute('w:w')).toBe('30');
+    expect(firstMargins.getElementsByTagName('w:left')[0].getAttribute('w:w')).toBe('60');
+  });
+
+  it('resolves table column widths from direct col elements and unmerged rows when header cells use colspan', async () => {
+    const html = [
+      '<table><col style="width:60%"><col style="width:40%"><tbody><tr><td>A</td><td>B</td></tr></tbody></table>',
+      '<table><tbody><tr><td colspan="2">Integrantes:</td></tr><tr><td style="width:60%">Nombre</td><td style="width:40%">Registro</td></tr></tbody></table>',
+    ].join('');
+    const files = await parts(createDocxBlob([{ id: 'cols', html }], layout));
+    const doc = xmlPart(files, 'word/document.xml');
+    const grids = Array.from(doc.getElementsByTagName('w:tblGrid'));
+    expect(grids).toHaveLength(2);
+    expect(Array.from(grids[0].getElementsByTagName('w:gridCol')).map(col => col.getAttribute('w:w'))).toEqual(['5616', '3744']);
+    expect(Array.from(grids[1].getElementsByTagName('w:gridCol')).map(col => col.getAttribute('w:w'))).toEqual(['5616', '3744']);
+  });
+
+  it('suppresses automatic 36pt APA first-line indent on centered cover headings and maps 18pt TOC steps to TOC1..TOC6', async () => {
+    const html = [
+      '<p style="text-align:center">UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO</p>',
+      '<div data-apa-section="cover"><p>FACULTAD DE INGENIERÍA</p></div>',
+      '<p style="text-align:justify">Párrafo del cuerpo con sangría automática APA.</p>',
+      '<div class="word-toc-page-section">',
+      '<div class="word-toc-entry" style="padding-left:0pt"><span class="word-toc-title">Nivel 1</span><span class="word-toc-page">1</span></div>',
+      '<div class="word-toc-entry" style="padding-left:72pt"><span class="word-toc-title">Nivel 5</span><span class="word-toc-page">5</span></div>',
+      '<div class="word-toc-entry" style="padding-left:90pt"><span class="word-toc-title">Nivel 6</span><span class="word-toc-page">6</span></div>',
+      '</div>',
+    ].join('');
+    const files = await parts(createDocxBlob([{ id: 'apa-cover-toc', html }], layout));
+    const doc = xmlPart(files, 'word/document.xml');
+    const paragraphs = Array.from(doc.getElementsByTagName('w:p'));
+    expect(paragraphs[0].getElementsByTagName('w:ind')).toHaveLength(0);
+    expect(paragraphs[1].getElementsByTagName('w:ind')).toHaveLength(0);
+    expect(paragraphs[2].getElementsByTagName('w:ind')[0]?.getAttribute('w:firstLine')).toBe('720');
+    const tocStyles = paragraphs.slice(3).map(p => p.getElementsByTagName('w:pStyle')[0]?.getAttribute('w:val'));
+    expect(tocStyles).toEqual(['TOC1', 'TOC5', 'TOC6']);
+  });
+});

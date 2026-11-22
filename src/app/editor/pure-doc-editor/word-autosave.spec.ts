@@ -18,8 +18,7 @@ describe('Word autosave through NotesService', () => {
   const api = `${environment.apiUrl}/notes`;
   const note: Note = { _id: 'word-a', userId: 'user', title: 'Document', space: 'Research', docType: 'doc', blocks: [], tags: [], docData: null };
 
-  beforeEach(() => {
-    vi.useFakeTimers();
+  beforeEach(async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
     TestBed.configureTestingModule({ providers: [
@@ -38,6 +37,8 @@ describe('Word autosave through NotesService', () => {
           (input)="onPageInput($event, index)" (blur)="commitPageDomToState(index)"></div>
       }
     ` } });
+    await TestBed.compileComponents();
+    vi.useFakeTimers();
     notes = TestBed.inject(NotesService);
     http = TestBed.inject(HttpTestingController);
   });

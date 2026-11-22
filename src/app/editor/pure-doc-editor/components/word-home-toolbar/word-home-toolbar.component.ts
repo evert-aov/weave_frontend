@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -16,6 +16,7 @@ import { I18nService } from '../../../../core/services/i18n.service';
 
 @Component({
   selector: 'app-word-home-toolbar', standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
   providers: [provideLucideIcons(LucideBold, LucideItalic, LucideUnderline, LucideStrikethrough,
     LucideSubscript, LucideSuperscript, LucideEraser, LucidePaintbrush, LucideAlignLeft,

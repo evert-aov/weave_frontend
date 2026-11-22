@@ -695,7 +695,7 @@ export class LatexRendererService {
       )}</div>`
   );
 
-  return `<div class="word-latex-math-rendered" style="font-family: 'Cambria Math', 'Latin Modern Math', 'Times New Roman', Times, serif; font-size: 13.5pt; line-height: 1.4; text-align: center;">${renderedLines.join(
+  return `<div class="word-latex-math-rendered" style="font-family: 'DejaVu Math TeX Gyre', 'Noto Sans Math', 'Times New Roman', 'DejaVu Serif', Times, serif; font-size: 13.5pt; line-height: 1.4; text-align: center;">${renderedLines.join(
     ''
   )}</div>`;
 }

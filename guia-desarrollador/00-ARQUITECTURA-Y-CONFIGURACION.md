@@ -43,7 +43,7 @@ y propiedad de los recursos se comprueban en NestJS.
 
 | Archivo | Uso |
 | --- | --- |
-| `src/environments/environment.development.ts` | API `http://localhost:3000/api` y base de archivos local. |
+| `src/environments/environment.development.ts` | API relativa `/api` y archivos `/uploads`; `proxy.conf.json` los reenvía a `http://127.0.0.1:5001` en desarrollo. |
 | `src/environments/environment.ts` | Producción con API relativa `/api` y base relativa. |
 
 [angular.json](../angular.json) reemplaza el entorno en la configuración de desarrollo.

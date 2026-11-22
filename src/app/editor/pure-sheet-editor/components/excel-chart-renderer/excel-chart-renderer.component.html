@@ -13,200 +13,39 @@
       <span>Selecciona un rango con datos numéricos para visualizar el gráfico</span>
     </div>
   } @else {
-    <!-- SVG Chart Render -->
+    <!-- Canvas 2D Chart Render -->
     <div #plotViewport class="chart-plot flex-1 w-full min-h-0 relative">
-      @for (frame of [{ key: animationKey }]; track frame.key) {
-      <svg [attr.viewBox]="viewBox" class="plot-svg w-full h-full overflow-visible" preserveAspectRatio="xMidYMid meet">
-        
-        <!-- Standard Gridlines (Used by Column, Line, Area, Scatter, Stock, Combo) -->
-        @if (!isPie() && !isRadar() && !isTreemap()) {
-          @for (line of gridLines(); track line.y) {
-            <line [attr.x1]="x(50)" [attr.y1]="y(line.y)" [attr.x2]="x(480)" [attr.y2]="y(line.y)"
-                  [attr.stroke]="themeService.isDark() ? '#374151' : '#e5e7eb'"
-                  stroke-width="1" stroke-dasharray="3 3" />
-            <text [attr.x]="x(55) - 8" [attr.y]="y(line.y) + 4" text-anchor="end" font-size="10" font-family="monospace"
-                  [attr.fill]="themeService.isDark() ? '#9ca3af' : '#6b7280'">{{ line.val }}</text>
-          }
-
-          @if (!isBar() && !isFunnel()) {
-            <line [attr.x1]="x(55)" [attr.x2]="x(55)" [attr.y1]="y(25)" [attr.y2]="y(200)"
-              [attr.stroke]="themeService.isDark() ? '#6b7280' : '#a3a3a3'" stroke-width="1" />
-          }
-          <!-- Bottom axis baseline -->
-          <line [attr.x1]="x(50)" [attr.y1]="y(200)" [attr.x2]="x(480)" [attr.y2]="y(200)"
-                [attr.stroke]="themeService.isDark() ? '#4b5563' : '#cbd5e1'" stroke-width="1.5" />
-        }
-
-        <!-- 1. Columns / Histograms / BoxWhisker -->
-        @if (isColumn() || isCombo()) {
-          @for (group of barGroups(); track $index) {
-            @for (bar of group.bars; track bar.key; let bIdx = $index) {
-              <rect [attr.x]="x(bar.x)" [attr.y]="y(bar.y)" [attr.width]="chartWidth(bar.width)" [attr.height]="chartHeight(bar.height)"
-                    [attr.fill]="getColor(bIdx)" rx="2" class="transition-all hover:opacity-85 cursor-pointer"
-                    (mouseenter)="setHover($event, group.label, bar.key, bar.val, getColor(bIdx))"
-                    (mouseleave)="clearHover()">
-                <title>{{ group.label }} - {{ bar.key }}: {{ bar.val }}</title>
-              </rect>
+      <canvas
+        #plotCanvas
+        class="plot-canvas w-full h-full block"
+        role="img"
+        [attr.aria-label]="chartAriaLabel"
+        [attr.data-category]="category"
+        [attr.data-subtype]="subType"
+        [attr.data-renders]="renderCount()"
+        (mousemove)="onCanvasMouseMove($event)"
+        (mouseleave)="clearHover()"
+      ></canvas>
+      <table class="sr-only" [attr.aria-label]="chartAriaLabel">
+        <thead>
+          <tr>
+            <th>Categoría</th>
+            @for (key of legendKeys; track $index) {
+              <th>{{ key }}</th>
             }
-            <text [attr.x]="x(group.centerX)" [attr.y]="y(218)" text-anchor="middle" font-size="9.5"
-                  [attr.fill]="themeService.isDark() ? '#cbd5e1' : '#475569'" class="truncate">
-              {{ truncate(group.label, 12) }}
-            </text>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of chartData().rows; track $index) {
+            <tr>
+              <th>{{ row['name'] }}</th>
+              @for (key of legendKeys; track $index) {
+                <td>{{ row[key] }}</td>
+              }
+            </tr>
           }
-        }
-
-        <!-- 2. Horizontal Bars / Funnel -->
-        @if (isBar() || isFunnel()) {
-          <!-- Left Axis Line -->
-          <line [attr.x1]="x(90)" [attr.y1]="y(20)" [attr.x2]="x(90)" [attr.y2]="y(200)"
-                [attr.stroke]="themeService.isDark() ? '#4b5563' : '#cbd5e1'" stroke-width="1.5" />
-          @for (group of horizontalBarGroups(); track $index) {
-            <!-- Y label -->
-            <text [attr.x]="x(84)" [attr.y]="y(group.centerY + 3.5)" text-anchor="end" font-size="9.5"
-                  [attr.fill]="themeService.isDark() ? '#cbd5e1' : '#475569'">
-              {{ truncate(group.label, 12) }}
-            </text>
-            @for (bar of group.bars; track bar.key; let bIdx = $index) {
-              <rect [attr.x]="x(bar.x)" [attr.y]="y(bar.y)" [attr.width]="chartWidth(bar.width)" [attr.height]="chartHeight(bar.height)"
-                    [attr.fill]="getColor(bIdx)" rx="2" class="transition-all hover:opacity-85 cursor-pointer"
-                    (mouseenter)="setHover($event, group.label, bar.key, bar.val, getColor(bIdx))"
-                    (mouseleave)="clearHover()">
-                <title>{{ group.label }} - {{ bar.key }}: {{ bar.val }}</title>
-              </rect>
-            }
-          }
-        }
-
-        <!-- 3. Line chart (and combo line overlay) -->
-        @if (isLine() || isCombo()) {
-          @for (series of lineSeries(); track series.key; let sIdx = $index) {
-            <!-- Smooth Line Path -->
-            <path [attr.transform]="plotTransform" [attr.d]="series.d" fill="none"
-                  [attr.stroke]="getColor(series.colorIndex)"
-                  stroke-width="2.5" class="animated-line" pathLength="1" stroke-linecap="round" stroke-linejoin="round" />
-            <!-- Circular Beads/Dots on points -->
-            @for (pt of series.points; track pt.x) {
-              <circle [attr.cx]="x(pt.x)" [attr.cy]="y(pt.y)" [attr.r]="markers || isCombo() ? 5 : 8" [attr.fill-opacity]="markers || isCombo() ? 1 : 0" [attr.stroke-opacity]="markers || isCombo() ? 1 : 0"
-                      [attr.fill]="getColor(series.colorIndex)"
-                      stroke="#ffffff" stroke-width="1"
-                      class="chart-point cursor-pointer"
-                      (mouseenter)="setHover($event, pt.label, series.key, pt.val, getColor(series.colorIndex))"
-                      (mouseleave)="clearHover()">
-                <title>{{ pt.label }} - {{ series.key }}: {{ pt.val }}</title>
-              </circle>
-            }
-          }
-          @if (!isCombo()) {
-            @for (lbl of visibleXLabels; track lbl.x) {
-              <text [attr.x]="x(lbl.x)" [attr.y]="y(218)" [attr.text-anchor]="lbl.anchor" font-size="9.5"
-                    [attr.fill]="themeService.isDark() ? '#cbd5e1' : '#475569'">
-                {{ lbl.text }}
-              </text>
-            }
-          }
-        }
-
-        <!-- 4. Area chart / Surface -->
-        @if (isArea()) {
-          @for (area of areaSeries(); track area.key; let aIdx = $index) {
-            <path [attr.transform]="plotTransform" [attr.d]="area.dArea" [attr.fill]="getColor(aIdx)" [attr.fill-opacity]="subType.toLowerCase().includes('wireframe') ? 0.12 : 0.55"
- />
-            <path [attr.transform]="plotTransform" [attr.d]="area.dLine" fill="none" [attr.stroke]="getColor(aIdx)" stroke-width="2.5" />
-            @for (pt of area.points; track $index) {
-              <circle [attr.cx]="x(pt.x)" [attr.cy]="y(pt.y)" r="7" fill="transparent" (mouseenter)="setHover($event, pt.label, area.key, pt.val, getColor(aIdx))" (mouseleave)="clearHover()"/>
-            }
-          }
-          @for (lbl of visibleXLabels; track lbl.x) {
-            <text [attr.x]="x(lbl.x)" [attr.y]="y(218)" [attr.text-anchor]="lbl.anchor" font-size="9.5"
-                  [attr.fill]="themeService.isDark() ? '#cbd5e1' : '#475569'">
-              {{ lbl.text }}
-            </text>
-          }
-        }
-
-        <!-- 5. Pie / Sunburst -->
-        @if (isPie()) {
-          <g transform="translate(250, 110)">
-            @for (slice of pieSlices(); track $index; let pIdx = $index) {
-              <path [attr.transform]="plotTransform" [attr.d]="slice.path" [attr.fill]="getColor(pIdx)"
-                    stroke="#ffffff" stroke-width="1.5" class="transition-transform hover:opacity-85 cursor-pointer"
-                    (mouseenter)="setHover($event, slice.label, 'Valor', slice.val, getColor(pIdx))"
-                    (mouseleave)="clearHover()">
-                <title>{{ slice.label }}: {{ slice.val }} ({{ slice.pct }}%)</title>
-              </path>
-            }
-          </g>
-        }
-
-        <!-- 6. Scatter chart -->
-        @if (isScatter()) {
-          @if (subType.toLowerCase().includes('lines')) {
-            @for (line of scatterLines; track line.key) {
-              <path [attr.transform]="plotTransform" [attr.d]="line.path" fill="none" [attr.stroke]="getColor(line.colorIdx)" stroke-width="2.5" class="animated-line" pathLength="1"/>
-            }
-          }
-          @for (pt of scatterPoints(); track $index) {
-            <circle [attr.cx]="x(pt.x)" [attr.cy]="y(pt.y)" [attr.r]="subType.toLowerCase().includes('bubble') ? 5 + Math.sqrt(Math.abs(pt.val) / Math.max(1, maxVal())) * 16 : 4"
-                    [attr.opacity]="subType.toLowerCase().includes('lines') && !subType.toLowerCase().includes('markers') ? 0 : 1" [attr.fill]="getColor(pt.colorIdx)"
-                    stroke="#ffffff" stroke-width="1.8" class="chart-point cursor-pointer"
-                    (mouseenter)="setHover($event, pt.label, pt.series, pt.val, getColor(pt.colorIdx))"
-                    (mouseleave)="clearHover()">
-              <title>{{ pt.label }}: {{ pt.val }}</title>
-            </circle>
-          }
-          @for (pt of scatterAxisLabels; track $index) {
-            <text [attr.x]="x(pt.x)" [attr.y]="y(218)" text-anchor="middle" font-size="9.5" [attr.fill]="themeService.isDark() ? '#cbd5e1' : '#475569'">{{ pt.xVal }}</text>
-          }
-        }
-
-        <!-- 7. Radar chart -->
-        @if (isRadar()) {
-          @for (spoke of radarData().spokes; track $index) {
-            <line [attr.x1]="x(250)" [attr.y1]="y(125)" [attr.x2]="x(spoke.x)" [attr.y2]="y(spoke.y)"
-                  [attr.stroke]="themeService.isDark() ? '#374151' : '#e5e7eb'" stroke-width="1" />
-            <text [attr.x]="x(spoke.lx)" [attr.y]="y(spoke.ly + 3)" text-anchor="middle" font-size="9"
-                  [attr.fill]="themeService.isDark() ? '#cbd5e1' : '#475569'">
-              {{ truncate(spoke.label, 10) }}
-            </text>
-          }
-          @for (ser of radarData().series; track ser.key) {
-            <path [attr.transform]="plotTransform" [attr.d]="ser.d" [attr.fill]="getColor(ser.colorIdx)" [attr.fill-opacity]="subType === 'filledRadar' ? 0.55 : 0.15"
-                  [attr.stroke]="getColor(ser.colorIdx)" stroke-width="2.2" />
-            @for (p of ser.pts; track $index) {
-              <circle [attr.cx]="x(p.x)" [attr.cy]="y(p.y)" [attr.r]="subType === 'radarMarkers' ? 3.5 : 6" [attr.fill]="getColor(ser.colorIdx)" [attr.opacity]="subType === 'radarMarkers' ? 1 : 0"
-                (mouseenter)="setHover($event, p.label, ser.key, p.val, getColor(ser.colorIdx))" (mouseleave)="clearHover()" />
-            }
-          }
-        }
-
-        <!-- 8. Treemap -->
-        @if (isTreemap()) {
-          @for (tile of treemapTiles(); track tile.label + '_' + tile.x) {
-            <g class="transition-all hover:opacity-90 cursor-pointer"
-               (mouseenter)="setHover($event, tile.label, 'Área', tile.val, getColor(tile.colorIdx))"
-               (mouseleave)="clearHover()">
-              <rect [attr.x]="x(tile.x)" [attr.y]="y(tile.y)" [attr.width]="chartWidth(tile.w)" [attr.height]="chartHeight(tile.h)"
-                    [attr.fill]="getColor(tile.colorIdx)" rx="4" stroke="#ffffff" stroke-width="1" />
-              <text [attr.x]="x(tile.x + 6)" [attr.y]="y(tile.y + 14)" fill="#ffffff" font-size="10" font-weight="600" class="truncate">
-                {{ truncate(tile.label, 14) }}
-              </text>
-              <text [attr.x]="x(tile.x + 6)" [attr.y]="y(tile.y + 26)" fill="#ffffff" font-size="9" opacity="0.95">
-                {{ tile.val }}
-              </text>
-            </g>
-          }
-        }
-
-        @if (axisHoverEnabled) {
-          @if (axisHover(); as active) {
-            <line class="axis-cursor" [attr.x1]="active.x" [attr.x2]="active.x" y1="10" [attr.y2]="plotBottom"
-              [attr.stroke]="themeService.isDark() ? '#9ca3af' : '#a3a3a3'" stroke-width="1" pointer-events="none" />
-          }
-          <rect class="axis-hover-target" [attr.x]="plotLeft" y="10" [attr.width]="chartWidth(425)"
-            [attr.height]="plotBottom - 10" fill="transparent" (mousemove)="onAxisMove($event)" (mouseleave)="clearHover()" />
-        }
-      </svg>
-      }
+        </tbody>
+      </table>
       @if (axisHover(); as active) {
         <div class="axis-tooltip" role="tooltip" [class.dark-tooltip]="themeService.isDark()"
           [style.left.px]="active.left" [style.top.px]="active.top">

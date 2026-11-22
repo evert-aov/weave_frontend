@@ -2,12 +2,33 @@
 export class GridAxis {
   private readonly indices: number[];
   private readonly deltas: number[];
-  constructor(readonly count: number, private readonly size: number, overrides: Record<number, number> = {}) {
-    const entries = Object.entries(overrides).map(([index, value]) => [+index, Math.max(1, value)])
-      .filter(([index]) => index >= 0 && index < count).sort((a, b) => a[0] - b[0]);
+  readonly hiddenSet: ReadonlySet<number>;
+  constructor(
+    readonly count: number,
+    private readonly size: number,
+    overrides: Record<number, number> = {},
+    hiddenIndices: Iterable<number> = []
+  ) {
+    const hidden = new Set<number>();
+    for (const idx of hiddenIndices) {
+      if (idx >= 0 && idx < count) hidden.add(idx);
+    }
+    this.hiddenSet = hidden;
+    const merged = new Map<number, number>();
+    for (const [rawIdx, value] of Object.entries(overrides)) {
+      const idx = +rawIdx;
+      if (idx >= 0 && idx < count) merged.set(idx, Math.max(1, value));
+    }
+    for (const idx of hidden) {
+      merged.set(idx, 0);
+    }
+    const entries = Array.from(merged.entries()).sort((a, b) => a[0] - b[0]);
     this.indices = entries.map(([index]) => index);
     let delta = 0;
-    this.deltas = entries.map(([, value]) => delta += value - size);
+    this.deltas = entries.map(([, value]) => (delta += value - size));
+  }
+  isHidden(index: number): boolean {
+    return this.hiddenSet.has(index);
   }
   offset(index: number): number {
     let lo = 0, hi = this.indices.length;
@@ -17,7 +38,9 @@ export class GridAxis {
   indexAt(position: number): number {
     let lo = 0, hi = this.count;
     while (lo < hi) { const mid = (lo + hi) >>> 1; if (this.offset(mid + 1) <= position) lo = mid + 1; else hi = mid; }
-    return Math.min(this.count - 1, lo);
+    let idx = Math.min(this.count - 1, lo);
+    while (idx > 0 && this.hiddenSet.has(idx)) idx -= 1;
+    return idx;
   }
   window(position: number, length: number, overscan: number): { indices: number[]; before: number; after: number } {
     const start = Math.max(0, this.indexAt(Math.max(0, position)) - overscan);

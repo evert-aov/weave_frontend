@@ -7,7 +7,13 @@ export function styleApaTocHtml(html: string, template: StyleTemplate): string {
     Object.assign(element.style, { fontFamily: template.rules.P.fontFamily, fontSize: `${template.rules.P.fontSizePt}pt`,
       lineHeight: '2', color: '#000000', backgroundColor: 'transparent', marginTop: '0pt', marginBottom: '0pt',
       border: 'none', paddingTop: '0pt', paddingRight: '0pt', paddingBottom: '0pt', letterSpacing: 'normal', textTransform: 'none' });
-    if (element.classList.contains('word-toc-entry')) element.style.fontWeight = 'normal';
+    if (element.classList.contains('word-toc-entry')) {
+      const isTopLevel = parseFloat(element.style.paddingLeft || '0') <= 0;
+      element.style.fontWeight = isTopLevel ? '700' : 'normal';
+      if (isTopLevel && element.previousElementSibling?.classList.contains('word-toc-entry')) {
+        element.style.marginTop = '4pt';
+      }
+    }
     if (element.classList.contains('word-toc-header')) {
       element.textContent = 'Índice de contenido';
       element.style.fontWeight = 'bold'; element.style.textAlign = 'center'; element.style.paddingLeft = '0pt';

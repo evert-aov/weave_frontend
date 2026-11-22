@@ -4,8 +4,33 @@
   color: #e4e4e7 !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75) !important;
 
+  .dialog-header {
+    background: #141416 !important;
+    border-bottom-color: #27272a !important;
+    color: #f4f4f5 !important;
+
+    .header-title {
+      color: #f4f4f5 !important;
+    }
+
+    .header-subtitle {
+      color: #a1a1aa !important;
+    }
+
+    .btn-close {
+      color: #a1a1aa !important;
+      &:hover {
+        color: #f4f4f5 !important;
+        background: #27272a !important;
+      }
+    }
+  }
+
   .dialog-body {
-    divide-color: #27272a !important;
+    border-color: #27272a !important;
+    > div {
+      border-color: #27272a !important;
+    }
   }
 
   .templates-sidebar {
@@ -15,10 +40,18 @@
       color: #a1a1aa !important;
     }
 
+    .btn-new-custom {
+      background: #2563eb !important;
+      color: #ffffff !important;
+      &:hover {
+        background: #1d4ed8 !important;
+      }
+    }
+
     .btn-duplicate {
       background: #202024 !important;
       color: #60a5fa !important;
-      border: 1px solid #2e2e34 !important;
+      border: 1px solid #323238 !important;
 
       &:hover {
         background: #27272a !important;
@@ -31,6 +64,11 @@
 
       .preset-name {
         color: #f4f4f5 !important;
+      }
+
+      .custom-pill {
+        background: rgba(37, 99, 235, 0.25) !important;
+        color: #93c5fd !important;
       }
 
       .preset-desc {
@@ -122,11 +160,11 @@
     }
 
     .preview-box {
-      background: #ffffff !important;
-      border-color: #52525b !important;
+      background: #141416 !important;
+      border-color: #323238 !important;
 
       .preview-title {
-        color: #64748b !important;
+        color: #a1a1aa !important;
       }
     }
   }
@@ -137,8 +175,18 @@
 
     .btn-apply-single {
       background: #202024 !important;
-      border-color: #2563eb !important;
+      border-color: #3b82f6 !important;
       color: #93c5fd !important;
+
+      &:hover {
+        background: #27272a !important;
+      }
+    }
+
+    .btn-save-only {
+      background: #202024 !important;
+      border-color: #323238 !important;
+      color: #e4e4e7 !important;
 
       &:hover {
         background: #27272a !important;

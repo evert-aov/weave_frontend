@@ -1,3 +1,4 @@
+import {XLSX_IMPORT_LIMITS} from '../services/xlsx-limits';
 import type { SheetEditorHooks } from './sheet-editor-hooks';
 import { prepareImportedWorkbook } from '../services/workbook-import';
 import { PageLayoutConfig, Sheet, SheetGrid } from '../models/excel.model';
@@ -16,6 +17,7 @@ type SheetWorkbookControllerHost = Pick<PureSheetEditorComponent,
   | 'note'
   | 'notesService'
   | 'referenceTrace'
+  | 'scheduleAutoSave'
   | 'selectedArtworkId'
   | 'selectedCell'
   | 'selectedChart'
@@ -27,6 +29,8 @@ type SheetWorkbookControllerHost = Pick<PureSheetEditorComponent,
   | 'xlsxNotice'>;
 type SheetWorkbookControllerHooks = Pick<SheetEditorHooks,
   | 'isDestroyed'
+  | 'scheduleCanvasRender'
+  | 'scheduleFormulaRecalc'
   | 'stopInkReplay'
   | 'viewChanges'>;
 
@@ -126,6 +130,9 @@ export class SheetWorkbookController {
     const doc = this.editor.note?.docData;
     if (doc && Array.isArray(doc.sheets) && doc.sheets.length > 0) {
       this.editor.sheets = JSON.parse(JSON.stringify(doc.sheets));
+      for (const sheet of this.editor.sheets) {
+        delete sheet.freezePanes;
+      }
       this.editor.activeSheetId = doc.activeSheetId || this.editor.sheets[0].id;
     } else if (doc && typeof doc === 'object' && doc.data) {
       // Single grid doc
@@ -198,23 +205,33 @@ export class SheetWorkbookController {
   scheduleAutoSave(): void {
     if (this.saveTimeout) clearTimeout(this.saveTimeout);
     this.saveTimeout = setTimeout(() => {
-      if (!this.hooks.isDestroyed && this.editor.note?._id) {
-        this.editor.notesService.updateDocData(
-          {
-            sheets: this.editor.sheets,
-            activeSheetId: this.editor.activeSheetId,
-          },
-          this.editor.note._id
-        );
-      }
+      this.flushAutoSave();
     }, 400);
+  }
+
+  flushAutoSave(targetNoteId = this.editor.note?._id): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    if (!this.hooks.isDestroyed && targetNoteId) {
+      this.editor.notesService.updateDocData(
+        {
+          sheets: this.editor.sheets.map(({ freezePanes: _freezePanes, ...rest }) => rest),
+          activeSheetId: this.editor.activeSheetId,
+        },
+        targetNoteId
+      );
+    }
   }
 
   updateCurrentGrid(mutator: (grid: SheetGrid) => SheetGrid): void {
     this.pushUndoSnapshot();
     const sheet = this.editor.activeSheet;
     sheet.data = mutator(sheet.data);
-    this.scheduleAutoSave();
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
+    this.hooks.scheduleFormulaRecalc?.();
   }
 
   addNewSheet(): void {
@@ -230,7 +247,8 @@ export class SheetWorkbookController {
     };
     this.editor.sheets.push(newSheet);
     this.editor.activeSheetId = newSheet.id;
-    this.scheduleAutoSave();
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 
   addNewChartSheet(): void {
@@ -244,7 +262,8 @@ export class SheetWorkbookController {
     };
     this.editor.sheets.push(newSheet);
     this.editor.activeSheetId = newSheet.id;
-    this.scheduleAutoSave();
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 
   onSheetNameKeyDown(event: KeyboardEvent, sheet: Sheet): void {
@@ -290,7 +309,8 @@ export class SheetWorkbookController {
       }
     }
     sheet.name = trimmed; this.editor.referenceTrace = null;
-    this.scheduleAutoSave();
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 
   deleteSheet(sheetId: string): void {
@@ -300,7 +320,58 @@ export class SheetWorkbookController {
     if (this.editor.activeSheetId === sheetId) {
       this.editor.activeSheetId = this.editor.sheets[0].id;
     }
-    this.scheduleAutoSave();
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
+  }
+
+  duplicateSheet(sheetId: string): void {
+    const srcIdx = this.editor.sheets.findIndex((s) => s.id === sheetId);
+    if (srcIdx < 0) return;
+    this.editor.commitCellEdit();
+    this.pushUndoSnapshot();
+    const src = this.editor.sheets[srcIdx];
+    const cloned = JSON.parse(JSON.stringify(src)) as Sheet;
+    delete cloned.freezePanes;
+    delete cloned.workbookNames;
+    cloned.id = `${src.type === 'chart' ? 'chart' : 'sheet'}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const used = new Set(this.editor.sheets.map((s) => s.name.toLowerCase()));
+    const suffix = this.editor.i18n.currentLang() === 'es' ? 'Copia' : 'Copy';
+    let candidate = `${src.name} (${suffix})`;
+    let n = 2;
+    while (used.has(candidate.toLowerCase())) {
+      candidate = `${src.name} (${suffix} ${n++})`;
+    }
+    cloned.name = candidate;
+    const nextSheets = [...this.editor.sheets];
+    nextSheets.splice(srcIdx + 1, 0, cloned);
+    this.editor.sheets = nextSheets;
+    this.editor.activeSheetId = cloned.id;
+    this.editor.referenceTrace = null;
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
+    this.hooks.viewChanges?.markForCheck();
+  }
+
+  moveSheet(sheetId: string, direction: -1 | 1): void {
+    const idx = this.editor.sheets.findIndex((s) => s.id === sheetId);
+    const targetIdx = idx + direction;
+    if (idx < 0 || targetIdx < 0 || targetIdx >= this.editor.sheets.length) return;
+    this.pushUndoSnapshot();
+    const next = [...this.editor.sheets];
+    const [moved] = next.splice(idx, 1);
+    next.splice(targetIdx, 0, moved);
+    this.editor.sheets = next;
+    this.editor.scheduleAutoSave();
+    this.hooks.viewChanges?.markForCheck();
+  }
+
+  setSheetTabColor(sheetId: string, color?: string): void {
+    const sheet = this.editor.sheets.find((s) => s.id === sheetId);
+    if (!sheet || sheet.tabColor === (color || undefined)) return;
+    this.pushUndoSnapshot();
+    sheet.tabColor = color || undefined;
+    this.editor.scheduleAutoSave();
+    this.hooks.viewChanges?.markForCheck();
   }
 
   loadSampleBusinessData(): void {
@@ -309,7 +380,8 @@ export class SheetWorkbookController {
     if (sheet1) {
       sheet1.data = { ...sheet1.data, ...SAMPLE_BUSINESS_DATA };
     }
-    this.scheduleAutoSave();
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 
   async importXlsxFile(event: Event): Promise<void> {
@@ -317,7 +389,7 @@ export class SheetWorkbookController {
     const file = input.files?.[0]; input.value = '';
     if (!file || this.editor.xlsxBusy) return;
     this.editor.xlsxFailed = false; this.editor.xlsxNotice = '';
-    if (!/\.xlsx$/i.test(file.name) || file.size > 25 * 1024 * 1024) {
+    if (!/\.xlsx$/i.test(file.name) || file.size > XLSX_IMPORT_LIMITS.fileBytes) {
       this.editor.xlsxFailed = true; this.editor.xlsxNotice = this.editor.i18n.t('excel.xlsx.size'); return;
     }
     this.editor.commitCellEdit(); this.editor.xlsxBusy = true;
@@ -327,15 +399,19 @@ export class SheetWorkbookController {
       const sheets = await importXlsxWorkbook(await file.arrayBuffer(), this.editor.sheets.map(sheet => sheet.name));
       if (this.hooks.isDestroyed || this.editor.note?._id !== noteId) return;
       this.pushUndoSnapshot(); this.hooks.stopInkReplay(); this.editor.inkLayer?.clearSelection();
+      for (const importedSheet of sheets) delete importedSheet.freezePanes;
       this.editor.sheets[0].workbookNames = prepareImportedWorkbook(sheets, this.editor.sheets);
       this.editor.sheets = [...this.editor.sheets, ...sheets]; this.editor.activeSheetId = sheets[0].id;
       this.editor.selectedChartId = null; this.editor.selectedArtworkId = null; this.editor.referenceTrace = null;
       this.editor.selectedCell = { col: 0, row: 0 };
       this.editor.selectionRange = { startCol: 0, endCol: 0, startRow: 0, endRow: 0 };
-      this.editor.activeRibbonTab = 'Home'; this.scheduleAutoSave();
+      this.editor.activeRibbonTab = 'Home'; this.editor.scheduleAutoSave();
+      this.hooks.scheduleCanvasRender?.();
       this.editor.xlsxNotice = this.editor.i18n.t('excel.xlsx.imported', { sheets: sheets.length, charts: sheets[0].xlsxImportReport?.chartsImported || 0, skipped: sheets[0].xlsxImportReport?.chartsSkipped || 0 });
-    } catch {
-      this.editor.xlsxFailed = true; this.editor.xlsxNotice = this.editor.i18n.t('excel.xlsx.failed_import');
+    } catch(error) {
+      const code=error instanceof Error?error.message:'';
+      const key=code==='XLSX_LIMIT_cells'?'excel.xlsx.cells':code==='XLSX_LIMIT_expanded'?'excel.xlsx.expanded':code==='XLSX_LIMIT_file'?'excel.xlsx.size':'excel.xlsx.failed_import';
+      this.editor.xlsxFailed = true; this.editor.xlsxNotice = this.editor.i18n.t(key);
     } finally { this.editor.xlsxBusy = false; this.hooks.viewChanges?.markForCheck(); }
   }
 
@@ -406,7 +482,8 @@ export class SheetWorkbookController {
       }),
       ...layout,
     };
-    this.scheduleAutoSave();
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 
   handleSetPrintAreaFromSelection(): void {
@@ -424,14 +501,22 @@ export class SheetWorkbookController {
   }
 
   handleSetFreezePanes(cfg: { rows: number; cols: number }): void {
+    const rows = Math.max(0, Math.trunc(cfg.rows || 0));
+    const cols = Math.max(0, Math.trunc(cfg.cols || 0));
     this.pushUndoSnapshot();
-    this.editor.activeSheet.freezePanes = cfg;
-    this.scheduleAutoSave();
+    if (rows === 0 && cols === 0) {
+      delete this.editor.activeSheet.freezePanes;
+    } else {
+      this.editor.activeSheet.freezePanes = { rows, cols };
+    }
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 
   handleUnfreezePanes(): void {
     this.pushUndoSnapshot();
-    this.editor.activeSheet.freezePanes = { rows: 0, cols: 0 };
-    this.scheduleAutoSave();
+    delete this.editor.activeSheet.freezePanes;
+    this.editor.scheduleAutoSave();
+    this.hooks.scheduleCanvasRender?.();
   }
 }

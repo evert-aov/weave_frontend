@@ -85,6 +85,7 @@ import { ExcelPageLayoutToolbarComponent } from '../excel-page-layout-toolbar/ex
 import { ExcelDrawToolbarComponent } from '../excel-draw-toolbar/excel-draw-toolbar.component';
 import { ExcelFormulasToolbarComponent } from '../excel-formulas-toolbar/excel-formulas-toolbar.component';
 import { ExcelViewToolbarComponent } from '../excel-view-toolbar/excel-view-toolbar.component';
+import { ExcelDataToolbarComponent } from '../excel-data-toolbar/excel-data-toolbar.component';
 
 @Component({
   selector: 'app-excel-ribbon',
@@ -99,6 +100,7 @@ import { ExcelViewToolbarComponent } from '../excel-view-toolbar/excel-view-tool
     ExcelDrawToolbarComponent,
     ExcelViewToolbarComponent,
     ExcelFormulasToolbarComponent,
+    ExcelDataToolbarComponent,
   ],
   providers: [
     provideLucideIcons(
@@ -193,6 +195,8 @@ export class ExcelRibbonComponent {
   @Input() hasStrokes = false;
   @Input() activeSheetType: 'grid' | 'chart' = 'grid';
   @Input() freezePanesConfig = { rows: 0, cols: 0 };
+  @Input() sheetProtected = false;
+  @Input() activeCellLocked = true;
   @Input() activeCellId = 'A1';
   @Input() selectedRangeLabel = '';
   @Output() configureChartAppearance = new EventEmitter<void>();
@@ -212,6 +216,7 @@ export class ExcelRibbonComponent {
   @Output() copy = new EventEmitter<void>();
   @Output() cut = new EventEmitter<void>();
   @Output() paste = new EventEmitter<void>();
+  @Output() togglePasteSpecial = new EventEmitter<void>();
   @Output() formatPainter = new EventEmitter<void>();
 
   @Output() styleChange = new EventEmitter<Partial<CellStyle>>();
@@ -261,6 +266,10 @@ export class ExcelRibbonComponent {
   @Output() toggleFormulaBar = new EventEmitter<void>();
   @Output() freezePanes = new EventEmitter<{ rows: number; cols: number }>();
   @Output() unfreezePanes = new EventEmitter<void>();
+  @Output() toggleSheetProtection = new EventEmitter<void>();
+  @Output() toggleSelectionLocked = new EventEmitter<void>();
+  @Output() groupOutline = new EventEmitter<'row' | 'col'>();
+  @Output() ungroupOutline = new EventEmitter<'row' | 'col'>();
   @Input() inkPens: InkPenConfig[] = [];
   @Input() showFormulasInCells = false;
   @Output() insertFormula = new EventEmitter<string>();
@@ -274,6 +283,17 @@ export class ExcelRibbonComponent {
   @Output() openIcons = new EventEmitter<void>();
   @Output() openNames = new EventEmitter<void>();
   @Output() openFunctionsDrawer = new EventEmitter<void>();
+  @Output() openFindReplace = new EventEmitter<void>();
+  @Input() hasColumnFilters = false;
+  @Output() clearAllFilters = new EventEmitter<void>();
+  @Output() openValidation = new EventEmitter<void>();
+  @Output() openRemoveDuplicates = new EventEmitter<void>();
+  @Output() openTextToColumns = new EventEmitter<void>();
+  @Input() hasPivotTables = false;
+  @Output() openPivotModal = new EventEmitter<void>();
+  @Output() refreshPivot = new EventEmitter<void>();
+  @Output() insertPicture = new EventEmitter<void>();
+  @Output() openSparklineModal = new EventEmitter<void>();
   @Output() changeZoom = new EventEmitter<number>();
   @Output() setPrintArea = new EventEmitter<void>();
   @Output() clearPrintArea = new EventEmitter<void>();
@@ -297,6 +317,7 @@ export class ExcelRibbonComponent {
   @Output() loadDemoData = new EventEmitter<void>();
   @Output() openSettings = new EventEmitter<void>();
   @Output() toggleFullscreen = new EventEmitter<void>();
+  @Output() openHyperlinkModal = new EventEmitter<void>();
 
   readonly themeService = inject(ThemeService);
   readonly i18n = inject(I18nService);
@@ -388,6 +409,11 @@ export class ExcelRibbonComponent {
     this.styleChange.emit({ verticalAlign });
   }
 
+  setTextRotation(deg: string | number): void {
+    const val = Number(deg);
+    this.styleChange.emit({ textRotation: Number.isFinite(val) ? val : 0 });
+  }
+
   setNumberFormat(format: NumberFormat): void {
     this.styleChange.emit({ numberFormat: format, xlsxNumberFormat: format === 'date' ? 'yyyy-mm-dd' : format === 'datetime' ? 'yyyy-mm-dd hh:mm:ss' : undefined });
   }
@@ -422,7 +448,7 @@ export class ExcelRibbonComponent {
 
   get effectiveBorderLineColor(): string {
     if (this.userSelectedColor) return this.borderLineColor;
-    return this.themeService.isDark() ? '#e2e8f0' : '#000000';
+    return '#000000';
   }
 
   borderMenuPosition = { left: 0, top: 0 };

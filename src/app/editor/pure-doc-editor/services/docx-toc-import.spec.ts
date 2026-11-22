@@ -26,6 +26,18 @@ describe('native Word TOC import',()=>{
     expect(root.querySelectorAll('p')).toHaveLength(1);
     expect(root.querySelector('p')?.textContent).toBe('Texto posterior');
   });
+  it('recovers an unclosed TOC field at the first real heading and preserves its named heading level',async()=>{
+    const tocRow=`<w:p><w:pPr><w:pStyle w:val="TOC2"/></w:pPr>${row}</w:p>`;
+    const realHeading='<w:p><w:pPr><w:pStyle w:val="Heading1"/><w:outlineLvl w:val="1"/></w:pPr><w:r><w:t>1. Introducción</w:t></w:r></w:p>';
+    const result=await parse(`<w:p>${begin}</w:p>${tocRow}${realHeading}<w:p><w:r><w:t>Texto normal del cuerpo.</w:t></w:r></w:p>`);
+    const root=document.createElement('div');root.innerHTML=result.pages.map(page=>page.html).join('');
+    expect(result.properties.tocEntriesCount).toBe(1);
+    expect(result.properties.headingCounts.h1).toBe(1);
+    expect(root.querySelectorAll('.word-toc-entry')).toHaveLength(1);
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+    expect(root.querySelector('h1')?.textContent).toBe('1. Introducción');
+    expect(root.querySelector('p')?.textContent).toBe('Texto normal del cuerpo.');
+  });
   it('uses the editor TOC model for centered TOC styles inside an SDT and keeps body headings separate',async()=>{
     const result=await parse(`<w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/></w:docPartObj></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Table of Contents</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="TOC2"/></w:pPr>${row}</w:p></w:sdtContent></w:sdt>${heading}`);
     const root=document.createElement('div');root.innerHTML=result.pages.map(p=>p.html).join('');

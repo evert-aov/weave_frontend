@@ -1,5 +1,5 @@
 <div
-  class="h-full w-full overflow-hidden flex flex-col transition-colors"
+  class="relative h-full w-full overflow-hidden flex flex-col transition-colors"
   [ngClass]="darkMode() ? 'bg-slate-900 text-slate-100' : 'bg-slate-100 text-slate-800'"
 >
   <input
@@ -34,20 +34,24 @@
   <!-- Main Ribbon Toolbar (Hidden in Focus Mode or Read Mode) -->
   @if (!focusMode() && !isReadMode()) {
     <app-word-ribbon
-      (openAcademic)="academic.show($event)"
-      (updateAcademic)="academic.update()"
-      (insertBibliography)="academic.show(); academic.bibliography()"
+      (openAcademic)="handleOpenAcademic($event)"
+      (updateAcademic)="handleUpdateAcademic()"
+      (insertBibliography)="handleInsertBibliography()"
       [activeTab]="activeTab()"
+      [totalPages]="pages().length"
+      [activeSectionInfo]="activeSectionInfo()"
       (setActiveTab)="activeTab.set($event)"
       [formats]="formats()"
       [layoutConfig]="layoutConfig()"
       (updateLayout)="handleUpdateLayout($event)"
+      (insertSectionBreak)="handleInsertSectionBreak($event)"
+      (updateSectionConfig)="handleUpdateSectionConfig($event)"
       (focusHeaderArea)="handleFocusHeaderArea()"
       [styleTemplates]="styleTemplates()"
       [activeTemplateId]="activeTemplateId()"
       (applyTemplateToDocument)="handleApplyTemplateToDocument($event)"
       (applyRuleToSelection)="handleApplyRuleToSelection($event)"
-      (openStyleModal)="styleModalOpen.set(true)"
+      (openStyleModal)="openStyleDesigner()"
       (openLatexModal)="openLatexModal()"
       (insertTabCharacter)="handleInsertTabCharacter()"
       (command)="onRibbonCommand($event)"
@@ -56,8 +60,10 @@
       (insertTable)="handleInsertTable($event.rows, $event.cols)"
       (updateToc)="handleUpdateToc()"
       (insertToc)="handleInsertToc()"
+      (insertObjectIndex)="handleInsertObjectIndex($event)"
       (insertPageBreak)="handleInsertPageBreak()"
       (addNewPage)="handleAddNewPageAt(activePageIndex())"
+      (deletePage)="handleDeletePage(activePageIndex())"
       (insertChecklist)="handleInsertChecklist()"
       (insertImage)="handleInsertImage()"
       (insertLink)="handleInsertLink()"
@@ -117,17 +123,21 @@
       (setShowGridlines)="showGridlines.set($event)"
       [showTocSidebar]="showTocSidebar()"
       (setShowTocSidebar)="showTocSidebar.set($event)"
+      [commentsCount]="comments().length"
+      [commentsPanelOpen]="commentsPanelOpen()"
+      [hideCommentsOnExport]="hideCommentsOnExport()"
+      [trackChangesEnabled]="trackChangesEnabled()"
+      [pendingRevisionsCount]="revisions().length"
+      (addAnchoredComment)="openNewCommentPanel()"
+      (toggleCommentsPanel)="toggleCommentsPanel()"
+      (toggleHideCommentsOnExport)="toggleHideCommentsOnExport()"
+      (toggleTrackChanges)="toggleTrackChanges()"
+      (acceptAllRevisions)="acceptAllRevisions()"
+      (rejectAllRevisions)="rejectAllRevisions()"
       [zoom]="zoom()"
       (setZoom)="setDocumentZoom($event)"
       [pdfExporting]="pdfExporting()"
     ></app-word-ribbon>
-  }
-
-  @if (pdfExportMessage()) {
-    <div class="px-4 py-2 text-xs no-print shrink-0" role="status" aria-live="polite"
-      [class.text-red-600]="pdfExportFailed()" [class.text-emerald-600]="!pdfExportFailed()">
-      {{ pdfExportMessage() }}
-    </div>
   }
 
   <!-- Extracted .DOCX Properties Inspector Banner -->
@@ -152,6 +162,12 @@
               class="px-2.5 py-1 rounded border border-blue-300 bg-blue-600 text-white disabled:opacity-40 disabled:cursor-default">
         {{ i18n.t('word.table.merge_cells') }}
       </button>
+      <button type="button" (mousedown)="$event.preventDefault()" (click)="modifyActiveTable('splitCell')"
+              title="Dividir la celda actual"
+              [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900'"
+              class="px-2.5 py-1 rounded border transition-colors">
+        Dividir celda
+      </button>
       <button
         type="button"
         (mousedown)="$event.preventDefault()"
@@ -173,6 +189,22 @@
         <svg lucideIcon="columns" [size]="14" class="w-3.5 h-3.5"></svg>
         <svg lucideIcon="plus" [size]="12" class="w-3 h-3"></svg>
         <span>{{ i18n.t('word.table.add_col') }}</span>
+      </button>
+      <button
+        type="button"
+        (mousedown)="$event.preventDefault()"
+        (click)="toggleTableRowTopBorder()"
+        [title]="'Agregar o quitar borde superior en la fila actual (ej. fila Total en APA)'"
+        [ngClass]="activeTableRowTopBorder()
+          ? (darkMode() ? 'bg-blue-900/60 border-blue-500 text-blue-200' : 'bg-blue-600 border-blue-600 text-white')
+          : (darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900')"
+        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5" aria-hidden="true">
+          <line x1="3" y1="5" x2="21" y2="5" stroke-width="2.6"/>
+          <rect x="4" y="9" width="16" height="11" rx="1" stroke-dasharray="2 2" opacity="0.65"/>
+        </svg>
+        <span>Borde sup.</span>
       </button>
       <button
         type="button"
@@ -239,9 +271,6 @@
         (jumpToPage)="jumpToPage($event)"
         (selectHeading)="handleSelectHeadingInSidebar($event.id, $event.pageIndex)"
         (selectTable)="handleSelectTableInSidebar($event)"
-        (updateTocInDocument)="handleUpdateToc()"
-        (insertTocInDocument)="handleInsertToc()"
-        (addNewPage)="handleAddNewPageAt(pages().length - 1)"
         [isOpen]="showTocSidebar()"
         (close)="showTocSidebar.set(false)"
       ></app-word-toc-sidebar>
@@ -251,33 +280,47 @@
     <main
       #mainScroll
       (wheel)="onPageWheel($event)"
+      (scroll)="onMainScroll()"
       data-document-scroll
       [attr.data-word-ready]="documentReady()"
       class="flex-1 min-h-0 overflow-y-auto p-6 sm:p-10 flex flex-col items-center transition-colors"
       [ngClass]="darkMode() ? 'bg-slate-950' : 'bg-slate-200/75'"
     >
-      <!-- Optional Visual Horizontal Ruler -->
+      <!-- Interactive Horizontal Ruler -->
       @if (showRuler() && viewMode() === 'print') {
-        <div
-          [style.width.px]="sheetWidthPx() * (zoom() / 100)"
-          [ngClass]="darkMode() ? 'bg-[#202024]/95 border-[#323238] text-slate-400' : 'bg-white/95 border-slate-300 text-slate-500'"
-          class="mb-3 h-6 border rounded-xs shadow-2xs flex items-end px-2 select-none overflow-hidden shrink-0 no-print transition-colors"
-        >
-          @for (cmIdx of rulerTicks; track cmIdx) {
-            <div
-              [ngClass]="darkMode() ? 'border-[#323238]' : 'border-slate-300'"
-              class="flex-1 border-l h-2.5 relative flex items-start justify-start pl-0.5"
-            >
-              @if (cmIdx > 0) {
-                <span class="text-[8px] font-mono -mt-2.5" [ngClass]="darkMode() ? 'text-slate-500' : 'text-slate-400'">{{ cmIdx }}</span>
-              }
-            </div>
-          }
-        </div>
+        <app-word-interactive-ruler
+          [darkMode]="darkMode()"
+          [readOnly]="isReadMode()"
+          [sheetWidthPx]="sheetWidthPx()"
+          [zoom]="zoom()"
+          [marginLeftPx]="pagePaddingLeft()"
+          [marginRightPx]="pagePaddingRight()"
+          [indentLeftCm]="formats().indentLeftCm"
+          [indentRightCm]="formats().indentRightCm"
+          [firstLineIndentPt]="formats().firstLineIndentPt ?? 0"
+          (indentChange)="handleApplyParagraphSpacingAndIndent($event)"
+        />
       }
 
       <!-- Outline View Mode vs Document Sheets -->
-      @if (viewMode() === 'outline') {
+      @if (canvasEnabled() && documentReady() && viewMode() !== 'outline') {
+        <app-word-canvas-editor [pages]="pages()" [modelSections]="loadedModelSections()" [viewMode]="viewMode()" [geometry]="canvasGeometry()" [defaults]="canvasDefaults()"
+          [styleTemplate]="canvasStyleTemplate()" [headingNumbering]="headingNumbering()" [scale]="zoom()/100" [readOnly]="isReadMode()" [enabled]="active()"
+          [layoutConfig]="layoutConfig()" [darkSheet]="darkMode() && darkCanvas() && !layoutConfig().apa"
+          [trackChangesEnabled]="trackChangesEnabled()" [hideComments]="hideCommentsOnExport()"
+          [pageLabel]="i18n.t('word.status.page')" [ofLabel]="i18n.t('word.status.of')"
+          (changed)="acceptCanvasPages($event)" (checkpoint)="canvasCheckpoint()"
+          (history)="$event ? handleGlobalRedo() : handleGlobalUndo()"
+          (activePage)="activePageIndex.set($event)"
+          (selectionChange)="updateSelectionFormats()"
+          (tocNavigate)="handleCanvasTocNavigate($event)"
+          (latexEdit)="handleCanvasLatexEdit($event)"
+          (linkClick)="handleCanvasLinkClick($event)"
+          (deletePage)="handleDeletePage($event)"
+          (imageDrop)="uploadAndInsertImageFile($event.file, $event.pageIndex)"
+          (tableContextMenu)="openTableContextMenu($event.clientX, $event.clientY)"
+          (headerFooterChange)="handleCanvasHeaderFooterChange($event)" />
+      } @else if (viewMode() === 'outline') {
         <div
           class="max-w-4xl w-full rounded-xl shadow-md border p-8 space-y-4 transition-colors"
           [ngClass]="darkMode() ? 'bg-[#18181b] border-[#27272a] text-[#f4f4f5]' : 'bg-white border-slate-200 text-slate-800'"
@@ -327,17 +370,20 @@
           "
         >
           @for (page of pages(); track page.id; let pageIndex = $index) {
+            @let secInfo = resolvedPageSections()[pageIndex];
             @let isCurrentPage = activePageIndex() === pageIndex;
             @let pb = layoutConfig().pageBorder;
             @let hasPageBorder = pb.style !== 'none';
             @let cssBorderStyle = pb.style === 'thick' ? 'solid' : pb.style;
             @let cssBorderWidth = pb.style === 'thick' ? maxOf(3, pb.widthPt + 2) : pb.widthPt;
+            @let effSheetW = viewMode() === 'web' ? sheetWidthPx() : (secInfo?.widthPx ?? sheetWidthPx());
+            @let effSheetH = (viewMode() === 'web' || viewMode() === 'draft') ? sheetHeightPx() : (secInfo?.heightPx ?? sheetHeightPx());
 
             <div
               (click)="activePageIndex.set(pageIndex)"
-              [style.width.px]="sheetWidthPx()"
-              [style.minHeight.px]="sheetHeightPx()"
-              [style.height.px]="viewMode() === 'print' || viewMode() === 'read' ? sheetHeightPx() : null"
+              [style.width.px]="effSheetW"
+              [style.minHeight.px]="effSheetH"
+              [style.height.px]="viewMode() === 'print' || viewMode() === 'read' ? effSheetH : null"
               [style.paddingTop.px]="pagePaddingTop()"
               [style.paddingRight.px]="pagePaddingRight()"
               [style.paddingBottom.px]="pagePaddingBottom()"
@@ -396,11 +442,10 @@
                 [style.right.px]="layoutConfig().margins.rightPx"
                 class="absolute top-3 flex items-center justify-between text-[11px] text-slate-400 select-none no-print"
               >
-                <span class="font-serif text-xs text-slate-500">{{ layoutConfig().apa ? '' : pageIndex + 1 }}</span>
+                <span class="font-serif text-xs text-slate-500">{{ layoutConfig().apa || secInfo?.suppressHeaderFooter ? '' : (secInfo?.formattedPageNumber || pageIndex + 1) }}</span>
                 <div class="flex items-center gap-1.5 opacity-0 group-hover/page:opacity-100 transition-opacity">
                   <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
-                    {{ activePaperPreset().name.split(' ')[0] }} · Hoja {{ pageIndex + 1 }} de
-                    {{ pages().length }}
+                    Secc. {{ (secInfo?.sectionIndex ?? 0) + 1 }} · {{ activePaperPreset().name.split(' ')[0] }} · Pág. {{ secInfo?.formattedPageNumber || (pageIndex + 1) }} ({{ pageIndex + 1 }}/{{ pages().length }})
                   </span>
                   @if (pages().length > 1 && !isReadMode()) {
                     <button
@@ -416,15 +461,17 @@
               </div>
 
               @if (layoutConfig().apa; as apa) {
-                <header class="word-apa-header absolute flex justify-between gap-3 text-black pointer-events-none"
-                  [style.top.px]="48" [style.left.px]="layoutConfig().margins.leftPx" [style.right.px]="layoutConfig().margins.rightPx"
-                  [style.font-family]="apa.fontFamily" [style.font-size.pt]="apa.fontSizePt" style="line-height:1">
-                  <span>{{ apa.mode === 'professional' ? apa.runningHead : '' }}</span><span>{{ pageIndex + 1 }}</span>
-                </header>
+                @if (!secInfo?.suppressHeaderFooter) {
+                  <header class="word-apa-header absolute flex justify-between gap-3 text-black pointer-events-none"
+                    [style.top.px]="48" [style.left.px]="layoutConfig().margins.leftPx" [style.right.px]="layoutConfig().margins.rightPx"
+                    [style.font-family]="apa.fontFamily" [style.font-size.pt]="apa.fontSizePt" style="line-height:1">
+                    <span>{{ apa.mode === 'professional' ? apa.runningHead : '' }}</span><span>{{ secInfo?.formattedPageNumber || (pageIndex + 1) }}</span>
+                  </header>
+                }
               }
 
               <!-- Editable Document Header Region -->
-              @if (layoutConfig().showHeaderFooter && !layoutConfig().apa && viewMode() === 'print') {
+              @if (layoutConfig().showHeaderFooter && !layoutConfig().apa && viewMode() === 'print' && !secInfo?.suppressHeaderFooter) {
                 <div class="shrink-0 mb-3 pb-1.5 border-b border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 group/header relative transition-colors">
                   <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/header:opacity-100 focus-within:opacity-100 transition-opacity no-print">
                     {{ i18n.t('word.canvas.header_title') }}
@@ -444,6 +491,9 @@
               <!-- Editable Page Body Canvas -->
               <div
                 appProofreading
+                [wordHybridPage]="active() && (viewMode() === 'print' || isReadMode()) && !darkCanvas() && !showFormattingMarks() && !showGridlines()"
+                [hybridRevision]="page.html"
+                [hybridScale]="zoom() / 100"
                 #pageBody
                 [attr.data-page-body-id]="page.id" [attr.data-break-before]="page.breakBefore || null"
                 [attr.contenteditable]="documentReady() && !isReadMode()"
@@ -458,6 +508,7 @@
                 (mouseup)="handleEditorMouseUp($event)"
                 (pointerdown)="onPagePointerDown($event, pageIndex)"
                 (pointermove)="updateTableResizeCursor($event)"
+                (contextmenu)="onPageDomContextMenu($event, pageIndex)"
                 (paste)="onPagePaste($event, pageIndex)"
                 (dragover)="onPageDragOver($event)"
                 (drop)="onPageDrop($event, pageIndex)"
@@ -472,7 +523,7 @@
               ></div>
 
               <!-- Editable Document Footer Region -->
-              @if (layoutConfig().showHeaderFooter && !layoutConfig().apa && viewMode() === 'print') {
+              @if (layoutConfig().showHeaderFooter && !layoutConfig().apa && viewMode() === 'print' && !secInfo?.suppressHeaderFooter) {
                 <div class="shrink-0 mt-4 pt-2 border-t border-transparent hover:border-dashed hover:border-slate-200 focus-within:border-dashed focus-within:border-blue-300 flex items-center justify-between gap-4 group/footer relative transition-colors">
                   <span class="absolute -top-3.5 left-0 text-[9px] uppercase tracking-wider font-semibold text-blue-500 opacity-0 group-hover/footer:opacity-100 focus-within:opacity-100 transition-opacity no-print">
                     {{ i18n.t('word.canvas.footer_title') }}
@@ -487,7 +538,7 @@
                     aria-label="Pie de página del documento"
                   ></div>
                   <span class="text-[11px] font-mono text-slate-400 shrink-0 select-none">
-                    {{ i18n.t('word.status.page') }} {{ pageIndex + 1 }} {{ i18n.t('word.status.of') }} {{ pages().length }}
+                    {{ i18n.t('word.status.page') }} {{ secInfo?.formattedPageNumber || (pageIndex + 1) }} {{ i18n.t('word.status.of') }} {{ pages().length }}
                   </span>
                 </div>
               }
@@ -517,6 +568,33 @@
         </div>
       }
     </main>
+
+    @defer (when commentsPanelOpen() && !focusMode() && !isReadMode()) {
+      @if (commentsPanelOpen() && !focusMode() && !isReadMode()) {
+        <app-word-comments-panel
+          [darkMode]="darkMode()"
+          [readOnly]="isReadMode()"
+          [comments]="comments()"
+          [activeCommentId]="activeCommentId()"
+          [trackChangesEnabled]="trackChangesEnabled()"
+          [hideCommentsOnExport]="hideCommentsOnExport()"
+          [revisions]="revisions()"
+          (close)="commentsPanelOpen.set(false)"
+          (createComment)="createComment($event)"
+          (replyComment)="replyToComment($event.commentId, $event.text)"
+          (resolveComment)="resolveComment($event.commentId, $event.resolved)"
+          (deleteComment)="deleteComment($event)"
+          (selectComment)="selectComment($event)"
+          (toggleTrackChanges)="toggleTrackChanges()"
+          (toggleHideCommentsOnExport)="toggleHideCommentsOnExport()"
+          (acceptRevision)="acceptRevision($event)"
+          (rejectRevision)="rejectRevision($event)"
+          (acceptAllRevisions)="acceptAllRevisions()"
+          (rejectAllRevisions)="rejectAllRevisions()"
+          (jumpToRevision)="jumpToRevision($event)"
+        />
+      }
+    }
   </div>
 
   <!-- Bottom Word Status Bar -->
@@ -576,6 +654,18 @@
         >
           <svg lucideIcon="chevrons-right" [size]="14" class="w-3.5 h-3.5 text-slate-700"></svg>
         </button>
+        @if (pages().length > 1 && !isReadMode()) {
+          <div class="h-3.5 w-px bg-slate-300 mx-0.5"></div>
+          <button
+            type="button"
+            (click)="handleDeletePage(activePageIndex())"
+            class="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded transition-colors"
+            [title]="'Eliminar página actual (Pág. ' + (activePageIndex() + 1) + ')'"
+            aria-label="Eliminar página actual"
+          >
+            <svg lucideIcon="trash-2" [size]="13" class="w-3.5 h-3.5"></svg>
+          </button>
+        }
       </div>
 
       <button
@@ -624,52 +714,214 @@
   </footer>
 
   <!-- LaTeX Formula Editor Modal with Delete Support -->
-  <app-word-latex-modal
-    [isOpen]="latexModalOpen()"
-    [darkMode]="darkMode()"
-    (close)="onCloseLatexModal()"
-    [initialLatex]="editingLatexCode()"
-    [isEditingExisting]="editingLatexElement() !== null"
-    (insertFormula)="handleInsertOrUpdateLatexFormula($event)"
-    (deleteFormula)="handleDeleteExistingLatexFormula()"
-  ></app-word-latex-modal>
+  @defer (when latexModalOpen()) {
+    <app-word-latex-modal
+      [isOpen]="latexModalOpen()"
+      [darkMode]="darkMode()"
+      (close)="onCloseLatexModal()"
+      [initialLatex]="editingLatexCode()"
+      [isEditingExisting]="editingLatexElement() !== null || editingLatexNodeId() !== null"
+      (insertFormula)="handleInsertOrUpdateLatexFormula($event)"
+      (deleteFormula)="handleDeleteExistingLatexFormula()"
+    ></app-word-latex-modal>
+  }
 
   <!-- Style Templates Designer Modal -->
-  <app-word-style-templates-modal
-    [isOpen]="styleModalOpen()"
-    [darkMode]="darkMode()"
-    (close)="styleModalOpen.set(false)"
-    [templates]="styleTemplates()"
-    [activeTemplateId]="activeTemplateId()"
-    (saveCustomTemplate)="handleSaveCustomTemplate($event)"
-    (deleteCustomTemplate)="handleDeleteCustomTemplate($event)"
-    (applyTemplateToDocument)="handleApplyTemplateToDocument($event)"
-    (applySingleRuleToSelection)="handleApplyRuleToSelection($event)"
-  ></app-word-style-templates-modal>
+  @defer (when styleModalOpen()) {
+    <app-word-style-templates-modal
+      [isOpen]="styleModalOpen()"
+      [darkMode]="darkMode()"
+      (close)="styleModalOpen.set(false)"
+      [templates]="styleTemplates()"
+      [activeTemplateId]="activeTemplateId()"
+      [canApplyTableStyle]="!!activeTableCell()"
+      [selectedTableDesign]="selectedTableDesign()"
+      (saveCustomTemplate)="handleSaveCustomTemplate($event)"
+      (deleteCustomTemplate)="handleDeleteCustomTemplate($event)"
+      (applyTemplateToDocument)="handleApplyTemplateToDocument($event)"
+      (applySingleRuleToSelection)="handleApplyRuleToSelection($event)"
+      (applyTableStyleToSelection)="handleApplyTableStyleToSelection($event)"
+    ></app-word-style-templates-modal>
+  }
 
   <!-- SmartArt Chooser Graphic Modal -->
-  <app-word-smartart-modal
-    [isOpen]="smartArtModalOpen()"
-    [darkMode]="darkMode()"
-    (selectItem)="handleInsertSmartArt($event)"
-    (close)="smartArtModalOpen.set(false)"
-  ></app-word-smartart-modal>
+  @defer (when smartArtModalOpen()) {
+    <app-word-smartart-modal
+      [isOpen]="smartArtModalOpen()"
+      [darkMode]="darkMode()"
+      (selectItem)="handleInsertSmartArt($event)"
+      (close)="smartArtModalOpen.set(false)"
+    ></app-word-smartart-modal>
+  }
 
   <!-- Icons Picker Modal -->
-  <app-word-icons-modal
-    [isOpen]="iconsModalOpen()"
-    [darkMode]="darkMode()"
-    (selectIcon)="handleInsertIcon($event)"
-    (close)="iconsModalOpen.set(false)"
-  ></app-word-icons-modal>
+  @defer (when iconsModalOpen()) {
+    <app-word-icons-modal
+      [isOpen]="iconsModalOpen()"
+      [darkMode]="darkMode()"
+      (selectIcon)="handleInsertIcon($event)"
+      (close)="iconsModalOpen.set(false)"
+    ></app-word-icons-modal>
+  }
 
+  <!-- Floating Table Cell Context Menu (Right-click on table cell) -->
+  @if (tableContextMenu(); as menu) {
+    <div
+      class="fixed inset-0 z-40"
+      (click)="closeTableContextMenu()"
+      (contextmenu)="$event.preventDefault(); closeTableContextMenu()"
+    ></div>
+    <div
+      role="menu"
+      aria-label="Menú contextual de tabla"
+      [style.left.px]="menu.x"
+      [style.top.px]="menu.y"
+      (mousedown)="$event.preventDefault()"
+      [ngClass]="darkMode() ? 'bg-[#18181b] border-[#3f3f46] text-[#f4f4f5]' : 'bg-white border-slate-200 text-slate-800'"
+      class="fixed z-50 w-56 rounded-lg border shadow-xl py-1.5 text-xs select-none no-print"
+    >
+      <div class="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider opacity-60">Insertar</div>
+      <button type="button" role="menuitem" (click)="runContextTableAction('addRowAbove')" class="w-full px-3 py-1.5 text-left hover:bg-blue-600/10 flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 shrink-0 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="10" width="18" height="10" rx="1"/><line x1="12" y1="2" x2="12" y2="8"/><line x1="9" y1="5" x2="15" y2="5"/></svg>
+        <span>Insertar fila arriba</span>
+      </button>
+      <button type="button" role="menuitem" (click)="runContextTableAction('addRowBelow')" class="w-full px-3 py-1.5 text-left hover:bg-blue-600/10 flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 shrink-0 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="10" rx="1"/><line x1="12" y1="16" x2="12" y2="22"/><line x1="9" y1="19" x2="15" y2="19"/></svg>
+        <span>Insertar fila abajo</span>
+      </button>
+      <button type="button" role="menuitem" (click)="runContextTableAction('addColLeft')" class="w-full px-3 py-1.5 text-left hover:bg-blue-600/10 flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 shrink-0 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="10" y="3" width="10" height="18" rx="1"/><line x1="2" y1="12" x2="8" y2="12"/><line x1="5" y1="9" x2="5" y2="15"/></svg>
+        <span>Insertar columna izquierda</span>
+      </button>
+      <button type="button" role="menuitem" (click)="runContextTableAction('addColRight')" class="w-full px-3 py-1.5 text-left hover:bg-blue-600/10 flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 shrink-0 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="10" height="18" rx="1"/><line x1="16" y1="12" x2="22" y2="12"/><line x1="19" y1="9" x2="19" y2="15"/></svg>
+        <span>Insertar columna derecha</span>
+      </button>
+      <div class="my-1 border-t" [ngClass]="darkMode() ? 'border-[#27272a]' : 'border-slate-100'"></div>
+      @if (canMergeTableCells()) {
+        <button type="button" role="menuitem" (click)="combineTableCells(); closeTableContextMenu()" class="w-full px-3 py-1.5 text-left hover:bg-blue-600/10 flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 shrink-0 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M8 12h8"/></svg>
+          <span>{{ i18n.t('word.table.merge_cells') }}</span>
+        </button>
+      }
+      <button type="button" role="menuitem" (click)="runContextTableAction('splitCell')" class="w-full px-3 py-1.5 text-left hover:bg-blue-600/10 flex items-center gap-2">
+        <svg class="w-3.5 h-3.5 shrink-0 opacity-75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="1"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+        <span>Dividir celda</span>
+      </button>
+      <div class="px-3 py-1.5 flex items-center justify-between gap-2">
+        <span class="opacity-75">Alineación</span>
+        <div class="inline-flex items-center gap-1">
+          @for (opt of [{id:'top',label:'Sup'},{id:'middle',label:'Med'},{id:'bottom',label:'Inf'}]; track opt.id) {
+            <button
+              type="button"
+              (click)="setTableCellVerticalAlign($any(opt.id))"
+              [ngClass]="activeTableVerticalAlign() === opt.id ? 'bg-blue-600 text-white border-blue-600' : (darkMode() ? 'bg-[#27272a] border-[#3f3f46]' : 'bg-slate-50 border-slate-200 hover:bg-slate-100')"
+              class="px-1.5 py-0.5 text-[10px] rounded border"
+            >{{ opt.label }}</button>
+          }
+        </div>
+      </div>
+      <div class="px-3 py-1.5 flex items-center justify-between gap-2">
+        <span class="opacity-75">Sombreado</span>
+        <div class="inline-flex items-center gap-1">
+          @for (swatch of tableShadingSwatches; track swatch) {
+            <button
+              type="button"
+              (click)="setTableCellBackground(swatch === 'transparent' ? null : swatch)"
+              [style.backgroundColor]="swatch === 'transparent' ? '#ffffff' : swatch"
+              [title]="swatch === 'transparent' ? 'Sin sombreado' : swatch"
+              [attr.aria-label]="swatch === 'transparent' ? 'Sin sombreado' : swatch"
+              class="w-4 h-4 rounded-xs border border-slate-300 relative overflow-hidden"
+            >
+              @if (swatch === 'transparent') {
+                <span class="absolute inset-0 border-t border-red-500 rotate-45 origin-center"></span>
+              }
+            </button>
+          }
+        </div>
+      </div>
+      <button type="button" role="menuitem" (click)="toggleTableHeaderRepeat()" class="w-full px-3 py-1.5 text-left hover:bg-blue-600/10 flex items-center justify-between gap-2">
+        <span>Repetir encabezado</span>
+        <span class="text-[10px] font-semibold" [ngClass]="activeTableRepeatHeader() ? 'text-blue-600' : 'opacity-50'">{{ activeTableRepeatHeader() ? 'Sí' : 'No' }}</span>
+      </button>
+      <div class="my-1 border-t" [ngClass]="darkMode() ? 'border-[#27272a]' : 'border-slate-100'"></div>
+      <button type="button" role="menuitem" (click)="runContextTableAction('delRow')" class="w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-500/10 flex items-center gap-2">
+        <span>{{ i18n.t('word.table.del_row') }}</span>
+      </button>
+      <button type="button" role="menuitem" (click)="runContextTableAction('delCol')" class="w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-500/10 flex items-center gap-2">
+        <span>{{ i18n.t('word.table.del_col') }}</span>
+      </button>
+      <button type="button" role="menuitem" (click)="runContextTableAction('delTable')" class="w-full px-3 py-1.5 text-left text-red-600 hover:bg-red-500/10 flex items-center gap-2">
+        <span>{{ i18n.t('word.table.del_table') }}</span>
+      </button>
+    </div>
+  }
+
+  <!-- Floating Unobtrusive Status & Export Toast (Phase 1) -->
+  @if (activeFeedbackToast(); as toast) {
+    <div
+      class="absolute bottom-11 right-5 z-50 max-w-sm no-print pointer-events-none"
+      role="status"
+      aria-live="polite"
+    >
+      <div
+        class="pointer-events-auto flex items-center gap-2.5 px-3.5 py-2 rounded-lg border shadow-lg backdrop-blur-xs text-xs font-medium transition-colors"
+        [ngClass]="{
+          'bg-red-950/95 border-red-800 text-red-200': darkMode() && toast.tone === 'error',
+          'bg-red-50/95 border-red-200 text-red-700': !darkMode() && toast.tone === 'error',
+          'bg-emerald-950/95 border-emerald-800 text-emerald-200': darkMode() && toast.tone === 'success',
+          'bg-emerald-50/95 border-emerald-200 text-emerald-800': !darkMode() && toast.tone === 'success',
+          'bg-slate-900/95 border-slate-700 text-slate-100': darkMode() && (toast.tone === 'loading' || toast.tone === 'info'),
+          'bg-white/95 border-slate-200 text-slate-700': !darkMode() && (toast.tone === 'loading' || toast.tone === 'info')
+        }"
+      >
+        @if (toast.tone === 'loading') {
+          <svg class="w-4 h-4 shrink-0 animate-spin text-emerald-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"></circle>
+            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+          </svg>
+        } @else if (toast.tone === 'success') {
+          <svg lucideIcon="check-circle-2" [size]="15" class="w-4 h-4 shrink-0 text-emerald-500"></svg>
+        } @else if (toast.tone === 'error') {
+          <svg class="w-4 h-4 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        } @else {
+          <svg class="w-4 h-4 shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+        }
+        <span class="leading-snug">{{ toast.text }}</span>
+        @if (toast.dismissible) {
+          <button
+            type="button"
+            (click)="dismissExportFeedback()"
+            class="ml-1 p-0.5 rounded opacity-65 hover:opacity-100 transition-opacity shrink-0"
+            aria-label="Cerrar notificación"
+            title="Cerrar"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        }
+      </div>
+    </div>
+  }
 
 </div>
 
-@if (academic.open() && !isReadMode()) {
-  <app-word-academic-panel [notes]="academic.notes.items()" [issues]="academic.issues()"
-    (sectionChanged)="academic.show($event)" (insertSection)="academic.insertSection($event)" (saveNote)="academic.saveNote($event)" (removeNote)="academic.notes.remove($event)" (objectReference)="academic.objectReference($event)" [sources]="bibliographicSources()" [objects]="academic.objects()"
-    [pageConfig]="layoutConfig().apa" (pageSettings)="academic.pageSettings($event)" [section]="academic.section()" [error]="academic.error()" [darkMode]="darkMode()"
-    (close)="academic.close()" (saveSource)="academic.save($event)" (removeSource)="academic.remove($event)"
-    (cite)="academic.cite($event)" (bibliography)="academic.bibliography()" (caption)="academic.caption($event)" />
+@defer (when academic.open() && !isReadMode()) {
+  @if (academic.open() && !isReadMode()) {
+    <app-word-academic-panel [notes]="academic.notes.items()" [issues]="academic.issues()"
+      (sectionChanged)="academic.show($event)" (insertSection)="academic.insertSection($event)" (saveNote)="academic.saveNote($event)" (removeNote)="academic.notes.remove($event)" (objectReference)="academic.objectReference($event)" [sources]="bibliographicSources()" [objects]="academic.objects()"
+      [pageConfig]="layoutConfig().apa" (pageSettings)="academic.pageSettings($event)" [section]="academic.section()" [error]="academic.error()" [darkMode]="darkMode()"
+      (close)="academic.close()" (saveSource)="academic.save($event)" (removeSource)="academic.remove($event)"
+      (cite)="academic.cite($event)" (bibliography)="academic.bibliography()" (caption)="academic.caption($event)" />
+  }
 }

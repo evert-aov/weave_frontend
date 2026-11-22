@@ -21,6 +21,18 @@ import {
 } from '@lucide/angular';
 import { LatexRendererService } from '../../services/latex-renderer.service';
 import { I18nService } from '../../../../core/services/i18n.service';
+import { VisualSlotEditorComponent } from './visual-slot-editor.component';
+import {
+  VisualSlot,
+  VisualStructureKind,
+  compileVisualSlot,
+  createSlot,
+  insertStructureIntoSlot,
+  insertTextTokenIntoSlot,
+  mapVisualSlot,
+  parseLatexToVisualSlot,
+  removePieceFromSlotTree,
+} from '../../utils/visual-formula-builder';
 
 type PrimaryCategory = 'basic' | 'math' | 'physics' | 'chemistry' | 'biology';
 
@@ -331,10 +343,63 @@ const DOMAIN_PRESET_CARDS: Record<Exclude<PrimaryCategory, 'basic'>, FormulaPres
   ],
 };
 
+interface VisualBlockTool {
+  kind: VisualStructureKind;
+  glyph: string;
+  label: string;
+}
+
+const VISUAL_BLOCK_TOOLS: VisualBlockTool[] = [
+  { kind: 'frac', glyph: 'a/b', label: 'Fracción' },
+  { kind: 'sqrt', glyph: '√x', label: 'Raíz' },
+  { kind: 'nthroot', glyph: 'ⁿ√x', label: 'Raíz n' },
+  { kind: 'sup', glyph: 'xⁿ', label: 'Potencia' },
+  { kind: 'sub', glyph: 'xₙ', label: 'Subíndice' },
+  { kind: 'subsup', glyph: 'xₙⁿ', label: 'Sub + Sup' },
+  { kind: 'sum', glyph: '∑', label: 'Sumatoria' },
+  { kind: 'int', glyph: '∫', label: 'Integral' },
+  { kind: 'defint', glyph: '∫ₐᵇ', label: 'Int. definida' },
+  { kind: 'lim', glyph: 'lim', label: 'Límite' },
+  { kind: 'paren', glyph: '( )', label: 'Paréntesis' },
+  { kind: 'abs', glyph: '|x|', label: 'Valor abs.' },
+  { kind: 'matrix2x2', glyph: '(∶)', label: 'Matriz 2×2' },
+  { kind: 'cases2', glyph: '{∶', label: 'Por tramos' },
+];
+
+const QUICK_MATH_SYMBOLS: { symbol: string; latex: string; label: string }[] = [
+  { symbol: '+', latex: '+', label: 'Más' },
+  { symbol: '−', latex: '-', label: 'Menos' },
+  { symbol: '×', latex: '\\times', label: 'Multiplicación' },
+  { symbol: '÷', latex: '\\div', label: 'División' },
+  { symbol: '=', latex: '=', label: 'Igual' },
+  { symbol: '≠', latex: '\\neq', label: 'Distinto' },
+  { symbol: '≈', latex: '\\approx', label: 'Aproximado' },
+  { symbol: '±', latex: '\\pm', label: 'Más o menos' },
+  { symbol: '≤', latex: '\\leq', label: 'Menor o igual' },
+  { symbol: '≥', latex: '\\geq', label: 'Mayor o igual' },
+  { symbol: '·', latex: '\\cdot', label: 'Producto punto' },
+  { symbol: 'π', latex: '\\pi', label: 'Pi' },
+  { symbol: 'α', latex: '\\alpha', label: 'Alfa' },
+  { symbol: 'β', latex: '\\beta', label: 'Beta' },
+  { symbol: 'γ', latex: '\\gamma', label: 'Gamma' },
+  { symbol: 'θ', latex: '\\theta', label: 'Theta' },
+  { symbol: 'λ', latex: '\\lambda', label: 'Lambda' },
+  { symbol: 'μ', latex: '\\mu', label: 'Mu' },
+  { symbol: 'σ', latex: '\\sigma', label: 'Sigma minúscula' },
+  { symbol: 'Δ', latex: '\\Delta', label: 'Delta' },
+  { symbol: '∞', latex: '\\infty', label: 'Infinito' },
+  { symbol: '∂', latex: '\\partial', label: 'Derivada parcial' },
+  { symbol: '∇', latex: '\\nabla', label: 'Nabla' },
+  { symbol: '→', latex: '\\rightarrow', label: 'Flecha' },
+  { symbol: '⇒', latex: '\\Rightarrow', label: 'Implica' },
+  { symbol: '∈', latex: '\\in', label: 'Pertenece' },
+  { symbol: 'ℝ', latex: '\\mathbb{R}', label: 'Reales' },
+];
+
 @Component({
   selector: 'app-word-latex-modal',
   standalone: true,
-  imports: [CommonModule, LucideDynamicIcon],
+  imports: [CommonModule, LucideDynamicIcon, VisualSlotEditorComponent],
   providers: [provideLucideIcons(LucideX, LucideTrash2)],
   templateUrl: './word-latex-modal.component.html',
   styleUrls: ['./word-latex-modal.component.scss'],
@@ -368,6 +433,15 @@ export class WordLatexModalComponent implements OnChanges {
 
   readonly primaryTabs = PRIMARY_TABS;
   readonly basicSubTabs = BASIC_SUB_TABS;
+  readonly visualTools = VISUAL_BLOCK_TOOLS;
+  readonly quickSymbols = QUICK_MATH_SYMBOLS;
+
+  readonly visualRoot = signal<VisualSlot>(createSlot('Fórmula', 'Escribe aquí o selecciona un bloque...', ''));
+  readonly activeSlotId = signal<string>(this.visualRoot().id);
+  readonly activePieceId = signal<string | undefined>(this.visualRoot().pieces[0]?.id);
+  readonly focusRequestId = signal<string | null>(null);
+  readonly showRawLatex = signal<boolean>(false);
+
   readonly latexInput = signal<string>('');
   readonly primaryTab = signal<PrimaryCategory>('basic');
   readonly basicSubTab = signal<BasicSubCategory>('symbols');
@@ -380,49 +454,133 @@ export class WordLatexModalComponent implements OnChanges {
     return DOMAIN_PRESET_CARDS[primary];
   });
 
+  readonly previewSourceLatex = computed<string>(() => {
+    const raw = this.latexInput().trim();
+    const visualPreview = compileVisualSlot(this.visualRoot(), true);
+    return visualPreview || raw;
+  });
+
   readonly previewHtml = computed<SafeHtml>(() =>
-    this.sanitizer.bypassSecurityTrustHtml(this.latex.renderLatexToHtml(this.latexInput()))
+    this.sanitizer.bypassSecurityTrustHtml(this.latex.renderLatexToHtml(this.previewSourceLatex()))
   );
 
   ngOnChanges(changes: SimpleChanges): void {
     if ((changes['isOpen'] || changes['initialLatex']) && this.isOpen) {
-      this.latexInput.set(this.initialLatex || '');
+      const initial = this.initialLatex || '';
+      this.latexInput.set(initial);
+      this.syncVisualFromLatex(initial);
     }
+  }
+
+  private syncVisualFromLatex(raw: string): void {
+    const parsed = parseLatexToVisualSlot(raw, 'Fórmula');
+    this.visualRoot.set(parsed);
+    this.activeSlotId.set(parsed.id);
+    this.activePieceId.set(parsed.pieces.find((p) => p.kind === 'text')?.id);
+  }
+
+  handleSlotFocus(ev: { slotId: string; pieceId?: string }): void {
+    this.activeSlotId.set(ev.slotId);
+    this.activePieceId.set(ev.pieceId);
+  }
+
+  handleVisualTextChange(ev: { slotId: string; pieceId: string; value: string }): void {
+    const updated = mapVisualSlot(this.visualRoot(), ev.slotId, (slot) => ({
+      ...slot,
+      pieces: slot.pieces.map((p) =>
+        p.id === ev.pieceId && p.kind === 'text' ? { ...p, value: ev.value } : p
+      ),
+    }));
+    this.visualRoot.set(updated);
+    this.latexInput.set(compileVisualSlot(updated, false));
+  }
+
+  handleInsertVisualStructure(kind: VisualStructureKind): void {
+    const { root, focusSlotId } = insertStructureIntoSlot(
+      this.visualRoot(),
+      this.activeSlotId() || this.visualRoot().id,
+      kind,
+      this.activePieceId()
+    );
+    this.visualRoot.set(root);
+    this.activeSlotId.set(focusSlotId);
+    this.activePieceId.set(undefined);
+    this.focusRequestId.set(focusSlotId);
+    this.latexInput.set(compileVisualSlot(root, false));
+  }
+
+  handleInsertVisualSymbol(symbolOrLatex: string): void {
+    const targetSlotId = this.activeSlotId() || this.visualRoot().id;
+    const updated = insertTextTokenIntoSlot(
+      this.visualRoot(),
+      targetSlotId,
+      symbolOrLatex,
+      this.activePieceId()
+    );
+    this.visualRoot.set(updated);
+    this.latexInput.set(compileVisualSlot(updated, false));
+  }
+
+  handleRemoveVisualPiece(pieceId: string): void {
+    const updated = removePieceFromSlotTree(this.visualRoot(), pieceId);
+    this.visualRoot.set(updated);
+    this.activeSlotId.set(updated.id);
+    this.activePieceId.set(updated.pieces.find((p) => p.kind === 'text')?.id);
+    this.latexInput.set(compileVisualSlot(updated, false));
+  }
+
+  handleRawLatexEdit(value: string): void {
+    this.latexInput.set(value);
+    this.syncVisualFromLatex(value);
   }
 
   handleInsertSnippetAtCursor(snippet: string): void {
-    const ta = this.textareaRef?.nativeElement;
-    if (!ta) {
-      this.latexInput.update((prev) => (prev ? `${prev} ${snippet}` : snippet));
+    const isSimpleToken = !snippet.includes('\\frac') &&
+      !snippet.includes('\\int') &&
+      !snippet.includes('\\sum') &&
+      !snippet.includes('\\prod') &&
+      !snippet.includes('\\sqrt') &&
+      !snippet.includes('\\begin') &&
+      !snippet.includes('=');
+
+    if (isSimpleToken && this.latexInput().trim().length > 0) {
+      this.handleInsertVisualSymbol(snippet);
       return;
     }
 
-    const start = ta.selectionStart ?? this.latexInput().length;
-    const end = ta.selectionEnd ?? this.latexInput().length;
-    const before = this.latexInput().slice(0, start);
-    const after = this.latexInput().slice(end);
-    const needsSpace = before.length > 0 && !/\s$/.test(before);
-    const inserted = `${needsSpace ? ' ' : ''}${snippet}`;
-    const updated = `${before}${inserted}${after}`;
+    const parsed = parseLatexToVisualSlot(snippet, 'Fórmula');
+    if (!this.latexInput().trim() || this.primaryTab() !== 'basic' || snippet.includes('=') || snippet.includes('\\begin')) {
+      this.visualRoot.set(parsed);
+      this.activeSlotId.set(parsed.id);
+      this.latexInput.set(compileVisualSlot(parsed, false) || snippet);
+      return;
+    }
 
-    this.latexInput.set(updated);
-
-    setTimeout(() => {
-      ta.focus();
-      const newPos = start + inserted.length;
-      ta.setSelectionRange(newPos, newPos);
-    }, 10);
+    // Append parsed blocks into the currently active slot
+    const targetId = this.activeSlotId() || this.visualRoot().id;
+    const merged = mapVisualSlot(this.visualRoot(), targetId, (slot) => ({
+      ...slot,
+      pieces: [...slot.pieces, ...parsed.pieces],
+    }));
+    this.visualRoot.set(merged);
+    this.latexInput.set(compileVisualSlot(merged, false) || snippet);
   }
 
   handleConfirmInsert(): void {
-    if (!this.latexInput().trim()) return;
-    this.insertFormula.emit(this.latexInput());
+    const compiled = compileVisualSlot(this.visualRoot(), false) || this.latexInput().trim();
+    if (!compiled.trim()) return;
+    this.latexInput.set(compiled);
+    this.insertFormula.emit(compiled);
     this.close.emit();
   }
 
   clearInput(): void {
+    const fresh = createSlot('Fórmula', 'Escribe aquí o selecciona un bloque...', '');
+    this.visualRoot.set(fresh);
+    this.activeSlotId.set(fresh.id);
+    this.activePieceId.set(fresh.pieces[0]?.id);
+    this.focusRequestId.set(fresh.id);
     this.latexInput.set('');
-    this.textareaRef?.nativeElement.focus();
   }
 
   handleDeleteFormula(): void {

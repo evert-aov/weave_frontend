@@ -530,7 +530,7 @@
     background: #323238;
   }
 
-  .doc-style-card {
+  .doc-sheet-card {
     background: #18181b;
     border-color: #323238;
 
@@ -539,18 +539,26 @@
       background: #202024;
     }
 
-    &.active {
+    &.selected {
+      background: rgba(30, 58, 138, 0.35);
       border-color: #3b82f6;
       box-shadow: 0 0 0 1.5px #3b82f6;
     }
 
-    .doc-sheet-preview {
-      background: #202024;
-      border-color: #323238;
+    .mini-title {
+      color: #f4f4f5;
+    }
 
-      .line-h, .line-1, .line-2 {
-        background: #3f3f46;
-      }
+    .mini-heading {
+      color: #93c5fd;
+    }
+
+    .mini-divider {
+      background: #3b82f6;
+    }
+
+    .mini-body-lines span {
+      background: #3f3f46;
     }
   }
 

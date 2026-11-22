@@ -24,7 +24,7 @@ export class PdfExportStrategy implements ExportStrategy {
     const filename = options.filename || this.sanitizeFilename(note.title || 'documento');
 
     if (options.method === 'print') {
-      this.printViaBrowser(note, options);
+      await this.printViaBrowser(note, options);
       return;
     }
 
@@ -82,6 +82,8 @@ export class PdfExportStrategy implements ExportStrategy {
     renderContainer.style.zIndex = '-9999';
     renderContainer.style.pointerEvents = 'none';
 
+    const contentHtml = await this.buildNoteHtmlContentAsync(note, options);
+
     renderContainer.innerHTML = `
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
       <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -89,7 +91,7 @@ export class PdfExportStrategy implements ExportStrategy {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
       <style>${this.getPdfStyles()}</style>
       <div class="weave-pdf-document" style="box-sizing: border-box; padding: 0; width: 100%; margin: 0;">
-        ${this.buildNoteHtmlContent(note, options)}
+        ${contentHtml}
       </div>
     `;
     document.body.appendChild(renderContainer);
@@ -208,14 +210,14 @@ export class PdfExportStrategy implements ExportStrategy {
    * Abre la ventana nativa de impresión del navegador con estilos optimizados para PDF vectorial.
    * Flujo continuo sin páginas en blanco artificiales y supresión de encabezados/pies del navegador.
    */
-  private printViaBrowser(note: Note, options: ExportOptions): void {
+  private async printViaBrowser(note: Note, options: ExportOptions): Promise<void> {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       this.dialogs.notice('Impresión bloqueada', 'Permite las ventanas emergentes para imprimir el documento.');
       return;
     }
 
-    const contentHtml = this.buildNoteHtmlContent(note, options);
+    const contentHtml = await this.buildNoteHtmlContentAsync(note, options);
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -361,6 +363,100 @@ export class PdfExportStrategy implements ExportStrategy {
     html += '</footer>';
 
     return html;
+  }
+
+  /**
+   * Versión asíncrona que comparte el renderizador Canvas de hojas de cálculo
+   * (celdas, gráficos, formas e ink) cargándolo bajo demanda para conservar
+   * los límites de carga diferida.
+   */
+  private async buildNoteHtmlContentAsync(note: Note, options: ExportOptions): Promise<string> {
+    const hasSheetBlocks = Boolean(note.blocks?.some((b) => b.type === 'sheet'));
+    const isPureSheet = note.docType === 'sheet' && Boolean(note.docData);
+    if (!hasSheetBlocks && !isPureSheet) {
+      return this.buildNoteHtmlContent(note, options);
+    }
+
+    let canvasExport: typeof import('../../editor/pure-sheet-editor/services/sheet-canvas-export') | null = null;
+    try {
+      canvasExport = await import('../../editor/pure-sheet-editor/services/sheet-canvas-export');
+    } catch {
+      return this.buildNoteHtmlContent(note, options);
+    }
+
+    const includeTitle = options.includeTitle !== false;
+    const includeMeta = options.includeMetadata !== false;
+    const includeTags = options.includeTags !== false;
+
+    let html = '';
+    html += '<header class="pdf-doc-header page-break-avoid">';
+    if (includeMeta && note.space) {
+      html += `<div class="pdf-space-badge">${this.escapeHtml(note.space)}</div>`;
+    }
+    if (includeTitle) {
+      html += `<h1 class="pdf-doc-title">${this.escapeHtml(note.title || 'Untitled Note')}</h1>`;
+    }
+    if (note.lead) {
+      html += `<p class="pdf-doc-lead">${this.escapeHtml(note.lead)}</p>`;
+    }
+    if (includeTags && note.tags && note.tags.length > 0) {
+      html += '<div class="pdf-tags-row">';
+      note.tags.forEach((tag) => {
+        html += `<span class="pdf-tag-chip">#${this.escapeHtml(tag)}</span>`;
+      });
+      html += '</div>';
+    }
+    html += '<hr class="pdf-header-divider" />';
+    html += '</header>';
+
+    html += '<main class="pdf-blocks-container">';
+    if (note.blocks && note.blocks.length > 0) {
+      const sortedBlocks = [...note.blocks].sort((a, b) => a.order - b.order);
+      for (const block of sortedBlocks) {
+        if (block.type === 'sheet') {
+          const rendered = canvasExport.renderSheetBlockToCanvasImage(block.content, { scale: 2 });
+          if (rendered) {
+            html += this.wrapCanvasSheetHtml(rendered.dataUrl, rendered.sheetName, false);
+            continue;
+          }
+        }
+        html += this.renderBlockToHtml(block);
+      }
+    } else if (isPureSheet) {
+      const pages = canvasExport.renderSheetWorkbookToCanvasPages(note.docData, { scale: 2 });
+      if (pages.length > 0) {
+        const showSheetTitle = pages.length > 1;
+        for (const page of pages) {
+          html += this.wrapCanvasSheetHtml(page.dataUrl, page.sheetName, showSheetTitle);
+        }
+      } else {
+        html += this.renderPureDocToHtml(note);
+      }
+    } else if (note.docType && note.docType !== 'block') {
+      html += this.renderPureDocToHtml(note);
+    }
+    html += '</main>';
+
+    html += '<footer class="pdf-doc-footer page-break-avoid">';
+    html += `<span class="pdf-footer-brand">Weave Notes</span>`;
+    html += `<span class="pdf-footer-date">${new Date(note.updatedAt || Date.now()).toLocaleDateString()}</span>`;
+    html += '</footer>';
+
+    return html;
+  }
+
+  private wrapCanvasSheetHtml(dataUrl: string, sheetName: string, showSheetTitle: boolean): string {
+    const titleHtml = showSheetTitle
+      ? `<div style="font-size:12px;font-weight:600;color:#334155;margin-bottom:6px;">${this.escapeHtml(sheetName)}</div>`
+      : '';
+    return `
+      <div class="pdf-block pdf-sheet-wrapper pdf-canvas-block page-break-avoid">
+        ${titleHtml}
+        <div class="pdf-canvas-card" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;padding:6px;">
+          <img src="${dataUrl}" alt="${this.escapeHtml(sheetName)}" class="pdf-canvas-img" style="width:100%;height:auto;display:block;" />
+        </div>
+      </div>
+    `;
   }
 
   private renderBlockToHtml(block: Block): string {

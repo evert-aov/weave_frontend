@@ -63,6 +63,20 @@ editor Word cargado de forma diferida.
 
 ## Definiciones y persistencia
 
+### Diseños de tabla independientes
+
+El diseñador de plantillas incluye la pestaña **Tablas**, con tres opciones:
+
+- **Seguir el formato del documento** conserva el comportamiento previo, incluido el formato de tablas APA.
+- **Conservar el diseño actual** materializa las fuentes y métricas heredadas antes de cambiar la plantilla del documento.
+- **Diseño personalizado** define fuente, tamaño, interlineado, alineación, relleno, bordes (cuadrícula, horizontales o ninguno), encabezado, colores y filas alternas. El estilo de los párrafos no modifica estas reglas.
+
+`StyleTemplate.tableStyle` es opcional; su ausencia equivale a seguir el documento. Se guarda con `customTemplates` en `docData`, sin preferencias globales ni cambios en otros documentos. Insertar o pegar una tabla, o insertarla mediante la IA, utiliza las reglas de la plantilla activa.
+
+**Aplicar a la tabla seleccionada** cambia únicamente esa tabla. La opción **Mantener este diseño…** la marca con `data-word-table-binding="fixed"`: aplicar otra plantilla o actualizar los formatos APA de sus leyendas no reemplaza su diseño. Desmarcarla y aplicar permite que vuelva a seguir el diseño de tablas de las siguientes plantillas. Al reabrir el diseñador sobre una tabla personalizada se recuperan sus ajustes guardados.
+
+La transformación pura `utils/table-styling.ts` conserva texto, IDs, columnas, combinaciones de celdas y objetos; se ejecuta sobre el modelo Canvas. `table-styling-dom.ts` es únicamente el adaptador para las superficies DOM heredadas. `CanvasEditSession` integra selección, historial y persistencia v3. El resolvedor de Canvas respeta el espaciado y los bordes propios de la tabla, incluso bajo una plantilla APA. El exportador DOCX genera propiedades nativas de celda (bordes, fuentes, sombreado, márgenes, interlineado y repetición del encabezado); el vínculo fijo es metadato de Weave y no una restricción de edición de Microsoft Word.
+
 `ElementStyleRule` describe fuente, tamaño exacto en puntos, peso, cursiva, subrayado,
 tachado, color, fondo, alineación, interlineado, espaciados y sangrías. Los campos nuevos
 son opcionales para mantener la compatibilidad con documentos guardados.

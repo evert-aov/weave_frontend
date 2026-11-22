@@ -1,5 +1,12 @@
 import { ShapeDefinition, SmartArtItem, WordArtPreset } from '../models/word-insert.model';
 
+const SMARTART_HEADER_ICON_SVG = '<svg class="word-doc-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>';
+const SMARTART_CAMERA_SVG = '<svg class="word-doc-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>';
+const SMARTART_IDEA_SVG = '<svg class="word-doc-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>';
+
+const smartArtHeader = (label: string, centered = false): string =>
+  `<div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:6px;${centered ? 'justify-content:center;' : ''}">${SMARTART_HEADER_ICON_SVG}<span>${label}</span></div>`;
+
 export const SMARTART_ITEMS: SmartArtItem[] = [
   // ==================== LIST ====================
   {
@@ -17,9 +24,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="basic-block-list" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-family:inherit;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Lista de bloques básica
-        </div>
+        ${smartArtHeader('SmartArt: Lista de bloques básica')}
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:12px;">
           <div style="background:#ea580c;color:white;border-radius:8px;padding:12px;box-shadow:0 2px 4px rgba(0,0,0,0.06);">
             <div contenteditable="true" style="font-weight:700;font-size:14px;margin-bottom:6px;outline:none;">[Elemento 1]</div>
@@ -59,9 +64,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="hexagon-list" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Lista de hexágonos
-        </div>
+        ${smartArtHeader('SmartArt: Lista de hexágonos')}
         <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:14px;">
           <div style="width:140px;background:#0284c7;color:white;padding:14px 10px;text-align:center;border-radius:12px;clip-path:polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);min-height:120px;display:flex;flex-direction:column;justify-content:center;">
             <div contenteditable="true" style="font-weight:700;font-size:13px;outline:none;">[Idea 1]</div>
@@ -96,9 +99,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="vertical-bullet-list" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Lista vertical con viñetas
-        </div>
+        ${smartArtHeader('SmartArt: Lista vertical con viñetas')}
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="display:flex;align-items:stretch;border:1px solid #bfdbfe;border-radius:8px;overflow:hidden;background:white;">
             <div style="background:#2563eb;color:white;font-weight:bold;padding:12px 18px;min-width:120px;display:flex;align-items:center;justify-content:center;" contenteditable="true">[Tema A]</div>
@@ -132,9 +133,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="basic-process" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Proceso básico secuencial
-        </div>
+        ${smartArtHeader('SmartArt: Proceso básico secuencial')}
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
           <div style="flex:1;min-width:130px;background:#2563eb;color:white;padding:12px 8px;border-radius:8px;text-align:center;">
             <div contenteditable="true" style="font-weight:700;font-size:13px;outline:none;">Paso 1</div>
@@ -173,9 +172,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="timeline-process" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Línea de tiempo de hitos
-        </div>
+        ${smartArtHeader('SmartArt: Línea de tiempo de hitos')}
         <div style="position:relative;padding:10px 0;">
           <div style="height:4px;background:#cbd5e1;position:absolute;top:28px;left:5%;right:5%;z-index:1;"></div>
           <div style="display:flex;justify-content:space-between;position:relative;z-index:2;flex-wrap:wrap;gap:12px;">
@@ -220,9 +217,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="basic-cycle" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;text-align:center;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Ciclo continuo (PDCA)
-        </div>
+        ${smartArtHeader('SmartArt: Ciclo continuo (PDCA)', true)}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:380px;margin:0 auto;">
           <div style="background:#2563eb;color:white;padding:14px;border-radius:10px;">
             <div contenteditable="true" style="font-weight:bold;font-size:13px;outline:none;">1. PLANEAR</div>
@@ -259,9 +254,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="organization-chart" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;text-align:center;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Organigrama jerárquico
-        </div>
+        ${smartArtHeader('SmartArt: Organigrama jerárquico', true)}
         <div style="display:inline-block;background:#1e3a8a;color:white;padding:10px 24px;border-radius:8px;margin-bottom:12px;box-shadow:0 2px 4px rgba(0,0,0,0.08);">
           <div contenteditable="true" style="font-weight:bold;font-size:14px;outline:none;">[Dirección General]</div>
           <div contenteditable="true" style="font-size:11px;opacity:0.9;outline:none;">Liderazgo ejecutivo</div>
@@ -300,9 +293,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="venn-diagram" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;text-align:center;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Diagrama de Venn de intersección
-        </div>
+        ${smartArtHeader('SmartArt: Diagrama de Venn de intersección', true)}
         <div style="position:relative;width:240px;height:180px;margin:0 auto;">
           <div style="position:absolute;top:0;left:45px;width:110px;height:110px;border-radius:50%;background:rgba(37,99,235,0.45);border:2px solid #2563eb;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:11px;color:#1e3a8a;" contenteditable="true">A</div>
           <div style="position:absolute;bottom:0;left:0;width:110px;height:110px;border-radius:50%;background:rgba(219,39,119,0.45);border:2px solid #db2777;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:11px;color:#831843;" contenteditable="true">B</div>
@@ -328,9 +319,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="basic-matrix" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Matriz 2x2 de cuadrantes
-        </div>
+        ${smartArtHeader('SmartArt: Matriz 2x2 de cuadrantes')}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:440px;margin:0 auto;">
           <div style="background:#dcfce7;border:1.5px solid #16a34a;border-radius:8px;padding:12px;color:#14532d;">
             <div contenteditable="true" style="font-weight:bold;font-size:13px;outline:none;">[Fortalezas / Q1]</div>
@@ -367,9 +356,7 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="basic-pyramid" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;text-align:center;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Pirámide jerárquica
-        </div>
+        ${smartArtHeader('SmartArt: Pirámide jerárquica', true)}
         <div style="display:flex;flex-direction:column;align-items:center;gap:8px;max-width:360px;margin:0 auto;">
           <div style="width:140px;background:#7c3aed;color:white;padding:10px;border-radius:8px 8px 0 0;font-weight:bold;font-size:12px;">
             <div contenteditable="true" style="outline:none;">NIVEL ESTRATÉGICO</div>
@@ -399,19 +386,17 @@ export const SMARTART_ITEMS: SmartArtItem[] = [
     ],
     generateHtml: () => `
       <div class="word-smartart-container" data-smartart="picture-accent-list" contenteditable="false" style="margin:20px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
-        <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;">
-          📊 SmartArt: Lista con imágenes / iconos
-        </div>
+        ${smartArtHeader('SmartArt: Lista con imágenes / iconos')}
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
           <div style="background:white;border:1px solid #cbd5e1;border-radius:8px;padding:14px;display:flex;align-items:center;gap:12px;">
-            <div style="width:48px;height:48px;background:#dbeafe;color:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📷</div>
+            <div style="width:48px;height:48px;background:#dbeafe;color:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${SMARTART_CAMERA_SVG}</div>
             <div>
               <div contenteditable="true" style="font-weight:bold;font-size:13px;outline:none;">[Perfil o Objeto 1]</div>
               <div contenteditable="true" style="font-size:11px;color:#64748b;outline:none;">Descripción detallada.</div>
             </div>
           </div>
           <div style="background:white;border:1px solid #cbd5e1;border-radius:8px;padding:14px;display:flex;align-items:center;gap:12px;">
-            <div style="width:48px;height:48px;background:#dcfce7;color:#16a34a;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">💡</div>
+            <div style="width:48px;height:48px;background:#dcfce7;color:#16a34a;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${SMARTART_IDEA_SVG}</div>
             <div>
               <div contenteditable="true" style="font-weight:bold;font-size:13px;outline:none;">[Perfil o Objeto 2]</div>
               <div contenteditable="true" style="font-size:11px;color:#64748b;outline:none;">Descripción detallada.</div>

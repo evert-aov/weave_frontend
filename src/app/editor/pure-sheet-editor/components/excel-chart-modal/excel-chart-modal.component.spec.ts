@@ -29,7 +29,9 @@ describe('Excel chart selection', () => {
         expect(renderer.category).toBe(category.id);
         expect(renderer.subType).toBe(subtype.id);
         expect(renderer.chartData().rows.length).toBe(2);
-        expect(fixture.nativeElement.querySelector('.chart-preview svg path, .chart-preview svg rect, .chart-preview svg circle')).toBeTruthy();
+        const canvas = fixture.nativeElement.querySelector('.chart-preview canvas.plot-canvas') as HTMLCanvasElement | null;
+        expect(canvas).toBeTruthy();
+        expect(Number(canvas?.getAttribute('data-renders') || 0)).toBeGreaterThan(0);
         expect(fixture.nativeElement.querySelector('.chart-preview').innerHTML).not.toMatch(/NaN|Infinity/);
       }
     }

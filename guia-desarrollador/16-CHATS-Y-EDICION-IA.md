@@ -34,7 +34,7 @@ El indicador de guardado habitual sigue siendo la confirmación de persistencia 
 | Bloques | Texto enriquecido y tablas (contenido de celdas), código, fórmulas LaTeX, Mermaid, celdas de hojas y nuevos bloques de texto. |
 | Word | Texto existente y nuevos párrafos por página; conserva estilos, tablas e imágenes. Participa del flujo de páginas y del historial deshacer de Word. |
 | LaTeX | Reemplazos de código y adición de fuente; requiere recompilar para actualizar el PDF. |
-| Hoja de cálculo | Valores y fórmulas sobre `SheetGrid` mediante `sheetAiAdapter`; conserva formato de celda. |
+| Hoja de cálculo | Valores, fórmulas, estilos, hojas, filas/columnas, combinaciones, gráficos, tablas y configuración del libro mediante operaciones estructurales validadas con historial. |
 | Presentación | Editor temporalmente deshabilitado; conserva el archivo guardado. |
 | Lienzo | Conversación sin edición automática. |
 
@@ -42,7 +42,7 @@ Esta versión modifica contenido textual, no diseña temas o estructuras arbitra
 no transforma imágenes y no cambia objetos de lienzo. El adaptador de hojas admite el modelo Angular y mantiene una rama de compatibilidad para
 fachadas anteriores; solo en esa rama omite celdas enriquecidas del antiguo motor. Para el modelo
 actual expone celdas existentes y, si hay pocas, posiciones vacías de un área inicial de 10 × 6,
-con un máximo de 250 destinos. Ver [Hojas de cálculo](18-HOJAS-DE-CALCULO.md).
+priorizando la hoja activa, con hasta 1900 destinos de celda más `workbook:control`. El contexto sigue teniendo presupuesto; las operaciones estructurales pueden actuar sobre todas las hojas. Ver [Hojas de cálculo](18-HOJAS-DE-CALCULO.md).
 
 ## Adaptadores y conflictos
 
@@ -67,9 +67,9 @@ rechaza la respuesta. El borrado y cambio de chat invalidan también la respuest
 Los fallos de un motor durante la aplicación se muestran como operación incompleta; revisar
 el documento antes de reintentar. No se promete una transacción distribuida entre motores.
 
-El contexto editable admite hasta 2000 destinos, 15 000 caracteres por destino y 400 000 en total
+El contexto editable admite hasta 10 000 destinos, 100 000 caracteres por destino y 1 500 000 en total
 (incluyendo IDs); se informa «Contexto parcial» si hay recorte. Una respuesta contiene hasta
-100 cambios y 80 000 caracteres entre fragmentos originales y nuevos. La fuente no enviada se
+100 cambios y 100 000 caracteres entre fragmentos originales y nuevos. La fuente no enviada se
 conserva localmente: una operación jamás sustituye el documento por un extracto truncado.
 El historial guarda conversación, no instrucciones ejecutables que se vuelvan a aplicar al abrirlo.
 
@@ -114,3 +114,16 @@ estrechas. La búsqueda no descarga ni indexa el contenido de los mensajes.
 
 La revisión de escritura solicitada pertenece exclusivamente a Word, no al campo del chat;
 consultar la guía de Home y estilos de Word.
+
+
+El compositor admite adjuntos PDF, DOCX, XLSX y archivos de texto, así como la lectura directa de notas y libros de cálculo desde la base de datos de Weave (+ Doc de la base). Se envían como fuentes independientes del documento activo para permitir interacción y cruce entre Word y Excel. Formatos, límites y contrato de transporte: [adjuntos de chat](06-IA-Y-EXPORTACION.md#adjuntos-de-chat).
+
+
+### Imágenes desde archivo o portapapeles
+
+El campo del chat intercepta `paste` solo cuando el portapapeles contiene archivos de imagen. Reutiliza el mismo lector, estado de carga, límites y descarte al cambiar de conversación que el selector de archivos. La miniatura y el botón de retirada permiten revisar los adjuntos antes de enviarlos. PNG/JPEG/WebP/GIF viajan como `AiAttachment.data` Base64 a Vertex mediante FastAPI, incluso con el contexto del documento desactivado; no se insertan automáticamente en el documento abierto.
+
+
+### Trasladar tablas de documentos adjuntos al Word
+
+Con el Word activo y «Editar documento» habilitado, la IA puede usar un Excel adjunto (archivo o documento de la base de datos) como fuente para insertar varias tablas nativas. El destino estructural de la tabla existente admite `insertAfter`; los encabezados ofrecen `word-insert` para secciones sin tabla. La operación conserva la siguiente subsección, admite títulos/notas y usa el historial del editor. Los datos adjuntos no autorizan por sí mismos modificar otros documentos: el cambio sigue aplicándose al documento activo y a los destinos validados por la instantánea de edición.

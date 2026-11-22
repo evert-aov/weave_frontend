@@ -1,20 +1,24 @@
 import type { SheetEditorHooks } from './sheet-editor-hooks';
 import { computed } from '@angular/core';
-import { CellData, SheetGrid } from '../models/excel.model';
-import { cycleFormulaRefAtCursor, evaluateCellValue, getSpillRegions, generateSmartFillSeries, getCellId, parseCellId, shiftFormulaReferences } from '../services/formula-engine.service';
-import { parseHtmlTableFromClipboard, parseTsvFromClipboard, serializeRangeToClipboard, writeToSystemClipboard } from '../services/clipboard.service';
+import { CellData, MergeRegion, PasteSpecialMode, SheetGrid } from '../models/excel.model';
+import { cycleFormulaRefAtCursor, evaluateCellValue, evaluateCellValueCached, getSpillRegions, generateSmartFillSeries, getCellId, parseCellId, shiftFormulaReferences } from '../services/formula-engine.service';
+import { cloneCellData, cloneCellStyle, parseHtmlTableFromClipboard, parseTsvFromClipboard, serializeRangeToClipboard, writeToSystemClipboard } from '../services/clipboard.service';
 import type { PureSheetEditorComponent } from '../pure-sheet-editor.component';
 
 type SheetDataControllerHost = Pick<PureSheetEditorComponent,
   | 'activeSheet'
   | 'cancelCellEdit'
   | 'cellEditorInput'
+  | 'clipboard'
   | 'editingValue'
   | 'editorNotice'
   | 'fillSourceRange'
   | 'fillTargetRange'
   | 'filtersEnabled'
   | 'formulaBarInput'
+  | 'gridContainer'
+  | 'guardEditableCell'
+  | 'guardEditableRange'
   | 'i18n'
   | 'isEditing'
   | 'isFillDragging'
@@ -22,6 +26,7 @@ type SheetDataControllerHost = Pick<PureSheetEditorComponent,
   | 'scheduleAutoSave'
   | 'selectedCell'
   | 'selectionRange'
+  | 'sheets'
   | 'updateCurrentGrid'>;
 type SheetDataControllerHooks = Pick<SheetEditorHooks,
   | 'calculationCache'
@@ -54,6 +59,7 @@ export class SheetDataController {
     const extraCols = tgt.endCol - src.endCol;
 
     if (extraRows <= 0 && extraCols <= 0) return;
+    if (!this.editor.guardEditableRange(tgt.startCol, tgt.endCol, tgt.startRow, tgt.endRow)) return;
 
     this.editor.updateCurrentGrid((prev) => {
       const next = { ...prev };
@@ -90,6 +96,7 @@ export class SheetDataController {
 
   handleFillDown(): void {
     const { minCol, maxCol, minRow, maxRow } = this.editor.normalizedRange;
+    if (!this.editor.guardEditableRange(minCol, maxCol, maxRow > minRow ? minRow + 1 : minRow, maxRow)) return;
     this.editor.updateCurrentGrid((prev) => {
       const next = { ...prev };
       if (maxRow > minRow) {
@@ -124,6 +131,7 @@ export class SheetDataController {
 
   handleFillRight(): void {
     const { minCol, maxCol, minRow, maxRow } = this.editor.normalizedRange;
+    if (!this.editor.guardEditableRange(maxCol > minCol ? minCol + 1 : minCol, maxCol, minRow, maxRow)) return;
     this.editor.updateCurrentGrid((prev) => {
       const next = { ...prev };
       if (maxCol > minCol) {
@@ -176,18 +184,68 @@ export class SheetDataController {
     }
   }
 
-  async handleCopy(): Promise<void> {
+  async handleCopy(mode: 'copy' | 'cut' = 'copy'): Promise<void> {
     const { minCol, maxCol, minRow, maxRow } = this.editor.normalizedRange;
-    const { tsv, html } = serializeRangeToClipboard(this.editor.activeSheet.data, minCol, maxCol, minRow, maxRow);
+    const grid = this.editor.activeSheet.data;
+    const { tsv, html } = serializeRangeToClipboard(grid, minCol, maxCol, minRow, maxRow);
+
+    const totalCells = (maxRow - minRow + 1) * (maxCol - minCol + 1);
+    if (totalCells <= 100000) {
+      const cells: CellData[][] = [];
+      for (let r = minRow; r <= maxRow; r++) {
+        const rowCells: CellData[] = [];
+        for (let c = minCol; c <= maxCol; c++) {
+          const cell = grid[getCellId(c, r)];
+          rowCells.push(cell ? cloneCellData(cell) : { raw: '' });
+        }
+        cells.push(rowCells);
+      }
+
+      const merges = (this.editor.activeSheet.merges || [])
+        .filter(m => m.startCol >= minCol && m.endCol <= maxCol && m.startRow >= minRow && m.endRow <= maxRow)
+        .map(m => ({
+          startCol: m.startCol - minCol,
+          startRow: m.startRow - minRow,
+          endCol: m.endCol - minCol,
+          endRow: m.endRow - minRow,
+        }));
+
+      this.editor.clipboard.setInternalMatrix({
+        mode,
+        sheetId: this.editor.activeSheet.id,
+        range: { minCol, maxCol, minRow, maxRow },
+        cells,
+        merges,
+        tsvSignature: tsv,
+      });
+    }
+
     await writeToSystemClipboard(tsv, html);
   }
 
   async handleCut(): Promise<void> {
-    await this.handleCopy();
-    this.handleClearContent();
+    const { minCol, maxCol, minRow, maxRow } = this.editor.normalizedRange;
+    if (!this.canReplaceSpillRange(minCol, minRow, maxCol, maxRow)) return;
+    await this.handleCopy('cut');
+    this.editor.updateCurrentGrid(prev => {
+      const next = { ...prev };
+      for (const id of Object.keys(prev)) {
+        const cell = parseCellId(id);
+        if (cell && cell.col >= minCol && cell.col <= maxCol && cell.row >= minRow && cell.row <= maxRow) {
+          delete next[id];
+        }
+      }
+      return next;
+    });
+    if (this.editor.activeSheet.merges?.length) {
+      this.editor.activeSheet.merges = this.editor.activeSheet.merges.filter(
+        m => m.endCol < minCol || m.startCol > maxCol || m.endRow < minRow || m.startRow > maxRow
+      );
+    }
   }
 
   onGridPaste(event: ClipboardEvent): void {
+    if (event.defaultPrevented) return;
     const target = event.target as HTMLElement | null;
     const input = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
     if (input && target !== this.editor.cellEditorInput?.nativeElement && target !== this.editor.formulaBarInput?.nativeElement) return;
@@ -195,8 +253,18 @@ export class SheetDataController {
     const data = event.clipboardData;
     if (!data) return;
     const html = data.getData('text/html'), text = data.getData('text/plain');
+    const isWeaveHtml = html.includes('data-weave-sheet="1"');
+    const internalMatch = (!html || isWeaveHtml) ? this.editor.clipboard.getMatchingInternalMatrix(text) : null;
     const table = parseHtmlTableFromClipboard(html);
-    if (input && !table && !/[\t\r\n]/.test(text)) return;
+    if (input && !internalMatch && !table && !/[\t\r\n]/.test(text)) return;
+
+    if (internalMatch) {
+      event.preventDefault(); event.stopPropagation();
+      this.applyPastedCells(internalMatch.cells, internalMatch.merges);
+      return;
+    }
+
+    this.editor.clipboard.clearIfExternalChange(text);
     const matrix = table || parseTsvFromClipboard(text);
     if (!matrix.length) return;
     event.preventDefault(); event.stopPropagation();
@@ -214,39 +282,235 @@ export class SheetDataController {
     return true;
   }
 
-  applyPastedCells(matrix: CellData[][]): void {
+  applyPastedCells(matrix: CellData[][], merges?: MergeRegion[]): void {
     if (!matrix.length) return;
     const startCol = this.editor.selectedCell.col, startRow = this.editor.selectedCell.row;
-    if (!this.canReplaceSpillRange(startCol, startRow, startCol + Math.max(...matrix.map(row => row.length)) - 1, startRow + matrix.length - 1)) return;
+    const width = Math.max(...matrix.map(row => row.length));
+    const endCol = startCol + width - 1;
+    const endRow = startRow + matrix.length - 1;
+    if (!this.canReplaceSpillRange(startCol, startRow, endCol, endRow)) return;
+    if (!this.editor.guardEditableRange(startCol, endCol, startRow, endRow)) return;
     this.editor.cancelCellEdit();
+    if (merges?.length || this.editor.activeSheet.merges?.length) {
+      const existingMerges = this.editor.activeSheet.merges || [];
+      const retained = existingMerges.filter(
+        m => m.endCol < startCol || m.startCol > endCol || m.endRow < startRow || m.startRow > endRow
+      );
+      const pastedMerges = (merges || []).map(m => ({
+        startCol: startCol + m.startCol,
+        startRow: startRow + m.startRow,
+        endCol: startCol + m.endCol,
+        endRow: startRow + m.endRow,
+      }));
+      if (pastedMerges.length || retained.length !== existingMerges.length) {
+        this.editor.activeSheet.merges = [...retained, ...pastedMerges];
+      }
+    }
     this.editor.updateCurrentGrid(previous => {
       const next = { ...previous };
-      matrix.forEach((row, rowIndex) => row.forEach((cell, colIndex) => next[getCellId(startCol + colIndex, startRow + rowIndex)] = { ...cell, style: cell.style ? { ...cell.style } : undefined }));
+      matrix.forEach((row, rowIndex) => row.forEach((cell, colIndex) => next[getCellId(startCol + colIndex, startRow + rowIndex)] = cloneCellData(cell)));
       return next;
     });
-    this.editor.selectionRange = { startCol, startRow, endCol: startCol + Math.max(...matrix.map(row => row.length)) - 1, endRow: startRow + matrix.length - 1 };
+    this.editor.selectionRange = { startCol, startRow, endCol, endRow };
+    this.editor.gridContainer?.nativeElement?.focus({ preventScroll: true });
   }
 
   async handlePaste(): Promise<void> {
-    if (typeof navigator === 'undefined' || !navigator.clipboard) return;
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      const internal = this.editor.clipboard.getInternalMatrix();
+      if (internal) this.applyPastedCells(internal.cells, internal.merges);
+      return;
+    }
+
     if (navigator.clipboard.read) {
       try {
-        for (const item of await navigator.clipboard.read()) {
-          if (!item.types.includes('text/html')) continue;
-          const table = parseHtmlTableFromClipboard(await (await item.getType('text/html')).text());
-          if (table) { this.applyPastedCells(table); return; }
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          let html = '';
+          let plainText = '';
+          if (item.types.includes('text/html')) {
+            try {
+              const htmlBlob = await item.getType('text/html');
+              html = await htmlBlob.text();
+            } catch {
+              // Ignore HTML read failure and fall through to plain text
+            }
+          }
+          if (item.types.includes('text/plain')) {
+            try {
+              const textBlob = await item.getType('text/plain');
+              plainText = await textBlob.text();
+            } catch {
+              // Ignore text read failure
+            }
+          }
+
+          const isWeaveHtml = html.includes('data-weave-sheet="1"');
+          const internalMatch = (!html || isWeaveHtml) ? this.editor.clipboard.getMatchingInternalMatrix(plainText) : null;
+          if (internalMatch) {
+            this.applyPastedCells(internalMatch.cells, internalMatch.merges);
+            return;
+          }
+
+          const table = html ? parseHtmlTableFromClipboard(html) : null;
+          if (table && table.length > 0) {
+            this.editor.clipboard.clearIfExternalChange(plainText);
+            this.applyPastedCells(table);
+            return;
+          }
+
+          if (plainText) {
+            this.editor.clipboard.clearIfExternalChange(plainText);
+            this.applyPastedCells(parseTsvFromClipboard(plainText));
+            return;
+          }
         }
-      } catch { /* Native paste remains available when browser clipboard reads are restricted. */ }
+      } catch {
+        /* Async clipboard item reading failed or was denied; fall back to readText */
+      }
     }
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) this.applyPastedCells(parseTsvFromClipboard(text));
-    } catch { /* Ctrl+V uses the native clipboard event and does not need clipboard read permission. */ }
+
+    if (navigator.clipboard.readText) {
+      try {
+        const text = await navigator.clipboard.readText();
+        const internalMatch = this.editor.clipboard.getMatchingInternalMatrix(text);
+        if (internalMatch) {
+          this.applyPastedCells(internalMatch.cells, internalMatch.merges);
+          return;
+        }
+        this.editor.clipboard.clearIfExternalChange(text);
+        if (text) {
+          this.applyPastedCells(parseTsvFromClipboard(text));
+        }
+        return;
+      } catch {
+        const internal = this.editor.clipboard.getInternalMatrix();
+        if (internal) {
+          this.applyPastedCells(internal.cells, internal.merges);
+          return;
+        }
+        this.editor.editorNotice = 'Usa Ctrl+V para pegar (el navegador requiere acceso del teclado al portapapeles).';
+        return;
+      }
+    }
+
+    const internal = this.editor.clipboard.getInternalMatrix();
+    if (internal) this.applyPastedCells(internal.cells, internal.merges);
+  }
+
+  async applyPasteSpecial(mode: PasteSpecialMode): Promise<void> {
+    if (mode === 'all') {
+      await this.handlePaste();
+      return;
+    }
+
+    let matrix: CellData[][] | null = null;
+    let merges: MergeRegion[] | undefined;
+    let sourceGrid: SheetGrid | null = null;
+    let sourceRangeMinCol = 0;
+    let sourceRangeMinRow = 0;
+
+    const internal = this.editor.clipboard.getInternalMatrix();
+    if (internal) {
+      matrix = internal.cells;
+      merges = internal.merges;
+      const srcSheet = this.editor.sheets.find(s => s.id === internal.sheetId) || this.editor.activeSheet;
+      sourceGrid = srcSheet?.data || null;
+      sourceRangeMinCol = internal.range.minCol;
+      sourceRangeMinRow = internal.range.minRow;
+    } else if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+      try {
+        const text = await navigator.clipboard.readText();
+        const match = this.editor.clipboard.getMatchingInternalMatrix(text);
+        if (match) {
+          matrix = match.cells;
+          merges = match.merges;
+          const srcSheet = this.editor.sheets.find(s => s.id === match.sheetId) || this.editor.activeSheet;
+          sourceGrid = srcSheet?.data || null;
+          sourceRangeMinCol = match.range.minCol;
+          sourceRangeMinRow = match.range.minRow;
+        } else if (text) {
+          matrix = parseTsvFromClipboard(text);
+        }
+      } catch {
+        // Ignore clipboard errors when no external text is readable
+      }
+    }
+
+    if (!matrix || !matrix.length) return;
+
+    if (mode === 'transpose') {
+      const rowCount = matrix.length;
+      const colCount = Math.max(...matrix.map(r => r.length));
+      const transposed: CellData[][] = Array.from({ length: colCount }, () => Array.from({ length: rowCount }, () => ({ raw: '' })));
+      for (let r = 0; r < rowCount; r++) {
+        for (let c = 0; c < colCount; c++) {
+          const cell = matrix[r]?.[c];
+          if (cell) transposed[c][r] = cloneCellData(cell);
+        }
+      }
+      const transposedMerges = merges?.map(m => ({
+        startCol: m.startRow,
+        startRow: m.startCol,
+        endCol: m.endRow,
+        endRow: m.endCol,
+      }));
+      this.applyPastedCells(transposed, transposedMerges);
+      return;
+    }
+
+    const startCol = this.editor.selectedCell.col;
+    const startRow = this.editor.selectedCell.row;
+    const width = Math.max(...matrix.map(r => r.length));
+    const endCol = startCol + width - 1;
+    const endRow = startRow + matrix.length - 1;
+    if (!this.canReplaceSpillRange(startCol, startRow, endCol, endRow)) return;
+    if (!this.editor.guardEditableRange(startCol, endCol, startRow, endRow)) return;
+
+    this.editor.cancelCellEdit();
+    this.editor.updateCurrentGrid((prev) => {
+      const next = { ...prev };
+      for (let rIdx = 0; rIdx < matrix!.length; rIdx++) {
+        const rowCells = matrix![rIdx];
+        for (let cIdx = 0; cIdx < rowCells.length; cIdx++) {
+          const srcCell = rowCells[cIdx] || { raw: '' };
+          const dstId = getCellId(startCol + cIdx, startRow + rIdx);
+          const existing = prev[dstId];
+          if (mode === 'formats') {
+            next[dstId] = {
+              raw: existing?.raw ?? '',
+              ...(srcCell.style ? { style: cloneCellStyle(srcCell.style) } : {}),
+            };
+          } else if (mode === 'formulas') {
+            next[dstId] = {
+              raw: srcCell.raw ?? '',
+              ...(existing?.style ? { style: cloneCellStyle(existing.style) } : {}),
+            };
+          } else if (mode === 'values') {
+            const rawStr = String(srcCell.raw ?? '');
+            let resolved = rawStr;
+            if (rawStr.startsWith('=') && sourceGrid) {
+              const srcId = getCellId(sourceRangeMinCol + cIdx, sourceRangeMinRow + rIdx);
+              const val = evaluateCellValueCached(srcId, sourceGrid, this.hooks.calculationCache);
+              resolved = val === undefined || val === null ? '' : String(val);
+            }
+            next[dstId] = {
+              raw: resolved,
+              ...(existing?.style ? { style: cloneCellStyle(existing.style) } : {}),
+            };
+          }
+        }
+      }
+      return next;
+    });
+    this.editor.selectionRange = { startCol, startRow, endCol, endRow };
+    this.editor.gridContainer?.nativeElement?.focus({ preventScroll: true });
   }
 
   handleClearContent(): void {
     const { minCol, maxCol, minRow, maxRow } = this.editor.normalizedRange;
     if (!this.canReplaceSpillRange(minCol, minRow, maxCol, maxRow)) return;
+    if (!this.editor.guardEditableRange(minCol, maxCol, minRow, maxRow)) return;
     this.editor.updateCurrentGrid(prev => {
       const next = { ...prev };
       for (const id of Object.keys(prev)) {
@@ -342,11 +606,41 @@ export class SheetDataController {
       for (let r = minRow; r <= maxRow; r++) {
         for (let c = minCol; c <= maxCol; c++) {
           const id = getCellId(c, r);
-          next[id] = { raw: 'FALSE', computed: 'FALSE' };
+          const cur = next[id];
+          next[id] = {
+            raw: 'FALSE',
+            computed: 'FALSE',
+            style: {
+              ...(cur?.style || {}),
+              checkbox: true,
+              align: cur?.style?.align || 'center',
+            },
+          };
         }
       }
       return next;
     });
+  }
+
+  toggleCheckboxCells(cells: { col: number; row: number }[]): boolean {
+    const grid = this.editor.activeSheet.data || {};
+    const targets = cells.filter(({ col, row }) => Boolean(grid[getCellId(col, row)]?.style?.checkbox));
+    if (!targets.length) return false;
+    const editableTargets = targets.filter(({ col, row }) => this.editor.guardEditableCell(col, row));
+    if (!editableTargets.length) return false;
+    this.hooks.pushUndoSnapshot();
+    this.editor.updateCurrentGrid((prev) => {
+      const next = { ...prev };
+      for (const { col, row } of editableTargets) {
+        const id = getCellId(col, row);
+        const cur = next[id];
+        if (!cur?.style?.checkbox) continue;
+        const nextVal = String(cur.raw ?? '').trim().toUpperCase() === 'TRUE' ? 'FALSE' : 'TRUE';
+        next[id] = { ...cur, raw: nextVal, computed: nextVal };
+      }
+      return next;
+    });
+    return true;
   }
 
   handleInsertRowAbove(): void {

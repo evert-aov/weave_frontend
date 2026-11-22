@@ -13,4 +13,13 @@ describe('document positions with retained Word sessions', () => {
     expect(scrollers[0].scrollTop).toBe(12); expect(scrollers[1].scrollTop).toBe(130);
     expect(window.getSelection()?.anchorNode?.textContent).toBe('Actual');
   });
+
+  it('restores scroll position even when anchor points are not present in DOM as in Canvas mode', () => {
+    const host = document.createElement('div');
+    host.innerHTML = '<section><div data-document-scroll><canvas></canvas></div></section>';
+    document.body.append(host);
+    const scroller = host.querySelector<HTMLElement>('[data-document-scroll]')!;
+    expect(restoreDocumentPosition(host, { scrollTop: 450, scrollLeft: 0, anchor: { kind: 'page', id: 'p2', offset: 0 }, focus: { kind: 'page', id: 'p2', offset: 0 } })).toBe(true);
+    expect(scroller.scrollTop).toBe(450);
+  });
 });

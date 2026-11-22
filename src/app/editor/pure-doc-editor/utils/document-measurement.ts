@@ -2,6 +2,7 @@
 export function createDocumentMeasurement(body: HTMLElement): HTMLDivElement {
   const canvas=document.createElement('div');
   canvas.className=body.className;
+  canvas.classList.remove('word-hybrid-source');
   canvas.classList.add('word-editor-canvas','word-flow-measure');
   if(body.lang)canvas.lang=body.lang;
   const style=getComputedStyle(body);

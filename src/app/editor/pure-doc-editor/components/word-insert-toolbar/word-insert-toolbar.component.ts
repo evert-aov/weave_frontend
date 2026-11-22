@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   EventEmitter,
@@ -15,6 +16,7 @@ import {
   provideLucideIcons,
   LucideFilePlus2,
   LucideScissors,
+  LucideTrash2,
   LucideTable,
   LucideImage,
   LucideShapes,
@@ -30,6 +32,7 @@ import {
   LucideType,
   LucideSparkles,
   LucideCalendar,
+  LucidePenTool,
   LucideSigma,
   LucideChevronDown,
   LucidePlus,
@@ -42,11 +45,13 @@ import { I18nService } from '../../../../core/services/i18n.service';
 @Component({
   selector: 'app-word-insert-toolbar',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideDynamicIcon, WordTablePickerComponent],
   providers: [
     provideLucideIcons(
       LucideFilePlus2,
       LucideScissors,
+      LucideTrash2,
       LucideTable,
       LucideImage,
       LucideShapes,
@@ -62,6 +67,7 @@ import { I18nService } from '../../../../core/services/i18n.service';
       LucideType,
       LucideSparkles,
       LucideCalendar,
+      LucidePenTool,
       LucideSigma,
       LucideChevronDown,
       LucidePlus,
@@ -82,9 +88,11 @@ export class WordInsertToolbarComponent {
   }
 
   @Input() darkMode = false;
+  @Input() totalPages = 1;
   @Output() captureSelection = new EventEmitter<void>();
   @Output() addNewPage = new EventEmitter<void>();
   @Output() insertPageBreak = new EventEmitter<void>();
+  @Output() deletePage = new EventEmitter<void>();
   @Output() insertTable = new EventEmitter<{ rows: number; cols: number }>();
   @Output() insertImage = new EventEmitter<void>();
   @Output() insertShapeHtml = new EventEmitter<string>();

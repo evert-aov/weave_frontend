@@ -1,6 +1,90 @@
 import { Injectable } from '@angular/core';
-import { CellData, CellStyle, SheetGrid } from '../models/excel.model';
+import { BorderEdge, BorderLineStyle, CellBorders, CellData, CellStyle, ClipboardMatrix, SheetGrid } from '../models/excel.model';
 import { evaluateCellValueCached, getCellId } from './formula-engine.service';
+
+const BORDER_EDGES = ['top', 'right', 'bottom', 'left'] as const;
+
+const BORDER_WIDTH_CSS: Record<BorderLineStyle, string> = {
+  thin: '1px',
+  medium: '2px',
+  thick: '3px',
+  double: '3px',
+  dashed: '1px',
+  dotted: '1px',
+};
+
+function borderStyleToCss(style: BorderLineStyle): string {
+  return style === 'double' || style === 'dashed' || style === 'dotted' ? style : 'solid';
+}
+
+export function cloneCellStyle(style?: CellStyle): CellStyle | undefined {
+  if (!style) return undefined;
+  let clonedBorders: CellBorders | undefined;
+  if (style.borders) {
+    clonedBorders = {};
+    for (const edge of BORDER_EDGES) {
+      if (style.borders[edge]) {
+        clonedBorders[edge] = { ...style.borders[edge] };
+      }
+    }
+  }
+  return {
+    ...style,
+    ...(style.borders ? { borders: clonedBorders } : {}),
+  };
+}
+
+export function cloneCellData(cell: CellData): CellData {
+  return {
+    ...cell,
+    style: cloneCellStyle(cell.style),
+  };
+}
+
+export function normalizeClipboardLineEndings(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n$/, '');
+}
+
+function parseWeaveStyleAttribute(rawAttr: string | null): CellStyle | undefined {
+  if (!rawAttr) return undefined;
+  try {
+    const parsed = JSON.parse(rawAttr);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+    return cloneCellStyle(parsed as CellStyle);
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeCssColorToHex(rawColor: string): string {
+  const trimmed = rawColor.trim();
+  const rgbMatch = trimmed.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+  if (!rgbMatch) return trimmed;
+  const toHex = (value: string) => Math.max(0, Math.min(255, Number(value))).toString(16).padStart(2, '0');
+  return `#${toHex(rgbMatch[1])}${toHex(rgbMatch[2])}${toHex(rgbMatch[3])}`;
+}
+
+function parseCssBorderEdge(value: string): BorderEdge | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'none' || /^0(?:px|pt)?\b/i.test(trimmed)) return undefined;
+  const widthMatch = trimmed.match(/(\d+(?:\.\d+)?)px/i);
+  const px = widthMatch ? parseFloat(widthMatch[1]) : 1;
+  const styleMatch = trimmed.match(/\b(double|dashed|dotted|solid|ridge|groove)\b/i);
+  const rawStyle = styleMatch?.[1]?.toLowerCase();
+  let style: BorderLineStyle = 'thin';
+  if (rawStyle === 'double') style = 'double';
+  else if (rawStyle === 'dashed') style = 'dashed';
+  else if (rawStyle === 'dotted') style = 'dotted';
+  else if (px >= 3) style = 'thick';
+  else if (px >= 2) style = 'medium';
+
+  const rawColor = trimmed
+    .replace(/(\d+(?:\.\d+)?)(px|pt|em|rem)\b/gi, '')
+    .replace(/\b(double|dashed|dotted|solid|ridge|groove|thin|medium|thick)\b/gi, '')
+    .trim();
+  const color = rawColor ? normalizeCssColorToHex(rawColor) : '#000000';
+  return { style, color };
+}
 
 export function serializeRangeToClipboard(
   grid: SheetGrid,
@@ -33,15 +117,33 @@ export function serializeRangeToClipboard(
       if (st?.bgColor) cssParts.push(`background-color:${st.bgColor}`);
       if (st?.textColor) cssParts.push(`color:${st.textColor}`);
       if (st?.align) cssParts.push(`text-align:${st.align}`);
+      if (st?.verticalAlign) cssParts.push(`vertical-align:${st.verticalAlign}`);
+      if (st?.wrapText) cssParts.push('white-space:normal');
       if (st?.fontFamily) cssParts.push(`font-family:${st.fontFamily}`);
       if (st?.fontSize) cssParts.push(`font-size:${st.fontSize}pt`);
 
-      const styleAttr = cssParts.length > 0 ? ` style="${cssParts.join(';')}"` : '';
+      if (st?.borders) {
+        for (const edge of BORDER_EDGES) {
+          const edgeVal = st.borders[edge];
+          if (edgeVal) {
+            const lineStyle = edgeVal.style || 'thin';
+            cssParts.push(`border-${edge}:${BORDER_WIDTH_CSS[lineStyle]} ${borderStyleToCss(lineStyle)} ${edgeVal.color || '#000000'}`);
+          }
+        }
+      } else if (st?.border) {
+        cssParts.push('border:1px solid #000000');
+      }
+
+      const styleAttr = cssParts.length > 0 ? ` style="${escapeHtml(cssParts.join(';'))}"` : '';
+      const weaveStyleAttr = st && Object.keys(st).length > 0
+        ? ` data-weave-style="${escapeHtml(JSON.stringify(st))}"`
+        : '';
+      const xlsxTypeAttr = cell?.xlsxType ? ` data-xlsx-type="${escapeHtml(cell.xlsxType)}"` : '';
       const formulaAttr = raw.startsWith('=')
         ? ` data-formula="${escapeHtml(raw)}"`
         : '';
 
-      htmlCells.push(`<td${styleAttr}${formulaAttr}>${escapeHtml(textVal)}</td>`);
+      htmlCells.push(`<td${styleAttr}${weaveStyleAttr}${xlsxTypeAttr}${formulaAttr}>${escapeHtml(textVal)}</td>`);
     }
 
     tsvRows.push(rowVals.join('\t'));
@@ -49,7 +151,7 @@ export function serializeRangeToClipboard(
   }
 
   const tsv = tsvRows.join('\r\n');
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body><table>${htmlRows.join(
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body><table data-weave-sheet="1">${htmlRows.join(
     ''
   )}</table></body></html>`;
 
@@ -168,60 +270,98 @@ export function parseHtmlTableFromClipboard(html: string): CellData[][] | null {
         while (rowData[column] !== undefined) column++;
         const htmlEl = td as HTMLElement;
         const formulaAttr = htmlEl.getAttribute('data-formula') || htmlEl.getAttribute('fmla');
+        const weaveStyle = parseWeaveStyleAttribute(htmlEl.getAttribute('data-weave-style'));
+        const xlsxTypeAttr = htmlEl.getAttribute('data-xlsx-type');
         const text = htmlEl.innerText ?? htmlEl.textContent ?? '';
         const { raw, stylePatch } = normalizeImportedValue(formulaAttr ? formulaAttr : text);
 
-        const style: CellStyle = { ...(stylePatch || {}) };
-        const effectiveStyle = doc.createElement('span');
-        for (const sheet of doc.querySelectorAll('style')) {
-          for (const rule of (sheet.textContent || '').matchAll(/([^{}]+)\{([^{}]+)\}/g)) {
-            try { if (htmlEl.matches(rule[1].trim())) effectiveStyle.style.cssText += ';' + rule[2]; } catch { /* Ignore unsupported selectors. */ }
+        const style: CellStyle = { ...(stylePatch || {}), ...(weaveStyle || {}) };
+        if (!weaveStyle) {
+          const effectiveStyle = doc.createElement('span');
+          for (const sheet of doc.querySelectorAll('style')) {
+            for (const rule of (sheet.textContent || '').matchAll(/([^{}]+)\{([^{}]+)\}/g)) {
+              try { if (htmlEl.matches(rule[1].trim())) effectiveStyle.style.cssText += ';' + rule[2]; } catch { /* Ignore unsupported selectors. */ }
+            }
           }
-        }
-        effectiveStyle.style.cssText += ';' + htmlEl.style.cssText;
-        const inlineStyle = effectiveStyle.style;
+          effectiveStyle.style.cssText += ';' + htmlEl.style.cssText;
+          const inlineStyle = effectiveStyle.style;
 
-        if (
-          inlineStyle.fontWeight === 'bold' ||
-          Number(inlineStyle.fontWeight) >= 600 ||
-          td.tagName === 'TH' ||
-          td.querySelector('b, strong')
-        ) {
-          style.bold = true;
-        }
-        if (inlineStyle.fontStyle === 'italic' || td.querySelector('i, em')) {
-          style.italic = true;
-        }
-        if (inlineStyle.textDecoration.includes('underline') || td.querySelector('u')) {
-          style.underline = true;
-        }
-        if (
-          inlineStyle.backgroundColor &&
-          inlineStyle.backgroundColor !== 'transparent' &&
-          inlineStyle.backgroundColor !== 'rgba(0, 0, 0, 0)'
-        ) {
-          style.bgColor = inlineStyle.backgroundColor;
-        }
-        if (inlineStyle.color) {
-          style.textColor = inlineStyle.color;
-        }
-        if (
-          inlineStyle.textAlign === 'left' ||
-          inlineStyle.textAlign === 'center' ||
-          inlineStyle.textAlign === 'right'
-        ) {
-          style.align = inlineStyle.textAlign as any;
-        }
+          if (
+            inlineStyle.fontWeight === 'bold' ||
+            Number(inlineStyle.fontWeight) >= 600 ||
+            td.tagName === 'TH' ||
+            td.querySelector('b, strong')
+          ) {
+            style.bold = true;
+          }
+          if (inlineStyle.fontStyle === 'italic' || td.querySelector('i, em')) {
+            style.italic = true;
+          }
+          if (inlineStyle.textDecoration.includes('underline') || td.querySelector('u')) {
+            style.underline = true;
+          }
+          if (
+            inlineStyle.backgroundColor &&
+            inlineStyle.backgroundColor !== 'transparent' &&
+            inlineStyle.backgroundColor !== 'rgba(0, 0, 0, 0)'
+          ) {
+            style.bgColor = inlineStyle.backgroundColor;
+          }
+          if (inlineStyle.color) {
+            style.textColor = inlineStyle.color;
+          }
+          if (
+            inlineStyle.textAlign === 'left' ||
+            inlineStyle.textAlign === 'center' ||
+            inlineStyle.textAlign === 'right'
+          ) {
+            style.align = inlineStyle.textAlign as any;
+          }
+          if (
+            inlineStyle.verticalAlign === 'top' ||
+            inlineStyle.verticalAlign === 'middle' ||
+            inlineStyle.verticalAlign === 'bottom'
+          ) {
+            style.verticalAlign = inlineStyle.verticalAlign;
+          }
+          if (inlineStyle.whiteSpace === 'normal' || inlineStyle.whiteSpace === 'pre-wrap') {
+            style.wrapText = true;
+          }
 
-        if (inlineStyle.fontFamily) style.fontFamily = inlineStyle.fontFamily;
-        if (inlineStyle.fontSize) {
-          const size = parseFloat(inlineStyle.fontSize);
-          if (Number.isFinite(size)) style.fontSize = inlineStyle.fontSize.endsWith('px') ? size * 0.75 : size;
+          if (inlineStyle.fontFamily) style.fontFamily = inlineStyle.fontFamily;
+          if (inlineStyle.fontSize) {
+            const size = parseFloat(inlineStyle.fontSize);
+            if (Number.isFinite(size)) style.fontSize = inlineStyle.fontSize.endsWith('px') ? size * 0.75 : size;
+          }
+
+          const parsedBorders: CellBorders = {};
+          for (const edge of BORDER_EDGES) {
+            const edgeCss = inlineStyle.getPropertyValue(`border-${edge}`);
+            const parsedEdge = parseCssBorderEdge(edgeCss);
+            if (parsedEdge) parsedBorders[edge] = parsedEdge;
+          }
+          if (Object.keys(parsedBorders).length > 0) {
+            style.borders = parsedBorders;
+          } else if (inlineStyle.border) {
+            const uniformEdge = parseCssBorderEdge(inlineStyle.border);
+            if (uniformEdge) {
+              style.borders = {
+                top: uniformEdge,
+                right: { ...uniformEdge },
+                bottom: { ...uniformEdge },
+                left: { ...uniformEdge },
+              };
+            }
+          }
         }
         const hasStyle = Object.keys(style).length > 0;
         const colSpan = Math.min(1000, Math.max(1, parseInt(htmlEl.getAttribute('colspan') || '1', 10) || 1));
         const rowSpan = Math.min(1000, Math.max(1, parseInt(htmlEl.getAttribute('rowspan') || '1', 10) || 1));
-        rowData[column] = { raw, style: hasStyle ? style : undefined };
+        const parsedCell: CellData = { raw, style: hasStyle ? style : undefined };
+        if (xlsxTypeAttr === 'text' || xlsxTypeAttr === 'date') {
+          parsedCell.xlsxType = xlsxTypeAttr;
+        }
+        rowData[column] = parsedCell;
         for (let row = rowIndex; row < rowIndex + rowSpan; row++) {
           matrix[row] ||= [];
           for (let col = column; col < column + colSpan; col++) {
@@ -307,8 +447,48 @@ function splitTsvColumns(rowStr: string): string[] {
 
 @Injectable({ providedIn: 'root' })
 export class SpreadsheetClipboardService {
+  private internalMatrix: ClipboardMatrix | null = null;
+
   serializeRange = serializeRangeToClipboard;
   writeToClipboard = writeToSystemClipboard;
   parseHtmlTable = parseHtmlTableFromClipboard;
   parseTsv = parseTsvFromClipboard;
+
+  setInternalMatrix(matrix: ClipboardMatrix): void {
+    this.internalMatrix = {
+      ...matrix,
+      range: { ...matrix.range },
+      cells: matrix.cells.map(row => row.map(cloneCellData)),
+      merges: matrix.merges.map(m => ({ ...m })),
+    };
+  }
+
+  getInternalMatrix(): ClipboardMatrix | null {
+    if (!this.internalMatrix) return null;
+    return {
+      ...this.internalMatrix,
+      range: { ...this.internalMatrix.range },
+      cells: this.internalMatrix.cells.map(row => row.map(cloneCellData)),
+      merges: this.internalMatrix.merges.map(m => ({ ...m })),
+    };
+  }
+
+  getMatchingInternalMatrix(plainText: string | null | undefined): ClipboardMatrix | null {
+    if (!this.internalMatrix || plainText === null || plainText === undefined) return null;
+    if (normalizeClipboardLineEndings(plainText) !== normalizeClipboardLineEndings(this.internalMatrix.tsvSignature)) {
+      return null;
+    }
+    return this.getInternalMatrix();
+  }
+
+  clearIfExternalChange(plainText: string | null | undefined): void {
+    if (!this.internalMatrix || plainText === null || plainText === undefined) return;
+    if (normalizeClipboardLineEndings(plainText) !== normalizeClipboardLineEndings(this.internalMatrix.tsvSignature)) {
+      this.internalMatrix = null;
+    }
+  }
+
+  clearInternalMatrix(): void {
+    this.internalMatrix = null;
+  }
 }

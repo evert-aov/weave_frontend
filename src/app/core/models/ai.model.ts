@@ -1,3 +1,25 @@
+export type AiAttachmentMimeType =
+  | 'text/plain'
+  | 'application/pdf'
+  | 'image/png'
+  | 'image/jpeg'
+  | 'image/webp'
+  | 'image/gif'
+  | 'audio/wav'
+  | 'audio/mp3'
+  | 'audio/mpeg'
+  | 'audio/ogg'
+  | 'audio/aac'
+  | 'audio/flac'
+  | 'audio/webm'
+  | 'audio/mp4';
+
+export interface AiAttachment {
+  name: string;
+  mimeType: AiAttachmentMimeType;
+  text?: string;
+  data?: string;
+}
 /**
  * Modelos de datos para la interacción con el Agente de IA en Weave.
  */
@@ -17,6 +39,7 @@ export interface DocumentContextPayload {
 }
 
 export interface AiChatRequest {
+  attachments?: AiAttachment[];
   conversationId?: string;
   model?: string;
   editTargets?: EditTarget[];

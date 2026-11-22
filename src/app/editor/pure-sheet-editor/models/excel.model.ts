@@ -45,11 +45,16 @@ export interface CellStyle {
   align?: TextAlign;
   verticalAlign?: VerticalAlign;
   wrapText?: boolean;
+  /** Text rotation angle in degrees (-90 to 90). */
+  textRotation?: number;
+  /** Whether the cell stays locked when sheet protection is active (defaults to true in Excel). */
+  locked?: boolean;
   numberFormat?: NumberFormat;
   decimals?: number;
   /** Original Excel number format, retained for XLSX round trips. */
   xlsxNumberFormat?: string;
   preset?: PresetStyle;
+  checkbox?: boolean;
   border?: boolean;
   borders?: CellBorders;
 }
@@ -57,6 +62,8 @@ export interface CellStyle {
 export interface CellData {
   raw: string;
   computed?: string | number;
+  /** Optional cell hyperlink URL (`https://`, `http://`, `mailto:`). */
+  hyperlink?: string;
   /** Original XLSX scalar type, when imported. */
   xlsxType?: 'text' | 'date';
   style?: CellStyle;
@@ -97,8 +104,19 @@ export interface FreezePanesConfig {
   cols: number;
 }
 
-export type ConditionalRuleType = 'greaterThan' | 'lessThan' | 'between' | 'equalTo' | 'colorScale';
+export type ConditionalRuleType =
+  | 'greaterThan'
+  | 'lessThan'
+  | 'between'
+  | 'equalTo'
+  | 'containsText'
+  | 'duplicates'
+  | 'aboveAverage'
+  | 'colorScale'
+  | 'dataBar'
+  | 'iconSet';
 export type ColorScalePreset = 'green-yellow-red' | 'red-yellow-green' | 'blue-white-red';
+export type IconSetStyle = 'trafficLights' | 'arrows';
 
 export interface ConditionalRule {
   id: string;
@@ -109,6 +127,8 @@ export interface ConditionalRule {
   textValue?: string;
   presetStyle?: PresetStyle;
   colorScale?: ColorScalePreset;
+  dataBarColor?: string;
+  iconSetStyle?: IconSetStyle;
 }
 
 export type ColumnFilters = Record<number, Set<string>>;
@@ -194,8 +214,9 @@ export type ChartSubType =
 
 export interface FloatingArtwork {
   id: string;
-  kind: 'shape' | 'icon';
+  kind: 'shape' | 'icon' | 'image';
   itemId: string;
+  imageDataUrl?: string;
   x: number;
   y: number;
   width: number;
@@ -203,9 +224,12 @@ export interface FloatingArtwork {
 }
 
 export interface ChartDataConfig {
+  orientation?: 'column' | 'row';
   seriesNames?: Record<number, string>;
   xColumn: number | null;
+  xRow?: number | null;
   seriesColumns: number[];
+  seriesRows?: number[];
   hasHeaders: boolean;
 }
 
@@ -293,6 +317,28 @@ export interface PageLayoutConfig {
   headingsPrint: boolean;
 }
 
+export type ValidationRuleType = 'any' | 'list' | 'whole' | 'decimal' | 'textLength' | 'date';
+export type ValidationOperator =
+  | 'between'
+  | 'notBetween'
+  | 'equalTo'
+  | 'notEqualTo'
+  | 'greaterThan'
+  | 'lessThan'
+  | 'greaterOrEqual'
+  | 'lessOrEqual';
+
+export interface CellValidationRule {
+  type: ValidationRuleType;
+  operator?: ValidationOperator;
+  formula1?: string;
+  formula2?: string;
+  allowBlank?: boolean;
+  showDropdown?: boolean;
+  errorTitle?: string;
+  errorMessage?: string;
+}
+
 export interface SheetTable {
   name: string;
   range: SelectionRange;
@@ -301,12 +347,57 @@ export interface SheetTable {
   totalsRow?: boolean;
 }
 
+export interface CellComment {
+  text: string;
+  author?: string;
+  updatedAt?: string;
+}
+
+export type SparklineType = 'line' | 'column' | 'winLoss';
+
+export type PasteSpecialMode = 'all' | 'values' | 'formulas' | 'formats' | 'transpose';
+
+export interface SparklineConfig {
+  type: SparklineType;
+  sourceRange: SelectionRange;
+  color?: string;
+  showMarkers?: boolean;
+}
+
+export interface OutlineGroup {
+  start: number;
+  end: number;
+  collapsed?: boolean;
+}
+
+export interface PivotTableDefinition {
+  id: string;
+  name: string;
+  sourceSheetId: string;
+  range: SelectionRange;
+  rowCol: number;
+  colCol: number | null;
+  valueCol: number;
+  aggregation: 'sum' | 'count' | 'average' | 'min' | 'max';
+  targetRange: SelectionRange;
+}
+
 export interface Sheet {
   xlsxImportReport?: { chartsImported: number; chartsSkipped: number };
   definedNames?: Record<string, string>;
   /** Workbook names are stored once, on the first worksheet. */
   workbookNames?: Record<string, string>;
   tables?: SheetTable[];
+  validations?: Record<string, CellValidationRule>;
+  comments?: Record<string, CellComment>;
+  sparklines?: Record<string, SparklineConfig>;
+  tabColor?: string;
+  hiddenCols?: number[];
+  hiddenRows?: number[];
+  rowGroups?: OutlineGroup[];
+  colGroups?: OutlineGroup[];
+  protected?: boolean;
+  filtersEnabled?: boolean;
   id: string;
   name: string;
   type: 'grid' | 'chart';
@@ -317,6 +408,7 @@ export interface Sheet {
   rowHeights?: Record<number, number>;
   freezePanes?: FreezePanesConfig;
   charts?: EmbeddedChart[];
+  pivotTables?: PivotTableDefinition[];
   artwork?: FloatingArtwork[];
   inkStrokes?: InkStroke[];
   pageLayout?: PageLayoutConfig;

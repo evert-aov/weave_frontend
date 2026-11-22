@@ -1,5 +1,14 @@
 import type { BibliographicSource } from './academic.model';
-import { DocumentLayoutConfig, DocumentPage, HeadingItem, DocumentViewMode, PageMovementMode, StyleTemplate } from '../models/word-document.model';
+import type { DocumentState } from '../engine/document-model';
+import {
+  DocumentCommentThread,
+  DocumentLayoutConfig,
+  DocumentPage,
+  HeadingItem,
+  DocumentViewMode,
+  PageMovementMode,
+  StyleTemplate,
+} from '../models/word-document.model';
 
 export interface HistorySnapshot {
   pages: DocumentPage[];
@@ -10,6 +19,13 @@ export interface HistorySnapshot {
   bibliographicSources?: BibliographicSource[];
   layoutConfig?: DocumentLayoutConfig;
   importedTocEntries?: HeadingItem[];
+}
+
+export interface SerializedDocSectionModel {
+  id: string;
+  breakBefore?: 'manual';
+  state: DocumentState;
+  pageIds: string[];
 }
 
 export interface DocDataV2 {
@@ -28,7 +44,17 @@ export interface DocDataV2 {
   darkMode?: boolean;
   darkCanvas?: boolean;
   headingNumbering?: boolean;
+  comments?: DocumentCommentThread[];
+  trackChangesEnabled?: boolean;
+  hideCommentsOnExport?: boolean;
 }
+
+export interface DocDataV3 extends Omit<DocDataV2, 'v'> {
+  v: 3;
+  modelSections?: SerializedDocSectionModel[];
+}
+
+export type AnyDocData = DocDataV2 | DocDataV3;
 
 export interface TableResizeState {
   pageIndex: number;

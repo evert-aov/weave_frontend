@@ -91,7 +91,7 @@ export class ExcelChartDataModalComponent implements OnInit {
     const colors = { ...this.seriesColors }; delete colors[key]; this.seriesColors = colors;
   }
   confirm(): void {
-    if (!this.sourceError && this.config.seriesColumns.length) this.apply.emit({ range: { ...this.range }, config: { ...this.config, seriesColumns: [...this.config.seriesColumns] }, appearance: { ...this.appearance }, chartTitle: this.title, subType: this.subType, dataEdited: this.dataEdited, seriesColors: { ...this.seriesColors } });
+    if (!this.sourceError && (this.config.seriesColumns.length || this.config.seriesRows?.length)) this.apply.emit({ range: { ...this.range }, config: { ...this.config, seriesColumns: [...this.config.seriesColumns], seriesRows: this.config.seriesRows ? [...this.config.seriesRows] : undefined }, appearance: { ...this.appearance }, chartTitle: this.title, subType: this.subType, dataEdited: this.dataEdited, seriesColors: { ...this.seriesColors } });
   }
   @HostListener('document:keydown.escape') escape(): void { this.close.emit(); }
 }

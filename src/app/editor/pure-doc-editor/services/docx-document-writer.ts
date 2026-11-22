@@ -1,12 +1,30 @@
 import { docxColumnWidths } from './docx-table-widths';
-import type { DocumentLayoutConfig, DocumentPage } from '../models/word-document.model';
+import type { DocumentLayoutConfig, DocumentPage, PageNumberFormat, PageOrientation } from '../models/word-document.model';
+import { resolveDocumentPageSections, type ResolvedPageSectionInfo } from '../utils/page-section-layout';
 import { PAPER_FORMAT_PRESETS } from '../constants/word-document.constants';
 import { tableCellGrid } from '../utils/table-cell-grid';
 import { DocxListNumbering } from './docx-list-numbering';
 import { DocxMedia } from './docx-media';
 import { DocxNotes } from './docx-notes';
 import { WORD_NS, xml } from './docx-package';
-import { points, runStyle, textRun, runProperties, type DocxRunStyle } from './docx-formatting';
+import { cssColorToHex, points, runStyle, textRun, runProperties, type DocxRunStyle } from './docx-formatting';
+export interface DocxSectionRelIds {
+  headerRelId?: string;
+  footerRelId?: string;
+}
+
+export interface DocxSectionOptions {
+  differentFirstPage?: boolean;
+  pageNumberFormat?: PageNumberFormat;
+  restartPageNumbering?: number;
+  orientation?: PageOrientation;
+  headerRelId?: string;
+  footerRelId?: string;
+  suppressDefaultHeaderRef?: boolean;
+  suppressDefaultFooterRef?: boolean;
+}
+
+const DOCX_DYNAMIC_TOKEN_RE = /(\{\{\s*(?:page|totalPages|pages|total)\s*\}\})/gi;
 interface ParagraphOptions { left?: number; hanging?: number; numberingId?: number; before?: number; line?: number; }
 export class DocxDocumentWriter {
   readonly numbering = new DocxListNumbering();
@@ -17,7 +35,9 @@ export class DocxDocumentWriter {
   private endedNotes = false;
   private tocRemaining = 0;
   private tocStarted = false;
+  readonly hasChapters:boolean;
   constructor(private readonly pages: DocumentPage[], private readonly layout: DocumentLayoutConfig, readonly media: DocxMedia) {
+    this.hasChapters=pages.some(page=>{const body=document.createElement('div');body.innerHTML=page.html;return Array.from(body.querySelectorAll('[data-word-chapter]')).some(heading=>heading.textContent?.replace(/[\u200b-\u200d\ufeff]/g,'').trim());});
     this.style = { font: layout.apa?.fontFamily || 'Times New Roman', size: layout.apa?.fontSizePt || 11, bold: false, italic: false, underline: false, strike: false, color: '000000' };
     this.notes = new DocxNotes(pages, this.style);
     pages.forEach(page => { const body = document.createElement('div'); body.innerHTML = page.html; this.tocRemaining += body.querySelectorAll('.word-toc-entry').length; body.querySelectorAll<HTMLElement>('[id]').forEach(element => {
@@ -35,10 +55,27 @@ export class DocxDocumentWriter {
     let id = this.links.get(url.href); if (!id) { id = `link${this.links.size + 1}`; this.links.set(url.href, id); }
     return `<w:hyperlink r:id="${id}">${content}</w:hyperlink>`;
   }
+  private textOrFieldRuns(value: string, inherited: DocxRunStyle): string {
+    if (!value.includes('{{')) return textRun(value, inherited);
+    const parts = value.split(DOCX_DYNAMIC_TOKEN_RE);
+    return parts
+      .map(part => {
+        if (!part) return '';
+        if (/^\{\{\s*page\s*\}\}$/i.test(part)) {
+          return `<w:fldSimple w:instr=" PAGE ">${textRun('1', inherited)}</w:fldSimple>`;
+        }
+        if (/^\{\{\s*(?:totalPages|pages|total)\s*\}\}$/i.test(part)) {
+          return `<w:fldSimple w:instr=" NUMPAGES ">${textRun('1', inherited)}</w:fldSimple>`;
+        }
+        return textRun(part, inherited);
+      })
+      .join('');
+  }
   private inline(node: Node, inherited: DocxRunStyle): string {
     if (node.nodeType === Node.TEXT_NODE) {
       const value = node.textContent || '';
-      return textRun(node.parentElement?.closest('pre,.docx-tab') ? value : value.replace(/[ \t\r\n\f]+/g, ' '), inherited);
+      const normalized = node.parentElement?.closest('pre,.docx-tab') ? value : value.replace(/[ \t\r\n\f]+/g, ' ');
+      return this.textOrFieldRuns(normalized, inherited);
     }
     if (node instanceof SVGElement) throw new Error('La ilustración SVG debe convertirse antes de exportar DOCX.');
     if (!(node instanceof HTMLElement)) return '';
@@ -62,18 +99,28 @@ export class DocxDocumentWriter {
   }
   private paragraph(element: HTMLElement, inherited = this.style, options: ParagraphOptions = {}): string {
     const heading = /^H([1-6])$/.exec(element.tagName), runIn = element.dataset['apaRunIn'];
-    let props = heading ? `<w:pStyle w:val="Heading${heading[1]}"/><w:outlineLvl w:val="${Number(heading[1]) - 1}"/>` : runIn ? `<w:outlineLvl w:val="${Number(runIn) - 1}"/>` : '';
-    if (element.classList.contains('word-toc-entry')) props += `<w:keepLines/><w:pStyle w:val="TOC${Math.min(6, Math.floor(points(element.style.paddingLeft) / 14) + 1)}"/>`;
+    const chapter=element.hasAttribute('data-word-chapter');
+    let props = chapter ? '<w:pStyle w:val="WeaveChapter"/><w:outlineLvl w:val="0"/>' : heading ? `<w:pStyle w:val="Heading${heading[1]}"/><w:outlineLvl w:val="${Number(heading[1]) - 1 + (this.hasChapters?1:0)}"/>` : runIn ? `<w:outlineLvl w:val="${Number(runIn) - 1}"/>` : '';
+    const isTocEntry = element.classList.contains('word-toc-entry');
+    if (isTocEntry) {
+      const tocLevel = Math.min(6, Math.max(1, Number(element.dataset['tocLevel']) || Math.round(points(element.style.paddingLeft) / 18) + 1));
+      props += `<w:keepLines/><w:pStyle w:val="TOC${tocLevel}"/>`;
+    }
     if (options.numberingId) props += `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${options.numberingId}"/></w:numPr>`;
     if (element.style.breakAfter === 'avoid' || heading) props += '<w:keepNext/>';
-    const align = element.style.textAlign; if (['left','right','center','justify'].includes(align)) props += `<w:jc w:val="${align === 'justify' ? 'both' : align}"/>`;
-    const before = points(element.style.marginTop) + (options.before || 0), after = points(element.style.marginBottom);
-    const semanticLine=Number(element.dataset['wordLineSpacing']);
-    const rawLine = semanticLine>0 ? String(semanticLine) : element.style.lineHeight;
-    const line = Number(rawLine) || options.line || (this.layout.apa ? 2 : 0);
+    const align = this.layout.apa && this.hasChapters && heading?.[1] === '1' ? (chapter ? 'center' : 'left') : element.style.textAlign; if (['left','right','center','justify'].includes(align)) props += `<w:jc w:val="${align === 'justify' ? 'both' : align}"/>`;
+    const inCell = Boolean(element.closest('td,th'));
+    const before = inCell ? 0 : points(element.style.marginTop) + (options.before || 0);
+    const after = inCell ? 0 : points(element.style.marginBottom);
+    const semanticLine = Number(element.dataset['wordLineSpacing']);
+    const rawLine = semanticLine > 0 ? String(semanticLine) : element.style.lineHeight;
     const fixedLine = rawLine && /(?:px|pt|cm|in)$/.test(rawLine) ? points(rawLine) : 0;
+    const styledTable = element.closest('table[data-word-table-style]');
+    const line = inCell && !styledTable ? 1.1 : (Number(rawLine) || options.line || (isTocEntry ? (this.layout.apa ? 2 : 1.3) : (this.layout.apa ? 2 : 0)));
     props += `<w:spacing w:before="${Math.round(before * 20)}" w:after="${Math.round(after * 20)}"${fixedLine ? ` w:line="${Math.round(fixedLine * 20)}" w:lineRule="${element.querySelector('img') ? 'atLeast' : 'exact'}"` : line ? ` w:line="${Math.round(line * 240)}" w:lineRule="auto"` : ''}/>`;
-    const left = (options.left || 0) + Math.round(points(element.style.marginLeft || element.style.paddingLeft) * 20), indent = points(element.style.textIndent || (this.layout.apa && element.tagName === 'P' && !element.dataset['apaRole'] && !element.closest('blockquote,td,th,li') ? '36pt' : '0pt'));
+    const isCellElement = element.tagName === 'TD' || element.tagName === 'TH';
+    const left = (options.left || 0) + (isCellElement ? 0 : Math.round(points(element.style.marginLeft || element.style.paddingLeft) * 20));
+    const indent = inCell ? 0 : points(element.style.textIndent || (this.layout.apa && element.tagName === 'P' && !element.dataset['apaRole'] && !['center', 'right'].includes(align) && !element.closest('blockquote,td,th,li,[data-apa-section="cover"],.word-toc-page-section,.word-toc-header') ? '36pt' : '0pt'));
     if (left || indent || options.hanging) props += `<w:ind w:left="${left}"${options.hanging ? ` w:hanging="${options.hanging}"` : indent < 0 ? ` w:hanging="${Math.round(-indent * 20)}"` : ` w:firstLine="${Math.round(indent * 20)}"`}/>`;
     if (element.classList.contains('word-toc-entry')) {
       const width = Math.round(this.contentWidth() * 15); props += `<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="${width}"/></w:tabs>`;
@@ -114,33 +161,66 @@ export class DocxDocumentWriter {
     }).join('');
   }
   private table(table: HTMLTableElement, inherited: DocxRunStyle): string {
-    const grid = tableCellGrid(table), cols = Math.max(1, grid.width), apa = table.dataset['apaTable'] === 'true';
-    const widths = docxColumnWidths(table, cols, Math.round(this.contentWidth() * 15));
-    const borders = ['top','left','bottom','right','insideH','insideV'].map(side => `<w:${side} w:val="${apa && !['top','bottom'].includes(side) ? 'nil' : 'single'}" w:sz="4" w:color="${apa ? '000000' : '808080'}"/>`).join('');
+    const managed = Boolean(table.dataset['wordTableStyle']);
+    const grid = tableCellGrid(table), cols = Math.max(1, grid.width), apa = table.dataset['wordTableStyle'] !== 'custom' && table.dataset['apaTable'] === 'true';
+    const repeatHeader = table.dataset['repeatHeader'] !== 'false';
+    const widthCss = table.style.width.trim();
+    const percentWidth = widthCss.endsWith('%') ? Number.parseFloat(widthCss) : 0;
+    const fixedWidthPt = widthCss && !widthCss.endsWith('%') ? points(widthCss) : 0;
+    const tableWidthTwips = percentWidth > 0
+      ? Math.round(this.contentWidth() * 15 * percentWidth / 100)
+      : fixedWidthPt > 0 ? Math.round(fixedWidthPt * 20) : Math.round(this.contentWidth() * 15);
+    const tableWidth = percentWidth > 0
+      ? `<w:tblW w:w="${Math.round(percentWidth * 50)}" w:type="pct"/>`
+      : `<w:tblW w:w="${tableWidthTwips}" w:type="dxa"/>`;
+    const widths = docxColumnWidths(table, cols, tableWidthTwips);
+    const customBorders = table.dataset['wordTableStyle'] === 'custom' || managed && !apa;
+    const borders = ['top','left','bottom','right','insideH','insideV'].map(side => `<w:${side} w:val="${customBorders || apa && !['top','bottom'].includes(side) ? 'nil' : 'single'}" w:sz="4" w:color="${apa ? '000000' : '808080'}"/>`).join('');
+    const cellBorders = (cell?: HTMLTableCellElement): string => '<w:tcBorders>' + ['top','left','bottom','right'].map(side => {
+      const style = cell?.style;
+      const visible = style && !['none', 'hidden', ''].includes(style.getPropertyValue(`border-${side}-style`));
+      const width = visible ? Math.round(points(style.getPropertyValue(`border-${side}-width`)) * 8) : 0;
+      const color = cssColorToHex(style?.getPropertyValue(`border-${side}-color`) || '') || '000000';
+      return `<w:${side} w:val="${width > 0 ? 'single' : 'nil'}" w:sz="${width}" w:color="${color}"/>`;
+    }).join('') + '</w:tcBorders>';
     const rows = Array.from(table.rows).map((row, r) => {
-      const header = row.parentElement?.tagName === 'THEAD' || apa && r === 0; let cells = '';
+      const header = repeatHeader && (table.dataset['wordTableHeaderRows'] !== undefined ? r < Number(table.dataset['wordTableHeaderRows']) : row.parentElement?.tagName === 'THEAD' || (apa && r === 0)); let cells = '';
       for (let c = 0; c < cols;) {
         const slot = grid.rows[r]?.[c], span = slot?.cols || 1, continuation = !!slot && slot.row !== r;
-        const properties = `<w:tcW w:w="${widths.slice(c, c + span).reduce((sum, width) => sum + width, 0)}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${slot && slot.rows > 1 ? `<w:vMerge${continuation ? '' : ' w:val="restart"'}/>` : ''}${apa ? `<w:shd w:val="clear" w:fill="FFFFFF"/>${header ? '<w:tcBorders><w:bottom w:val="single" w:sz="4" w:color="000000"/></w:tcBorders>' : row.parentElement?.tagName === 'TFOOT' ? '<w:tcBorders><w:top w:val="single" w:sz="4" w:color="000000"/></w:tcBorders>' : ''}` : ''}`;
         const cell = slot?.cell;
+        const cellBg = cssColorToHex(cell?.style.backgroundColor || '');
+        const shd = cellBg || apa ? `<w:shd w:val="clear" w:fill="${cellBg || 'FFFFFF'}"/>` : '';
+        const apaBorders = apa
+          ? (header ? '<w:tcBorders><w:bottom w:val="single" w:sz="4" w:color="000000"/></w:tcBorders>' : row.parentElement?.tagName === 'TFOOT' ? '<w:tcBorders><w:top w:val="single" w:sz="4" w:color="000000"/></w:tcBorders>' : '')
+          : '';
+        const properties = `<w:tcW w:w="${widths.slice(c, c + span).reduce((sum, width) => sum + width, 0)}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${slot && slot.rows > 1 ? `<w:vMerge${continuation ? '' : ' w:val="restart"'}/>` : ''}${shd}${customBorders ? cellBorders(cell) : apaBorders}`;
+        const legacyApaPadding = apa
+          && cell?.style.paddingTop === '4px' && cell?.style.paddingBottom === '4px'
+          && cell?.style.paddingLeft === '8px' && cell?.style.paddingRight === '8px';
         const margins = ['Top','Left','Bottom','Right'].map(side => {
           const css = cell?.style.getPropertyValue(`padding-${side.toLowerCase()}`);
-          const padding = css ? points(css) : ['Top','Bottom'].includes(side) ? 1.5 : 4;
+          const padding = legacyApaPadding
+            ? (['Top','Bottom'].includes(side) ? 1.5 : 3)
+            : (css ? points(css) : ['Top','Bottom'].includes(side) ? 1.5 : 4);
           return `<w:${side.toLowerCase()} w:w="${Math.round(padding * 20)}" w:type="dxa"/>`;
         }).join('');
         const vertical = cell?.style.verticalAlign;
         const cellLayout = `<w:tcMar>${margins}</w:tcMar><w:vAlign w:val="${vertical === 'middle' ? 'center' : vertical === 'bottom' ? 'bottom' : 'top'}"/>`;
-        let content = '<w:p/>';
+        let content = '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="264" w:lineRule="auto"/></w:pPr></w:p>';
         if (slot && !continuation) {
           const children = Array.from(slot.cell.children).filter(child => /^(P|DIV|H[1-6]|UL|OL|TABLE)$/.test(child.tagName));
-          const font = runStyle(slot.cell, inherited);
-          content = children.length ? children.map(child => this.blocks(child as HTMLElement, font, { line: apa ? 1.5 : undefined })).join('') : this.paragraph(slot.cell, font, { line: apa ? 1.5 : undefined });
+          const font = runStyle(slot.cell, runStyle(table, inherited));
+          const line = managed ? Number(slot.cell.style.lineHeight || table.style.lineHeight) || 1.15 : 1.1;
+          content = children.length ? children.map(child => this.blocks(child as HTMLElement, font, { line })).join('') : this.paragraph(slot.cell, font, { line });
         }
         cells += `<w:tc><w:tcPr>${properties}${cellLayout}</w:tcPr>${content}</w:tc>`; c += span;
       }
-      return `<w:tr>${header ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}${cells}</w:tr>`;
+      const rowHeight = points(row.style.height);
+      const heightRule = row.dataset['wordRowHeightRule'] === 'exact' ? 'exact' : 'atLeast';
+      const height = rowHeight > 0 ? `<w:trHeight w:val="${Math.round(rowHeight * 20)}" w:hRule="${heightRule}"/>` : '';
+      return `<w:tr><w:trPr><w:cantSplit/>${header ? '<w:tblHeader/>' : ''}${height}</w:trPr>${cells}</w:tr>`;
     }).join('');
-    return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>${borders}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${widths.map(width => `<w:gridCol w:w="${width}"/>`).join('')}</w:tblGrid>${rows}</w:tbl>`;
+    return `<w:tbl><w:tblPr>${tableWidth}<w:tblBorders>${borders}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${widths.map(width => `<w:gridCol w:w="${width}"/>`).join('')}</w:tblGrid>${rows}</w:tbl>`;
   }
   private blocks(element: HTMLElement, inherited = this.style, options: ParagraphOptions = {}): string {
     if (element.hasAttribute('data-word-note-list') || element.hasAttribute('data-note-entry-id')) return '';
@@ -159,25 +239,67 @@ export class DocxDocumentWriter {
     const width = this.layout.orientation === 'landscape' ? preset.heightPx : preset.widthPx;
     return width - this.layout.margins.leftPx - this.layout.margins.rightPx;
   }
-  section(continueNumbering = false, continuous = false): string {
+  section(continueNumbering = false, continuous = false, options?: DocxSectionOptions): string {
     const layout = this.layout, preset = PAPER_FORMAT_PRESETS[layout.paperFormatId] || PAPER_FORMAT_PRESETS.letter;
-    const width = (layout.orientation === 'landscape' ? preset.heightCm : preset.widthCm) / 2.54 * 1440;
-    const height = (layout.orientation === 'landscape' ? preset.widthCm : preset.heightCm) / 2.54 * 1440;
-    return `<w:sectPr>${layout.apa ? '<w:headerReference w:type="default" r:id="rId3"/>' : layout.showHeaderFooter && layout.headerHtml ? '<w:headerReference w:type="default" r:id="generalHeader"/>' : ''}${!layout.apa && layout.showHeaderFooter && layout.footerHtml ? '<w:footerReference w:type="default" r:id="generalFooter"/>' : ''}${this.notes.has('footnote') ? '<w:footnotePr><w:pos w:val="pageBottom"/><w:numFmt w:val="decimal"/></w:footnotePr>' : ''}${this.notes.has('endnote') ? '<w:endnotePr><w:pos w:val="sectEnd"/><w:numFmt w:val="decimal"/></w:endnotePr>' : ''}${continuous ? '<w:type w:val="continuous"/>' : ''}<w:pgSz w:w="${Math.round(width)}" w:h="${Math.round(height)}"${layout.orientation === 'landscape' ? ' w:orient="landscape"' : ''}/><w:pgMar w:top="${layout.margins.topPx * 15}" w:right="${layout.margins.rightPx * 15}" w:bottom="${layout.margins.bottomPx * 15}" w:left="${layout.margins.leftPx * 15}" w:header="${layout.apa ? 720 : 360}" w:footer="360" w:gutter="0"/>${layout.apa && !continueNumbering ? '<w:pgNumType w:start="1"/>' : ''}</w:sectPr>`;
+    const orientation = options?.orientation ?? layout.orientation;
+    const width = (orientation === 'landscape' ? preset.heightCm : preset.widthCm) / 2.54 * 1440;
+    const height = (orientation === 'landscape' ? preset.widthCm : preset.heightCm) / 2.54 * 1440;
+    const headerRef = layout.apa
+      ? '<w:headerReference w:type="default" r:id="rId3"/>'
+      : layout.showHeaderFooter && !options?.suppressDefaultHeaderRef && (options?.headerRelId || layout.headerHtml)
+        ? `<w:headerReference w:type="default" r:id="${options?.headerRelId || 'generalHeader'}"/>`
+        : '';
+    const footerRef = !layout.apa && layout.showHeaderFooter && !options?.suppressDefaultFooterRef && (options?.footerRelId || layout.footerHtml)
+      ? `<w:footerReference w:type="default" r:id="${options?.footerRelId || 'generalFooter'}"/>`
+      : '';
+    const titlePg = (options?.differentFirstPage ?? Boolean(layout.differentFirstPage)) ? '<w:titlePg/>' : '';
+    const fmt = options?.pageNumberFormat ?? layout.pageNumberFormat;
+    const ooFmt = fmt === 'roman-lower' ? 'lowerRoman' : fmt === 'roman-upper' ? 'upperRoman' : undefined;
+    const startNum = options?.restartPageNumbering !== undefined
+      ? Math.trunc(options.restartPageNumbering)
+      : layout.apa && !continueNumbering
+        ? 1
+        : layout.pageNumberStart;
+    const pgNumType = ooFmt || (startNum !== undefined && startNum >= 1)
+      ? `<w:pgNumType${ooFmt ? ` w:fmt="${ooFmt}"` : ''}${startNum !== undefined && startNum >= 1 ? ` w:start="${Math.trunc(startNum)}"` : ''}/>`
+      : '';
+    return `<w:sectPr>${headerRef}${footerRef}${this.notes.has('footnote') ? '<w:footnotePr><w:pos w:val="pageBottom"/><w:numFmt w:val="decimal"/></w:footnotePr>' : ''}${this.notes.has('endnote') ? '<w:endnotePr><w:pos w:val="sectEnd"/><w:numFmt w:val="decimal"/></w:endnotePr>' : ''}${continuous ? '<w:type w:val="continuous"/>' : ''}${titlePg}<w:pgSz w:w="${Math.round(width)}" w:h="${Math.round(height)}"${orientation === 'landscape' ? ' w:orient="landscape"' : ''}/><w:pgMar w:top="${layout.margins.topPx * 15}" w:right="${layout.margins.rightPx * 15}" w:bottom="${layout.margins.bottomPx * 15}" w:left="${layout.margins.leftPx * 15}" w:header="${layout.apa ? 720 : 360}" w:footer="360" w:gutter="0"/>${pgNumType}</w:sectPr>`;
   }
   fragment(html: string): string {
     const root = document.createElement('div'); root.innerHTML = html;
-    return Array.from(root.childNodes).map(node => node instanceof HTMLElement ? this.blocks(node) : node.textContent?.trim() ? `<w:p>${textRun(node.textContent, this.style)}</w:p>` : '').join('');
+    return Array.from(root.childNodes).map(node => node instanceof HTMLElement ? this.blocks(node) : node.textContent?.trim() ? `<w:p>${this.textOrFieldRuns(node.textContent, this.style)}</w:p>` : '').join('');
   }
-  document(): string {
+  private sectionOptionsFromInfo(
+    info: ResolvedPageSectionInfo | undefined,
+    sectionRels?: ReadonlyMap<number, DocxSectionRelIds>,
+  ): DocxSectionOptions | undefined {
+    if (!info) return undefined;
+    const rels = sectionRels?.get(info.sectionIndex);
+    return {
+      differentFirstPage: info.differentFirstPage,
+      pageNumberFormat: info.pageNumberFormat,
+      restartPageNumbering: info.restartPageNumbering,
+      orientation: info.orientation,
+      headerRelId: rels?.headerRelId,
+      footerRelId: rels?.footerRelId,
+      suppressDefaultHeaderRef: Boolean(!info.headerHtml && rels && !rels.headerRelId),
+      suppressDefaultFooterRef: Boolean(!info.footerHtml && rels && !rels.footerRelId),
+    };
+  }
+  document(sectionRels?: ReadonlyMap<number, DocxSectionRelIds>): string {
+    const infos = resolveDocumentPageSections(this.pages, this.layout);
     let content = '';
     this.pages.forEach((page, index) => {
+      const info = infos[index];
+      if (index > 0 && info?.hasSectionBreak) {
+        content += `<w:p><w:pPr>${this.section(false, false, this.sectionOptionsFromInfo(infos[index - 1], sectionRels))}</w:pPr></w:p>`;
+      }
       const root = document.createElement('div'); root.innerHTML = page.html;
       if (root.querySelector('[data-apa-section="appendix"]') && this.notes.has('endnote') && !this.endedNotes) {
-        content += `<w:p><w:pPr>${this.section(false, true)}</w:pPr></w:p>`; this.endedNotes = true;
+        content += `<w:p><w:pPr>${this.section(false, true, this.sectionOptionsFromInfo(info, sectionRels))}</w:pPr></w:p>`; this.endedNotes = true;
       }
       // Word lays out automatic page breaks itself, including space for native notes.
-      const manual = index && page.breakBefore === 'manual' && !root.querySelector('[data-word-note-list="endnote"]');
+      const manual = index && !info?.hasSectionBreak && page.breakBefore === 'manual' && !root.querySelector('[data-word-note-list="endnote"]');
       let pageContent = '';
       for (const node of Array.from(root.childNodes)) {
         if (node instanceof HTMLElement) pageContent += this.blocks(node);
@@ -187,6 +309,7 @@ export class DocxDocumentWriter {
       else if (manual) pageContent = '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="1" w:lineRule="exact"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>' + pageContent;
       content += pageContent;
     });
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="${WORD_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${content}${this.section(this.endedNotes)}</w:body></w:document>`;
+    const lastInfo = infos.at(-1);
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="${WORD_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${content}${this.section(this.endedNotes, false, this.sectionOptionsFromInfo(lastInfo, sectionRels))}</w:body></w:document>`;
   }
 }

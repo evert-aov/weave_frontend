@@ -84,11 +84,11 @@ KaTeX y autocompletado local funcionan sin este servicio. Si falta el compilador
 un error claro y la fuente permanece guardada.
 
 El motor se selecciona automáticamente: pdfLaTeX para documentos tradicionales y XeLaTeX
-para `fontspec`, `unicode-math`, `polyglossia` o comandos como `\setmainfont`. LuaLaTeX tiene
+para `fontspec`, `unicode-math`, `polyglossia` o comandos como `\setmainfont` y `\babelfont`. LuaLaTeX tiene
 prioridad cuando se usa Babel con `bidi=basic`/`basic-r` o comandos propios de Lua. Admite `article`,
 español, AMS, geometry, multicol, booktabs y array, entre otros paquetes TeX Live instalados.
-La imagen debe reconstruirse para incorporar los motores y la caché de fuentes Lua; incluye Latin Modern, TeX Gyre, Liberation
-y DejaVu. El registro de compilación indica el motor utilizado.
+La imagen debe reconstruirse para incorporar los motores y la caché de fuentes Lua; incluye Latin Modern, TeX Gyre, Liberation,
+DejaVu y Noto (`Noto Sans`, `Noto Serif`, `Noto Sans Mono`). El registro de compilación indica el motor utilizado.
 Se define `\hr` por compatibilidad, sin modificar el código persistido.
 No calcula resultados físicos ni sustituye un sistema de álgebra: compone las ecuaciones.
 

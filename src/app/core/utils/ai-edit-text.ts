@@ -23,7 +23,7 @@ export function unwrapCodeFence(value: string): string {
   return match ? match[1] : value;
 }
 
-function unwrapMarkdownFence(value: string): string {
+export function unwrapMarkdownFence(value: string): string {
   const match = MD_FENCE_RE.exec(value);
   return match ? match[1] : value;
 }
@@ -69,11 +69,11 @@ export function cleanLatexSource(value: string, documentMode = false): string {
   return cleaned;
 }
 
-function hasInlineMarkdown(value: string): boolean {
+export function hasInlineMarkdown(value: string): boolean {
   return /\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|`[^`\n]+`|(?<![\w*])\*[^*\s](?:[^*\n]*[^*\s])?\*(?![\w*])|(?<![\w_])_[^_\s](?:[^_\n]*[^_\s])?_(?![\w_])|\[[^\]\n]+\]\((?:https?:\/\/|mailto:|\/|#)[^)\s]+\)/i.test(value);
 }
 
-function hasBlockMarkdown(value: string): boolean {
+export function hasBlockMarkdown(value: string): boolean {
   return /^\s*(?:#{1,6}\s+\S|[-*+]\s+\S|\d+\.\s+\S|>\s+\S|```|(?:---+|\*\*\*+)\s*$)/m.test(value)
     || /^\s*\|.+\|\s*\r?\n\s*\|[\s:|-]+\|/m.test(value)
     || /\r?\n\s*\r?\n/.test(value);

@@ -10,7 +10,8 @@ import {
   DEFAULT_LAYOUT_CONFIG,
   INITIAL_DOCUMENT_PAGES,
 } from '../constants/word-document.constants';
-import type { HistorySnapshot, DocDataV2 } from '../models/word-editor-state.model';
+import type { AnyDocData, DocDataV2, HistorySnapshot } from '../models/word-editor-state.model';
+import { mapModelSectionImages, normalizeLoadedDocData } from '../utils/doc-data-migration';
 import { DEFAULT_DOC_TITLE } from '../constants/word-editor.constants';
 import type { PureDocEditorComponent } from '../pure-doc-editor.component';
 import type { WordEditorHooks } from './word-editor-hooks';
@@ -24,6 +25,12 @@ type WordPersistenceControllerHost = Pick<PureDocEditorComponent,
   | 'bibliographicSources'
   | 'academic'
   | 'copiedInlineStyle'
+  | 'comments'
+  | 'commentsPanelOpen'
+  | 'activeCommentId'
+  | 'trackChangesEnabled'
+  | 'hideCommentsOnExport'
+  | 'revisions'
   | 'darkCanvas'
   | 'darkMode'
   | 'docTitle'
@@ -54,6 +61,7 @@ type WordPersistenceControllerHost = Pick<PureDocEditorComponent,
   | 'zoom'>;
 type WordPersistenceControllerHooks = Pick<WordEditorHooks,
   | 'destroyed'
+  | 'exportCanvasModelSections'
   | 'getLivePagesSnapshot'
   | 'imageStore'
   | 'lastFlowPages'
@@ -66,6 +74,7 @@ type WordPersistenceControllerHooks = Pick<WordEditorHooks,
   | 'samePages'
   | 'savedRange'
   | 'scheduleDocumentFlow'
+  | 'setLoadedModelSections'
   | 'showToast'
   | 'syncInnerHtml'
   | 'themeService'>;
@@ -81,7 +90,7 @@ export class WordPersistenceController {
     this.hooks.pendingRenderPages = null;
     this.hooks.lastFlowPages = null;
 
-    const doc = (sourceNote?.docData ?? null) as DocDataV2 | null;
+    const doc = sourceNote?.docData ? normalizeLoadedDocData(sourceNote.docData) : null;
     const rawPages =
       doc && Array.isArray(doc.pages) && doc.pages.length > 0
         ? doc.pages.map((p) => ({ ...p }))
@@ -90,6 +99,13 @@ export class WordPersistenceController {
     const pages = await Promise.all(
       rawPages.map(async (p) => ({ ...p, html: await this.hooks.imageStore.resolveImages(p.html) }))
     );
+
+    const modelSections = doc?.modelSections?.length
+      ? await mapModelSectionImages(
+          doc.modelSections,
+          src => (this.hooks.imageStore.resolveImageSrc ? this.hooks.imageStore.resolveImageSrc(src) : Promise.resolve(src)),
+        )
+      : undefined;
 
     const baseLayout = doc?.layoutConfig
       ? { ...DEFAULT_LAYOUT_CONFIG, ...doc.layoutConfig }
@@ -110,6 +126,13 @@ export class WordPersistenceController {
     this.editor.academic.close();
     this.editor.bibliographicSources.set(normalizeSources(doc?.bibliographicSources));
     this.editor.headingNumbering.set(doc?.headingNumbering === true);
+    this.editor.comments.set(Array.isArray(doc?.comments) ? doc.comments : []);
+    this.editor.trackChangesEnabled.set(doc?.trackChangesEnabled === true);
+    this.editor.hideCommentsOnExport.set(doc?.hideCommentsOnExport === true);
+    this.editor.activeCommentId.set(null);
+    this.editor.commentsPanelOpen.set(false);
+    this.editor.revisions.set([]);
+    this.hooks.setLoadedModelSections?.(modelSections);
     this.hooks.renderDocumentPages(pages);
     this.editor.layoutConfig.set(layout);
     this.editor.styleTemplates.set(templates);
@@ -174,7 +197,7 @@ export class WordPersistenceController {
     return result;
   }
 
-  private async buildSlimDocData(doc: DocDataV2): Promise<DocDataV2> {
+  private async buildSlimDocData(doc: AnyDocData): Promise<AnyDocData> {
     const pages = await Promise.all(
       (doc.pages ?? []).map(async (p) => ({
         ...p,
@@ -190,13 +213,21 @@ export class WordPersistenceController {
         }
       : doc.layoutConfig;
 
+    if (doc.v === 3 && doc.modelSections?.length) {
+      const modelSections = await mapModelSectionImages(
+        doc.modelSections,
+        src => (this.hooks.imageStore.externalizeImageSrc ? this.hooks.imageStore.externalizeImageSrc(src) : Promise.resolve(src)),
+      );
+      return { ...doc, pages, layoutConfig, modelSections };
+    }
+
     return { ...doc, pages, layoutConfig };
   }
 
-  collectDocData(): DocDataV2 {
+  collectDocData(): AnyDocData {
     const customTemplates = this.editor.styleTemplates().filter((t) => t.isCustom);
-    return {
-      v: 2,
+    const modelSections = this.hooks.exportCanvasModelSections?.();
+    const base: Omit<DocDataV2, 'v'> = {
       bibliographicSources: this.editor.bibliographicSources(),
       docTitle: this.editor.docTitle(),
       pages: this.editor.pages(),
@@ -211,10 +242,16 @@ export class WordPersistenceController {
       darkMode: this.editor.darkMode(),
       darkCanvas: this.editor.darkCanvas(),
       headingNumbering: this.editor.headingNumbering(),
+      comments: this.editor.comments(),
+      trackChangesEnabled: this.editor.trackChangesEnabled(),
+      hideCommentsOnExport: this.editor.hideCommentsOnExport(),
     };
+    return modelSections?.length
+      ? { v: 3, ...base, modelSections }
+      : { v: 2, ...base };
   }
 
-  scheduleAutoSave(payload: DocDataV2): void {
+  scheduleAutoSave(payload: AnyDocData): void {
     if (this.hooks.destroyed) return;
     const targetNoteId = this.loadedNoteId;
     if (!targetNoteId) return;
@@ -249,7 +286,7 @@ export class WordPersistenceController {
     return this.saveInFlight;
   }
 
-  private async persistDocData(payload: DocDataV2, targetNoteId: string): Promise<void> {
+  private async persistDocData(payload: AnyDocData, targetNoteId: string): Promise<void> {
     const slim = await this.buildSlimDocData(payload);
 
     let json = '';
@@ -269,7 +306,7 @@ export class WordPersistenceController {
 
   saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  private pendingPayload: DocDataV2 | null = null;
+  private pendingPayload: AnyDocData | null = null;
 
   private pendingNoteId: string | null = null;
 

@@ -1,4 +1,4 @@
-export type RibbonTab = 'file' | 'home' | 'insert' | 'layout' | 'styles' | 'view' | 'references';
+export type RibbonTab = 'file' | 'home' | 'insert' | 'layout' | 'styles' | 'references' | 'review' | 'view';
 
 export type PaperFormatId =
   | 'a4'
@@ -56,6 +56,28 @@ export interface ListStyleRule {
   spaceAfterPt: number;
 }
 
+export interface TableStyleRule {
+  mode: 'inherit' | 'preserve' | 'custom';
+  fontFamily: string;
+  fontSizePt: number;
+  lineHeight: number;
+  align: TextAlignment;
+  color: string;
+  backgroundColor: string;
+  borders: 'grid' | 'horizontal' | 'none';
+  borderColor: string;
+  borderWidthPt: number;
+  cellPaddingPt: number;
+  header: boolean;
+  headerBold: boolean;
+  headerAlign: TextAlignment;
+  headerColor: string;
+  headerBackgroundColor: string;
+  bandedRows: boolean;
+  bandColor: string;
+  repeatHeader: boolean;
+}
+
 export interface StyleTemplate {
   id: string;
   name: string;
@@ -64,6 +86,7 @@ export interface StyleTemplate {
   rules: Record<StyleTargetTag, ElementStyleRule>;
   academicStyle?: 'apa7';
   listRules?: { ordered: ListStyleRule; unordered: ListStyleRule };
+  tableStyle?: TableStyleRule;
 }
 
 export interface PageBorderConfig {
@@ -104,6 +127,23 @@ export interface ApaPageConfig {
   fontSizePt: number;
 }
 
+export type PageNumberFormat = 'decimal' | 'roman-lower' | 'roman-upper';
+
+export interface SectionPageConfig {
+  /** Suppresses headers/footers and page numbers on the first page of this section. */
+  differentFirstPage?: boolean;
+  /** Page numbering format for pages in this section. */
+  pageNumberFormat?: PageNumberFormat;
+  /** Optional 1-based page number restart on the first page of this section. */
+  restartPageNumbering?: number;
+  /** Per-section page orientation override. */
+  orientation?: PageOrientation;
+  /** Per-section header HTML override. */
+  headerHtml?: string;
+  /** Per-section footer HTML override. */
+  footerHtml?: string;
+}
+
 export interface DocumentLayoutConfig {
   apa?: ApaPageConfig;
   paperFormatId: PaperFormatId;
@@ -116,6 +156,9 @@ export interface DocumentLayoutConfig {
   headerHtml: string;
   footerHtml: string;
   showHeaderFooter: boolean;
+  differentFirstPage?: boolean;
+  pageNumberFormat?: PageNumberFormat;
+  pageNumberStart?: number;
   showLineNumbers?: boolean;
   hyphenation?: boolean;
   pageColor?: string;
@@ -146,6 +189,10 @@ export interface DocumentPage {
   html: string;
   /** Only user/imported page breaks stop automatic forward/backward text flow. */
   breakBefore?: 'manual';
+  /** True when this page begins a new logical Word section (numbering/orientation/headers). */
+  sectionBreak?: 'nextPage';
+  /** Section-level layout properties applied starting at this page until the next sectionBreak. */
+  sectionConfig?: SectionPageConfig;
 }
 
 export interface DocxDocumentProperties {
@@ -205,6 +252,7 @@ export interface EditorActiveFormats {
   fontSize: string;
   indentLeftCm: number;
   indentRightCm: number;
+  firstLineIndentPt?: number;
   spaceBeforePt: number;
   spaceAfterPt: number;
   lineHeight: string;
@@ -216,4 +264,33 @@ export interface DocumentStats {
   paragraphs: number;
   readingTimeMinutes: number;
   pages: number;
+}
+
+export interface DocumentCommentReply {
+  id: string;
+  author: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface DocumentCommentThread {
+  id: string;
+  author: string;
+  text: string;
+  quote: string;
+  createdAt: number;
+  resolved: boolean;
+  resolvedAt?: number;
+  pageIndex?: number;
+  replies: DocumentCommentReply[];
+}
+
+export interface DocumentRevisionItem {
+  id: string;
+  kind: 'ins' | 'del';
+  text: string;
+  author: string;
+  createdAt: number;
+  pageIndex: number;
+  y: number;
 }

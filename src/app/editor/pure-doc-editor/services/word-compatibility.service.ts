@@ -1,5 +1,6 @@
 import { escapeAcademicHtml } from '../utils/apa-references';
 import { apaHeaderHtml } from '../utils/apa-layout';
+import { resolveTocBaseLevel, tocEntryLayout } from '../utils/table-of-contents';
 import { Injectable, inject } from '@angular/core';
 import {
   DocxDocumentProperties,
@@ -11,6 +12,7 @@ import { DEFAULT_LAYOUT_CONFIG, PAPER_FORMAT_PRESETS } from '../constants/word-d
 import { DocxParserService } from './docx-parser.service';
 import { createDocxFile } from './docx-export';
 import { snapshotWordSheets } from './word-pdf-export';
+import type { PageDisplayList } from '../engine/canvas-page-renderer';
 
 
 
@@ -46,17 +48,24 @@ export class WordCompatibilityService {
    * (Title on left + dotted leader line + page number on right, all on one line)
    * and carries `data-toc-target-id` and `data-toc-page` so clicking it in the editor jumps to that section!
    */
-  buildSingleTocEntryHtml(h: HeadingItem, pageNumberOffset: number = 0): string {
-    const indentPt = Math.max(0, (h.level - 1) * 14);
-    const isTopLevel = h.level === 1;
+  buildSingleTocEntryHtml(
+    h: HeadingItem,
+    pageNumberOffset: number = 0,
+    baseLevelOrHasChapters: number | boolean = 1,
+    addTopSpacing: boolean = true,
+  ): string {
+    const baseLevel = typeof baseLevelOrHasChapters === 'boolean'
+      ? (baseLevelOrHasChapters ? 0 : 1)
+      : baseLevelOrHasChapters;
+    const { indentPt, isTopLevel } = tocEntryLayout(h.level, baseLevel);
     const cleanTitle = escapeAcademicHtml(this.formatCleanHeadingTitle(h.text));
     const displayPageNum = h.pageIndex + 1 + pageNumberOffset;
 
     return `<div class="word-toc-entry" contenteditable="false" data-toc-target-id="${escapeAcademicHtml(h.id)}" data-toc-page="${
       displayPageNum - 1
-    }" style="padding-left: ${indentPt}pt; font-weight: ${
+    }" data-toc-level="${h.level}" style="padding-left: ${indentPt}pt; font-weight: ${
       isTopLevel ? '700' : '400'
-    }; margin-top: ${isTopLevel ? '4pt' : '0pt'};" title="Haz clic para ir a: ${cleanTitle.replace(/"/g, '&quot;')} (Página ${displayPageNum})">
+    }; margin-top: ${isTopLevel && addTopSpacing ? '4pt' : '0pt'};" title="Haz clic para ir a: ${cleanTitle.replace(/"/g, '&quot;')} (Página ${displayPageNum})">
       <span class="word-toc-title">${cleanTitle}</span>
       <span class="word-toc-dots"></span>
       <span class="word-toc-page">${displayPageNum}</span>
@@ -94,8 +103,9 @@ export class WordCompatibilityService {
       const headerMarkup = pageSeq === 0
         ? `<div class="word-toc-header" contenteditable="false">ÍNDICE DE CONTENIDO</div>` : '';
 
+      const baseLevel = resolveTocBaseLevel(headings);
       const rowsMarkup = slice
-        .map((h) => this.buildSingleTocEntryHtml(h, extraPagesInsertedShift))
+        .map((h, idx) => this.buildSingleTocEntryHtml(h, extraPagesInsertedShift, baseLevel, idx > 0 || pageSeq > 0))
         .join('\n');
 
       pagesHtml.push(
@@ -300,8 +310,22 @@ export class WordCompatibilityService {
 
   async exportToPdf(title: string, sheets: HTMLElement[], progress?: (message: string) => void): Promise<void> {
     const snapshots = snapshotWordSheets(sheets);
-    const { renderWordPdf } = await import('./word-pdf-export');
-    const blob = await renderWordPdf(snapshots, progress);
+    const { extractDomPdfNavigation, renderWordPdf } = await import('./word-pdf-export');
+    const navigation = extractDomPdfNavigation(sheets);
+    const blob = await renderWordPdf(snapshots, progress, navigation);
+    const filename = (title || 'Documento').replace(/[^a-z0-9-_áéíóúñ\s]/gi, '').trim() || 'Documento';
+    this.triggerDownload(blob, `${filename}.pdf`);
+  }
+
+  async exportCanvasToPdf(
+    title: string,
+    displayLists: PageDisplayList[],
+    width: number,
+    height: number,
+    progress?: (message: string) => void
+  ): Promise<void> {
+    const { renderWordCanvasPdf } = await import('./word-pdf-export');
+    const blob = await renderWordCanvasPdf(displayLists, width, height, progress);
     const filename = (title || 'Documento').replace(/[^a-z0-9-_áéíóúñ\s]/gi, '').trim() || 'Documento';
     this.triggerDownload(blob, `${filename}.pdf`);
   }

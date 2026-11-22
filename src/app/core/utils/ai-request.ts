@@ -1,6 +1,6 @@
 export const AI_REQUEST_LIMITS = {
-  message: 12_000,
-  document: 350_000,
+  message: 250_000,
+  document: 1_500_000,
   title: 500,
   docType: 100,
 } as const;

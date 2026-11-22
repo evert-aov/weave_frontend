@@ -17,4 +17,14 @@ describe('Sparse grid viewport', () => {
     expect(axis.window(-100, 20, 2).indices[0]).toBe(0);
     expect(axis.window(999999, 100, 2).indices.at(-1)).toBe(9);
   });
+
+  it('assigns zero size to hidden indices and maps coordinates to adjacent visible bands', () => {
+    const axis = new GridAxis(6, 20, { 1: 40 }, [1, 2]);
+    expect(axis.isHidden(1)).toBe(true);
+    expect(axis.isHidden(2)).toBe(true);
+    expect(axis.offset(1)).toBe(20);
+    expect(axis.offset(3)).toBe(20);
+    expect(axis.indexAt(19)).toBe(0);
+    expect(axis.indexAt(20)).toBe(3);
+  });
 });

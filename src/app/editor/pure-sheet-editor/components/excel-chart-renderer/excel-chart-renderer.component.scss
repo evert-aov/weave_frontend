@@ -2,7 +2,7 @@
 .chart-card-root { min-height: 0; }
 .chart-point { transform-box: fill-box; transform-origin: center; transition: transform 150ms; }
 .chart-point:hover { transform: scale(1.35); }
-.animated-line { stroke-dasharray: 1; animation: draw-line 650ms ease-out both; }
+.animated-line { animation: reveal-chart 500ms ease-out both; }
 svg rect, svg polygon, svg g > path { animation: reveal-chart 500ms ease-out both; }
 .chart-legend { line-height: 1.15; }
 .legend-marker { width: 12px; height: 6px; border-radius: 0; border-width: 0; border-top-width: 2px; background: transparent !important; }
@@ -21,7 +21,7 @@ svg rect, svg polygon, svg g > path { animation: reveal-chart 500ms ease-out bot
 .compact-chart .chart-legend { column-gap: 10px; row-gap: 3px; }
 .compact-chart .chart-legend .font-medium { font-size: 11px; max-width: 125px; }
 
-.axis-tooltip { position: absolute; z-index: 10; pointer-events: none; width: 180px; max-width: calc(100% - 8px); padding: 10px; background: #fff; color: #262626; border: 1px solid #d4d4d4; box-shadow: 0 2px 6px #0001; font: 11px Arial, sans-serif; }
+.axis-tooltip { position: absolute; z-index: 10; pointer-events: none; width: 180px; max-width: calc(100% - 8px); padding: 10px; background: #fff; color: #262626; border: 1px solid #d4d4d4; border-radius: 8px; box-shadow: 0 4px 12px #0002; font: 11px Arial, sans-serif; }
 .axis-tooltip-label { margin-bottom: 8px; }
 .axis-tooltip-value { padding: 3px 0; }
 .dark-tooltip { background: #252525; color: #fff; border-color: #444; }

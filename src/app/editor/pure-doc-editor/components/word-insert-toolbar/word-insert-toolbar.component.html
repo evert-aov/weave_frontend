@@ -21,6 +21,18 @@
         <svg lucideIcon="scissors" [size]="20" class="icon-indigo"></svg>
         <span class="btn-label">{{ t('word.insert.page_break', 'Salto de página') }}</span>
       </button>
+
+      <button
+        type="button"
+        class="btn-vertical"
+        [disabled]="totalPages <= 1"
+        [class.opacity-40]="totalPages <= 1"
+        (click)="deletePage.emit()"
+        [title]="t('word.insert.delete_page_tooltip', 'Eliminar la página actual del documento')"
+      >
+        <svg lucideIcon="trash-2" [size]="20" class="text-red-500"></svg>
+        <span class="btn-label text-red-600">{{ t('word.insert.delete_page', 'Eliminar página') }}</span>
+      </button>
     </div>
     <span class="group-label">{{ t('word.group.pages', 'Páginas') }}</span>
   </section>
@@ -295,7 +307,7 @@
           (click)="insertSignatureLine.emit()"
           [title]="t('word.insert.signature_line', 'Línea de firma')"
         >
-          <span class="text-xs">✍</span>
+          <svg lucideIcon="pen-tool" [size]="13" class="icon-blue"></svg>
           <span>{{ t('word.insert.signature_line', 'Línea de firma') }}</span>
         </button>
 

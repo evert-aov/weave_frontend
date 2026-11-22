@@ -1,5 +1,17 @@
 import { xml } from './docx-package';
 export interface DocxRunStyle { font: string; size: number; bold: boolean; italic: boolean; underline: boolean; strike: boolean; color: string; script?: 'superscript' | 'subscript'; transform?: string; }
+export function cssColorToHex(value: string): string | undefined {
+  const clean = value.trim();
+  if (!clean || clean === 'transparent' || clean === 'inherit' || clean === 'initial' || clean === 'unset') return undefined;
+  const rgba = clean.match(/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)(?:[, /]+\s*([0-9.]+))?\s*\)/i);
+  if (rgba) {
+    if (rgba[4] !== undefined && Number(rgba[4]) === 0) return undefined;
+    return rgba.slice(1, 4).map(v => Math.max(0, Math.min(255, Number(v))).toString(16).padStart(2, '0')).join('');
+  }
+  if (/^#[0-9a-f]{6}$/i.test(clean)) return clean.slice(1);
+  if (/^#[0-9a-f]{3}$/i.test(clean)) return clean.slice(1).split('').map(c => c + c).join('');
+  return undefined;
+}
 export function points(value: string): number {
   const n = parseFloat(value); if (!Number.isFinite(n)) return 0;
   return value.endsWith('px') ? n * .75 : value.endsWith('cm') ? n * 72 / 2.54 : value.endsWith('in') ? n * 72 : n;
@@ -21,9 +33,8 @@ export function runStyle(element: HTMLElement, inherited: DocxRunStyle): DocxRun
   if (css.textDecoration.includes('underline')) style.underline = true;
   if (css.textDecoration.includes('line-through')) style.strike = true;
   if (css.textDecoration === 'none') { style.underline = false; style.strike = false; }
-  const rgb = css.color.match(/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)/i);
-  if (rgb) style.color = rgb.slice(1,4).map(v => Number(v).toString(16).padStart(2,'0')).join('');
-  else if (/^#[0-9a-f]{6}$/i.test(css.color)) style.color = css.color.slice(1);
+  const colorHex = cssColorToHex(css.color);
+  if (colorHex) style.color = colorHex;
   if (css.textTransform && css.textTransform !== 'inherit') style.transform = css.textTransform;
   return style;
 }

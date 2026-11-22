@@ -990,7 +990,7 @@ export class DocxParserService {
 
         const pPr = this.findDirectChild(sNode, 'pPr');
         if (pPr) {
-          if (!tocLevel) {
+          if (!tocLevel && !headingLevel) {
             const outlineLvlEl = this.findDirectChild(pPr, 'outlineLvl');
             const outlineVal = this.getAttrByLocalName(outlineLvlEl, 'val');
             if (outlineVal !== null && !isNaN(Number(outlineVal))) {
@@ -1247,7 +1247,7 @@ export class DocxParserService {
         if (m) tocLevel = Math.min(6, parseInt(m[1], 10));
       }
 
-      if (!insideTableCell && pPr && !tocLevel) {
+      if (!insideTableCell && pPr && !tocLevel && !headingLevel) {
         const outlineEl = this.findDirectChild(pPr, 'outlineLvl');
         const outlineVal = this.getAttrByLocalName(outlineEl, 'val');
         if (outlineVal !== null && !isNaN(Number(outlineVal))) {
@@ -1263,7 +1263,11 @@ export class DocxParserService {
         }
       }
 
-      const breakBefore = !insideTableCell && Boolean(this.findDirectChild(pPr, 'pageBreakBefore'));
+      const breakBefore =
+        !insideTableCell &&
+        !insideTocSdt &&
+        !tocLevel &&
+        Boolean(this.findDirectChild(pPr, 'pageBreakBefore'));
       const sectPrInPPr = this.findDirectChild(pPr, 'sectPr');
       let hasSectBreakAfter = false;
       if (!insideTableCell && sectPrInPPr) {
@@ -1366,7 +1370,7 @@ export class DocxParserService {
         const rPr = this.findDirectChild(rEl, 'rPr');
 
         let runFont = pLevelFontFamily || resolvedStyle?.fontFamily || defaultFontFamily;
-        let runSizePt = pLevelFontSizePt || resolvedStyle?.fontSizePt || (insideTableCell ? 9.5 : defaultFontSizePt);
+        let runSizePt = pLevelFontSizePt || resolvedStyle?.fontSizePt || defaultFontSizePt;
         let isBold = Boolean(pLevelBold || resolvedStyle?.bold);
         let isItalic = Boolean(resolvedStyle?.italic);
         let isUnderline = Boolean(resolvedStyle?.underline);
@@ -1673,7 +1677,7 @@ export class DocxParserService {
         maxRunSizeInParagraphPt ||
         pLevelFontSizePt ||
         resolvedStyle?.fontSizePt ||
-        (insideTableCell ? 9.5 : defaultFontSizePt);
+        defaultFontSizePt;
       if (importedRunInLevel) headingLevel = undefined;
       const effectiveFontFamily =
         firstRunFontInParagraph || pLevelFontFamily || resolvedStyle?.fontFamily || defaultFontFamily;
@@ -1750,10 +1754,10 @@ export class DocxParserService {
         if (tocLevel && !isTocHeading) {
           const entry = tocImport.entry(pEl);
           const runs = importedTocRuns(trimmed, entry);
-          const indent = Math.max((tocLevel - 1) * 14,leftIndentPt || 0);
+          const indent = Math.max((tocLevel - 1) * 18, leftIndentPt || 0);
           const target = entry.target ? ` data-toc-target-id="${this.escapeHtml(entry.target)}"` : '';
           const page = /^\d+$/.test(entry.page) ? ` data-toc-page="${Math.max(0,Number(entry.page)-1)}"` : '';
-          return `<div class="word-toc-entry" contenteditable="false"${target}${page} style="text-align:left;text-indent:0;padding-left:${indent}pt;font-family:'${this.escapeHtml(effectiveFontFamily)}',serif;font-size:${effectiveHeadingSizePt || 11}pt;line-height:${lineHeightCss};margin-top:${spaceBeforePt}pt;margin-bottom:${spaceAfterPt}pt;"><span class="word-toc-title">${runs.title}</span><span class="word-toc-dots"></span><span class="word-toc-page">${runs.page}</span></div>`;
+          return `<div class="word-toc-entry" data-toc-level="${tocLevel}" contenteditable="false"${target}${page} style="text-align:left;text-indent:0;padding-left:${indent}pt;font-family:'${this.escapeHtml(effectiveFontFamily)}',serif;font-size:${effectiveHeadingSizePt || 11}pt;line-height:${lineHeightCss};margin-top:${spaceBeforePt}pt;margin-bottom:${spaceAfterPt}pt;"><span class="word-toc-title">${runs.title}</span><span class="word-toc-dots"></span><span class="word-toc-page">${runs.page}</span></div>`;
         }
         if (isTocHeading) return `<div class="word-toc-header" contenteditable="false" style="font-family:'${this.escapeHtml(effectiveFontFamily)}',serif;font-size:${effectiveHeadingSizePt || 16}pt;text-align:${textAlign || 'left'};font-weight:bold;text-transform:none;line-height:${lineHeightCss};margin-top:${spaceBeforePt}pt;margin-bottom:${spaceAfterPt}pt;">${trimmed}</div>`;
 
@@ -1782,7 +1786,7 @@ export class DocxParserService {
             }`
           );
 
-          return `<h${headingLevel} id="${headingId}"${styleAttr}>${trimmed}</h${headingLevel}>`;
+          return `<h${headingLevel}${styleId === 'WeaveChapter' ? ' data-word-chapter="true"' : ''} id="${headingId}"${styleAttr}>${trimmed}</h${headingLevel}>`;
         }
 
         const styleAttr = blockStyles.length > 0 ? ` style="${blockStyles.join('; ')}"` : '';
@@ -1828,8 +1832,25 @@ export class DocxParserService {
       const gridCols = this.findDirectChildren(tblGrid, 'gridCol');
       const colWidthsTwips = gridCols.map((gc) => Number(this.getAttrByLocalName(gc, 'w') || 0));
       const totalGridTwips = colWidthsTwips.reduce((acc, w) => acc + w, 0);
+      const tblWidthEl = this.findDirectChild(tblPr, 'tblW');
+      const tblWidthValue = Number(this.getAttrByLocalName(tblWidthEl, 'w') || 0);
+      const tblWidthType = (this.getAttrByLocalName(tblWidthEl, 'type') || '').toLowerCase();
+      const sourceTableWidth = tblWidthValue > 0 && tblWidthType === 'pct'
+        ? `${Math.min(100, tblWidthValue / 50)}%`
+        : tblWidthValue > 0 && tblWidthType === 'dxa'
+          ? `${Math.round((tblWidthValue / 15) * 100) / 100}px`
+          : '100%';
 
       const tblBorders = this.findDirectChild(tblPr, 'tblBorders');
+      const borderSides = ['top', 'bottom', 'left', 'right', 'insideH', 'insideV']
+        .map((side) => this.findDirectChild(tblBorders, side))
+        .filter((el): el is Element => Boolean(el));
+      const allTblBordersExplicitlyNone =
+        borderSides.length > 0 &&
+        borderSides.every((el) => {
+          const val = (this.getAttrByLocalName(el, 'val') || '').toLowerCase();
+          return val === 'none' || val === 'nil';
+        });
       const sampleBorder =
         this.findDirectChild(tblBorders, 'insideH') ||
         this.findDirectChild(tblBorders, 'top') ||
@@ -1839,6 +1860,36 @@ export class DocxParserService {
         rawBorderColor && rawBorderColor !== 'auto' && /^[0-9A-Fa-f]{6}$/.test(rawBorderColor)
           ? `#${rawBorderColor}`
           : '#000000';
+
+      const isTocParagraphElement = (pEl: Element): boolean => {
+        const pPr = this.findDirectChild(pEl, 'pPr');
+        const pStyleVal = (this.getAttrByLocalName(this.findDirectChild(pPr, 'pStyle'), 'val') || '').toLowerCase();
+        if (/^(toc|tdc|tableof|indice|index)/.test(pStyleVal) || pStyleVal.includes('toc') || pStyleVal.includes('tdc')) {
+          return true;
+        }
+        const instrEls = pEl.getElementsByTagName('*');
+        for (let i = 0; i < instrEls.length; i++) {
+          const local = (instrEls[i].localName || '').toLowerCase();
+          if (local === 'instrtext' && /\b(TOC|PAGEREF)\b/i.test(instrEls[i].textContent || '')) {
+            return true;
+          }
+          if (local === 'hyperlink') {
+            const anchor = this.getAttrByLocalName(instrEls[i], 'anchor') || '';
+            if (anchor.startsWith('_Toc')) return true;
+          }
+        }
+        return false;
+      };
+
+      const allTableParagraphs = rows.flatMap((tr) =>
+        this.findDirectChildren(tr, 'tc').flatMap((tc) => this.findDirectChildren(tc, 'p'))
+      );
+      const nonEmptyTableParagraphs = allTableParagraphs.filter((p) => (p.textContent || '').trim().length > 0);
+      const tocParagraphHits = nonEmptyTableParagraphs.filter((p) => isTocParagraphElement(p)).length;
+      const isTocTable =
+        nonEmptyTableParagraphs.length > 0 &&
+        (tocParagraphHits >= 2 || (tocParagraphHits >= 1 && nonEmptyTableParagraphs.length <= 3));
+      const isBorderlessTable = allTblBordersExplicitlyNone || isTocTable;
 
       let colGroupHtml = '';
       if (totalGridTwips > 0 && colWidthsTwips.length > 0) {
@@ -1855,7 +1906,9 @@ export class DocxParserService {
         const continuation = tableSlice++ > 0 ? ` data-word-continuation="${tableFlowId}"` : '';
         const bodyContinuation = continuation ? ` data-word-continuation="${tableFlowId}-body"` : '';
         const repeatedCols = continuation ? colGroupHtml.replace('<colgroup', '<colgroup data-word-repeat="true"') : colGroupHtml;
-        return `<table data-word-flow="${tableFlowId}"${continuation} style="width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; margin: 4pt 0 8pt 0;">${repeatedCols}<tbody data-word-flow="${tableFlowId}-body"${bodyContinuation}>${rowsMarkup.join(
+        const tocAttr = isTocTable ? ' data-word-toc="true"' : '';
+        const tableBorderCss = isBorderlessTable ? ' border: none;' : '';
+        return `<table data-word-flow="${tableFlowId}"${tocAttr}${continuation} style="width: ${sourceTableWidth}; max-width: 100%; table-layout: fixed; border-collapse: collapse;${tableBorderCss} margin: 4pt 0 8pt 0;">${repeatedCols}<tbody data-word-flow="${tableFlowId}-body"${bodyContinuation}>${rowsMarkup.join(
           ''
         )}</tbody></table>`;
       };
@@ -1874,8 +1927,13 @@ export class DocxParserService {
       rows.forEach((tr) => {
         const trPr = this.findDirectChild(tr, 'trPr');
         const isHeaderRow = Boolean(this.findDirectChild(trPr, 'tblHeader'));
+        const trHeight = this.findDirectChild(trPr, 'trHeight');
+        const trHeightTwips = Number(this.getAttrByLocalName(trHeight, 'val') || 0);
+        const trHeightRule = (this.getAttrByLocalName(trHeight, 'hRule') || 'atLeast').toLowerCase();
+        const importedRowHeightPx = trHeightTwips > 0 ? Math.round((trHeightTwips / 15) * 100) / 100 : 0;
+        const rowHeightRuleAttr = trHeightTwips > 0 && trHeightRule === 'exact' ? ' data-word-row-height-rule="exact"' : '';
 
-        let rowHtml = '<tr>';
+        let rowHtml = `<tr${importedRowHeightPx ? ` style="height: ${importedRowHeightPx}px"${rowHeightRuleAttr}` : ''}>`;
         const cells = this.findDirectChildren(tr, 'tc');
         let gridColCursor = 0;
         let maxCellHeightInRowPx = 18;
@@ -1897,7 +1955,7 @@ export class DocxParserService {
           const vAlignVal = this.getAttrByLocalName(vAlignEl, 'val');
 
           const cellStyles: string[] = [
-            `border: 1px solid ${defaultBorderColor}`,
+            isBorderlessTable ? 'border: none' : `border: 1px solid ${defaultBorderColor}`,
             'padding: 1.5pt 4pt',
             'min-width: 0',
             'word-wrap: break-word',
@@ -2001,7 +2059,7 @@ export class DocxParserService {
             false
           );
 
-          if (breakBefore) {
+          if (breakBefore && !insideTocSdt) {
             pushExplicitPageBreak();
           }
 

@@ -25,6 +25,7 @@ type WordNavigationControllerHost = Pick<PureDocEditorComponent,
 type WordNavigationControllerHooks = Pick<WordEditorHooks,
   | 'cdr'
   | 'getActivePageElement'
+  | 'getCanvasReadableText'
   | 'showToast'
   | 'wordCompat'>;
 
@@ -69,8 +70,18 @@ export class WordNavigationController {
     viewport.style.overflowAnchor = 'none';
     this.restoreZoomAnchoring = () => { viewport.style.overflowAnchor = previousAnchoring; };
     const anchor = page;
+    const canvasIndex=page.getAttribute('data-canvas-index');
+    const space=page.closest<HTMLElement>('.canvas-document-space');
+    const ratio=next/this.editor.zoom();
     const restore = () => {
-      if (!anchor.isConnected || !viewport.isConnected) return;
+      if (!viewport.isConnected) return;
+      if(canvasIndex!==null&&space?.isConnected){
+        const rect=space.getBoundingClientRect(),height=before.height*ratio,width=before.width*ratio;
+        viewport.scrollTop+=rect.top+Number(canvasIndex)*(height+32)+relativeY*height-y;
+        viewport.scrollLeft+=rect.left+relativeX*width-x;
+        return;
+      }
+      if(!anchor.isConnected)return;
       const after = anchor.getBoundingClientRect();
       viewport.scrollTop += after.top + relativeY * after.height - y;
       viewport.scrollLeft += after.left + relativeX * after.width - x;
@@ -103,7 +114,8 @@ export class WordNavigationController {
       return;
     }
     const activeEl = this.hooks.getActivePageElement();
-    const textToRead = window.getSelection()?.toString().trim() || activeEl?.innerText?.trim() || '';
+    const canvasText = this.hooks.getCanvasReadableText?.(this.editor.activePageIndex());
+    const textToRead = (canvasText !== undefined && canvasText !== null ? canvasText : (window.getSelection()?.toString().trim() || activeEl?.innerText?.trim() || '')).trim();
     if (!textToRead) {
       this.hooks.showToast('No hay texto en la página actual para leer');
       return;

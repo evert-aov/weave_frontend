@@ -25,12 +25,17 @@
 
       <!-- Scrollable Modal Body -->
       <div class="dialog-body flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50/40">
-        <!-- Card 1: LaTeX Code Input -->
-        <div class="dialog-card bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs">
-          <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <span class="card-heading text-xs font-semibold text-slate-700">
-              {{ t('word.latex.code') }}
-            </span>
+        <!-- Card 1: Interactive Graphical Formula Builder -->
+        <div class="dialog-card bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs space-y-3">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <span class="card-heading text-xs font-semibold text-slate-700">
+                {{ t('word.latex.visual_builder', 'Constructor interactivo de fórmula') }}
+              </span>
+              <p class="builder-hint text-[11px] text-slate-500">
+                {{ t('word.latex.visual_builder_hint', 'Haz clic en un bloque o símbolo y rellena directamente los recuadros de la fórmula') }}
+              </p>
+            </div>
             <div class="flex items-center gap-2">
               @if (isEditingExisting) {
                 <button
@@ -61,25 +66,84 @@
             </div>
           </div>
 
-          <textarea
-            #latexTextarea
-            rows="3"
-            [value]="latexInput()"
-            (input)="latexInput.set($any($event.target).value)"
-            [placeholder]="t('word.latex.placeholder', 'Escribe aquí tu expresión LaTeX...')"
-            class="latex-textarea w-full px-3.5 py-2.5 font-mono text-xs sm:text-sm text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-y select-text"
-          ></textarea>
+          <!-- Graphical Structure Buttons -->
+          <div class="visual-tools-bar flex flex-wrap gap-1.5">
+            @for (tool of visualTools; track tool.kind) {
+              <button
+                type="button"
+                class="visual-tool-btn px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-blue-50 hover:border-blue-400 flex items-center gap-1.5 text-xs transition-colors"
+                (click)="handleInsertVisualStructure(tool.kind)"
+                [title]="tool.label"
+              >
+                <span class="tool-glyph font-serif font-semibold text-sm">{{ tool.glyph }}</span>
+                <span class="tool-label text-[11px] text-slate-600">{{ tool.label }}</span>
+              </button>
+            }
+          </div>
+
+          <!-- Visual Interactive Slot Canvas -->
+          <div
+            class="visual-canvas rounded-xl border border-slate-200 bg-slate-50/70 p-4 min-h-[82px] flex items-center justify-center overflow-x-auto select-text"
+            (click)="activeSlotId.set(visualRoot().id)"
+          >
+            <app-visual-slot-editor
+              [slot]="visualRoot()"
+              [activeSlotId]="activeSlotId()"
+              [focusRequestId]="focusRequestId()"
+              [darkMode]="darkMode"
+              (slotFocus)="handleSlotFocus($event)"
+              (textChange)="handleVisualTextChange($event)"
+              (removePiece)="handleRemoveVisualPiece($event)"
+            ></app-visual-slot-editor>
+          </div>
+
+          <!-- Quick Clickable Symbols Strip -->
+          <div class="quick-symbols-strip flex flex-wrap items-center gap-1 pt-1">
+            <span class="strip-label text-[10px] uppercase tracking-wide text-slate-400 mr-1 font-semibold">
+              {{ t('word.latex.quick_symbols', 'Símbolos rápidos:') }}
+            </span>
+            @for (sym of quickSymbols; track sym.label) {
+              <button
+                type="button"
+                class="quick-sym-btn w-7 h-7 rounded-md border border-slate-200 bg-white hover:bg-blue-50 hover:border-blue-400 font-serif text-sm flex items-center justify-center transition-colors"
+                (click)="handleInsertVisualSymbol(sym.symbol)"
+                [title]="sym.label"
+              >
+                {{ sym.symbol }}
+              </button>
+            }
+          </div>
         </div>
 
-        <!-- Card 2: Live Mathematical Preview -->
-        <div class="dialog-card bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs">
-          <div class="card-heading text-xs font-semibold text-slate-700 mb-2.5">
-            {{ t('word.latex.preview') }}
+        <!-- Card 2: Live Mathematical Preview + Optional Advanced LaTeX -->
+        <div class="dialog-card bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="card-heading text-xs font-semibold text-slate-700">
+              {{ t('word.latex.preview') }}
+            </span>
+            <button
+              type="button"
+              (click)="showRawLatex.set(!showRawLatex())"
+              class="btn-advanced-toggle text-[11px] font-medium px-2.5 py-1 rounded-md border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+            >
+              {{ showRawLatex() ? t('word.latex.hide_code', 'Ocultar código LaTeX') : t('word.latex.show_code', 'Código LaTeX (avanzado)') }}
+            </button>
           </div>
           <div
-            class="latex-preview-box bg-slate-50/80 border border-slate-200/80 rounded-lg p-6 min-h-[115px] flex items-center justify-center overflow-x-auto select-text"
+            class="latex-preview-box bg-slate-50/80 border border-slate-200/80 rounded-lg p-5 min-h-[96px] flex items-center justify-center overflow-x-auto select-text"
             [innerHTML]="previewHtml()"
           ></div>
+
+          @if (showRawLatex()) {
+            <textarea
+              #latexTextarea
+              rows="2"
+              [value]="latexInput()"
+              (input)="handleRawLatexEdit($any($event.target).value)"
+              [placeholder]="t('word.latex.placeholder', 'Código LaTeX generado automáticamente...')"
+              class="latex-textarea w-full px-3.5 py-2 font-mono text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-y select-text"
+            ></textarea>
+          }
         </div>
 
         <!-- Card 3: Symbol & Formula Templates Library -->

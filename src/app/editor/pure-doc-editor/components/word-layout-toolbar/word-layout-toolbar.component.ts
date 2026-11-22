@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   EventEmitter,
@@ -21,6 +22,7 @@ import {
   LucideBookOpen,
   LucideColumns,
   LucideScissors,
+  LucideTrash2,
   LucideHash,
   LucideMinus,
   LucideChevronDown,
@@ -36,11 +38,14 @@ import {
 import {
   DocumentLayoutConfig,
   EditorActiveFormats,
+  PageNumberFormat,
   PageOrientation,
   PaperFormatId,
   PaperFormatPreset,
   SectionColumnsPreset,
+  SectionPageConfig,
 } from '../../models/word-document.model';
+import type { ResolvedPageSectionInfo } from '../../utils/page-section-layout';
 import {
   MARGIN_PRESETS,
   PAPER_FORMAT_PRESETS,
@@ -62,6 +67,7 @@ const PAPER_FORMAT_LIST: PaperFormatId[] = [
 @Component({
   selector: 'app-word-layout-toolbar',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
   providers: [
     provideLucideIcons(
@@ -70,6 +76,7 @@ const PAPER_FORMAT_LIST: PaperFormatId[] = [
       LucideBookOpen,
       LucideColumns,
       LucideScissors,
+      LucideTrash2,
       LucideHash,
       LucideMinus,
       LucideChevronDown,
@@ -91,12 +98,17 @@ export class WordLayoutToolbarComponent implements OnInit, OnChanges {
   readonly i18n = inject(I18nService, { optional: true });
 
   @Input() darkMode = false;
+  @Input() totalPages = 1;
   @Input({ required: true }) layoutConfig!: DocumentLayoutConfig;
   @Input({ required: true }) formats!: EditorActiveFormats;
   @Input({ required: true }) activePaperPreset!: PaperFormatPreset;
+  @Input() activeSectionInfo: ResolvedPageSectionInfo | null = null;
 
   @Output() updateLayout = new EventEmitter<(prev: DocumentLayoutConfig) => DocumentLayoutConfig>();
   @Output() insertPageBreak = new EventEmitter<void>();
+  @Output() insertSectionBreak = new EventEmitter<SectionPageConfig>();
+  @Output() updateSectionConfig = new EventEmitter<Partial<SectionPageConfig>>();
+  @Output() deletePage = new EventEmitter<void>();
   @Output() applyColumns = new EventEmitter<SectionColumnsPreset>();
   @Output() applyIndentLeft = new EventEmitter<number>();
   @Output() applyIndentRight = new EventEmitter<number>();
@@ -204,6 +216,37 @@ export class WordLayoutToolbarComponent implements OnInit, OnChanges {
   toggleHyphenation(): void {
     this.openMenu.set(null);
     this.updateLayout.emit(prev => ({ ...prev, hyphenation: !prev.hyphenation }));
+  }
+
+  triggerPageBreak(): void {
+    this.openMenu.set(null);
+    this.insertPageBreak.emit();
+  }
+
+  triggerSectionBreak(config: SectionPageConfig = {}): void {
+    this.openMenu.set(null);
+    this.insertSectionBreak.emit(config);
+  }
+
+  toggleDifferentFirstPage(): void {
+    const current = this.activeSectionInfo?.differentFirstPage ?? Boolean(this.layoutConfig.differentFirstPage);
+    this.updateSectionConfig.emit({ differentFirstPage: !current });
+    this.openMenu.set(null);
+  }
+
+  setSectionNumberFormat(format: PageNumberFormat): void {
+    this.updateSectionConfig.emit({ pageNumberFormat: format });
+    this.openMenu.set(null);
+  }
+
+  setSectionRestartNumbering(restartAt: number | undefined): void {
+    this.updateSectionConfig.emit({ restartPageNumbering: restartAt });
+    this.openMenu.set(null);
+  }
+
+  setSectionOrientation(orientation: PageOrientation): void {
+    this.updateSectionConfig.emit({ orientation });
+    this.openMenu.set(null);
   }
 
   onIndentLeftChange(val: string): void {

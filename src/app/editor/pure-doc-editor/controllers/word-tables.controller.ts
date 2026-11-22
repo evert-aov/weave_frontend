@@ -1,4 +1,5 @@
 import { applyApaObjects } from '../utils/apa-objects';
+import { styleTableElement } from '../utils/table-styling-dom';
 import { signal } from '@angular/core';
 import { mergeTableCells, tableMergePlan, type TableMergePlan } from '../utils/table-cell-grid';
 import { TableItem } from '../models/word-document.model';
@@ -30,11 +31,13 @@ export class WordTablesController {
 
   private selectedRange: { start: HTMLTableCellElement; end: HTMLTableCellElement } | null = null;
   readonly mergeBox = signal<{ left: number; top: number; width: number; height: number } | null>(null);
+  readonly canMergeCellsSignal = signal(false);
   private selectionDragAbort: AbortController | null = null;
 
   clearSelection(): void {
     this.selectionDragAbort?.abort(); this.selectionDragAbort = null;
     this.selectedRange = null; this.mergeBox.set(null);
+    this.canMergeCellsSignal.set(false);
   }
 
   selectCell(event: PointerEvent, pageIndex: number): boolean {
@@ -61,6 +64,7 @@ export class WordTablesController {
         const end = pointer.target instanceof Element ? pointer.target.closest<HTMLTableCellElement>('td,th') : null;
         if (!end || end.closest('table') !== cell.closest('table')) return;
         if (end !== cell || this.selectedRange) {
+          if (this.selectedRange?.end === end) return;
           this.selectedRange = { start: cell, end };
           window.getSelection()?.removeAllRanges();
           this.refreshSelection();
@@ -93,10 +97,11 @@ export class WordTablesController {
     return tableMergePlan(table, cells);
   }
 
-  canMergeCells(): boolean { return !this.editor.isReadMode() && !!this.mergePlan(); }
+  canMergeCells(): boolean { return !this.editor.isReadMode() && (this.canMergeCellsSignal() || !!this.mergePlan()); }
 
   refreshSelection(): void {
     const plan = this.mergePlan();
+    this.canMergeCellsSignal.set(!!plan && plan.cells.length > 1);
     if (!plan) { this.mergeBox.set(null); return; }
     const bounds = plan.cells.map(slot => slot.cell.getBoundingClientRect());
     const left = Math.min(...bounds.map(rect => rect.left)), top = Math.min(...bounds.map(rect => rect.top));
@@ -126,6 +131,7 @@ export class WordTablesController {
       html: this.editor.getPageBody(p.id)?.innerHTML ?? p.html,
     }));
     const activeEl = this.hooks.getActivePageElement();
+    const existingTables = new Set(activeEl?.querySelectorAll('table'));
     activeEl?.focus();
     let tableHtml = `<table><thead><tr>`;
     for (let c = 1; c <= cols; c++) {
@@ -146,6 +152,9 @@ export class WordTablesController {
     tableHtml += `</table><p><br/></p>`;
     document.execCommand('insertHTML', false, tableHtml);
     const template = this.editor.styleTemplates().find(t => t.id === this.editor.activeTemplateId());
+    if (template?.tableStyle && template.tableStyle.mode !== 'inherit' && activeEl) {
+      for (const table of activeEl.querySelectorAll('table')) if (!existingTables.has(table)) styleTableElement(table, template.tableStyle);
+    }
     if (template?.academicStyle === 'apa7' && activeEl) applyApaObjects([activeEl], template);
     this.editor.commitPageDomToState(this.editor.activePageIndex());
     this.editor.checkAndPaginateOverflow(this.editor.activePageIndex(), preSnapshot);
@@ -178,12 +187,18 @@ export class WordTablesController {
   updateTableResizeCursor(event: PointerEvent): void {
     if (this.tableResizeState) return;
     const target = event.target instanceof Element ? event.target.closest('td,th') as HTMLTableCellElement | null : null;
-    if (!target) { document.body.style.cursor = ''; return; }
+    if (!target) {
+      if (document.body.style.cursor) document.body.style.cursor = '';
+      return;
+    }
     const rect = target.getBoundingClientRect();
     const nearRight = rect.right - event.clientX <= 7;
     const nearBottom = rect.bottom - event.clientY <= 7;
-    document.body.style.cursor = nearBottom && (!nearRight || rect.bottom - event.clientY < rect.right - event.clientX)
+    const cursor = nearBottom && (!nearRight || rect.bottom - event.clientY < rect.right - event.clientX)
       ? 'row-resize' : nearRight ? 'col-resize' : '';
+    if (document.body.style.cursor !== cursor) {
+      document.body.style.cursor = cursor;
+    }
   }
 
   startTableResize(event: PointerEvent, pageIndex: number): void {
@@ -265,7 +280,9 @@ export class WordTablesController {
     this.hooks.scheduleDocumentFlow();
   };
 
-  modifyActiveTable(action: 'addRow' | 'addCol' | 'delRow' | 'delCol' | 'delTable'): void {
+  modifyActiveTable(
+    action: 'addRow' | 'addRowAbove' | 'addRowBelow' | 'addCol' | 'addColLeft' | 'addColRight' | 'delRow' | 'delCol' | 'delTable' | 'splitCell',
+  ): void {
     const activeTableCell = this.editor.activeTableCell();
     if (!activeTableCell) return;
     const row = activeTableCell.parentElement as HTMLTableRowElement | null;
@@ -275,26 +292,55 @@ export class WordTablesController {
     this.editor.pushUndoSnapshot();
     const colIndex = Array.from(row.children).indexOf(activeTableCell);
 
-    if (action === 'addRow') {
+    if (action === 'addRow' || action === 'addRowAbove' || action === 'addRowBelow') {
       const newRow = row.cloneNode(true) as HTMLTableRowElement;
       for (const attribute of ['id', 'data-word-flow', 'data-word-continuation', 'data-word-repeat']) newRow.removeAttribute(attribute);
       Array.from(newRow.children).forEach((cell) => {
         for (const attribute of ['id', 'data-word-flow', 'data-word-continuation', 'data-word-repeat']) cell.removeAttribute(attribute);
         cell.replaceChildren(document.createElement('br'));
       });
-      row.parentElement?.insertBefore(newRow, row.nextSibling);
-    } else if (action === 'addCol') {
+      if (action === 'addRowAbove') {
+        row.parentElement?.insertBefore(newRow, row);
+      } else {
+        row.parentElement?.insertBefore(newRow, row.nextSibling);
+      }
+    } else if (action === 'addCol' || action === 'addColLeft' || action === 'addColRight') {
       Array.from(table.rows).forEach((tr) => {
         const isHeader = tr.parentElement?.tagName === 'THEAD';
         const cell = document.createElement(isHeader ? 'th' : 'td');
         cell.appendChild(document.createElement('br'));
         const refCell = tr.children[colIndex];
-        if (refCell && refCell.nextSibling) {
+        if (action === 'addColLeft' && refCell) {
+          tr.insertBefore(cell, refCell);
+        } else if (refCell && refCell.nextSibling) {
           tr.insertBefore(cell, refCell.nextSibling);
         } else {
           tr.appendChild(cell);
         }
       });
+    } else if (action === 'splitCell') {
+      const span = activeTableCell.colSpan || 1;
+      const rSpan = activeTableCell.rowSpan || 1;
+      if (span > 1) {
+        const leftSpan = Math.ceil(span / 2);
+        const rightSpan = span - leftSpan;
+        activeTableCell.colSpan = leftSpan;
+        const sibling = document.createElement(activeTableCell.tagName.toLowerCase() as 'td' | 'th') as HTMLTableCellElement;
+        if (rightSpan > 1) sibling.colSpan = rightSpan;
+        sibling.appendChild(document.createElement('br'));
+        row.insertBefore(sibling, activeTableCell.nextSibling);
+      } else if (rSpan > 1) {
+        activeTableCell.removeAttribute('rowspan');
+      } else {
+        const sibling = document.createElement(activeTableCell.tagName.toLowerCase() as 'td' | 'th') as HTMLTableCellElement;
+        sibling.appendChild(document.createElement('br'));
+        row.insertBefore(sibling, activeTableCell.nextSibling);
+        Array.from(table.rows).forEach(tr => {
+          if (tr === row) return;
+          const target = tr.children[colIndex] as HTMLTableCellElement | undefined;
+          if (target) target.colSpan = (target.colSpan || 1) + 1;
+        });
+      }
     } else if (action === 'delRow') {
       const allRows = table.querySelectorAll('tr');
       if (allRows.length <= 1) {
@@ -322,6 +368,65 @@ export class WordTablesController {
 
     this.editor.commitPageDomToState(this.editor.activePageIndex());
     this.editor.checkAndPaginateOverflow(this.editor.activePageIndex());
+  }
+
+  setCellBackground(color: string | null): void {
+    const cell = this.editor.activeTableCell();
+    if (!cell) return;
+    this.editor.pushUndoSnapshot();
+    cell.style.backgroundColor = color && color !== 'transparent' ? color : '';
+    this.editor.commitPageDomToState(this.editor.activePageIndex());
+    this.editor.checkAndPaginateOverflow(this.editor.activePageIndex());
+  }
+
+  setCellVerticalAlign(align: 'top' | 'middle' | 'bottom'): void {
+    const cell = this.editor.activeTableCell();
+    if (!cell) return;
+    this.editor.pushUndoSnapshot();
+    cell.style.verticalAlign = align === 'top' ? '' : align;
+    this.editor.commitPageDomToState(this.editor.activePageIndex());
+    this.editor.checkAndPaginateOverflow(this.editor.activePageIndex());
+  }
+
+  toggleHeaderRepeat(): boolean {
+    const table = this.editor.activeTableCell()?.closest('table') as HTMLTableElement | null;
+    if (!table) return false;
+    this.editor.pushUndoSnapshot();
+    const disabled = table.dataset['repeatHeader'] === 'false';
+    if (disabled) {
+      delete table.dataset['repeatHeader'];
+    } else {
+      table.dataset['repeatHeader'] = 'false';
+    }
+    this.editor.commitPageDomToState(this.editor.activePageIndex());
+    this.editor.checkAndPaginateOverflow(this.editor.activePageIndex());
+    return disabled;
+  }
+
+  toggleRowTopBorder(): boolean {
+    const activeTableCell = this.editor.activeTableCell();
+    const row = activeTableCell?.parentElement as HTMLTableRowElement | null;
+    if (!row) return false;
+    const cells = Array.from(row.cells);
+    if (!cells.length) return false;
+    const hasTop = cells.every(c => {
+      if (c.dataset['wordTopBorder'] === 'true') return true;
+      const bt = (c.style.borderTop || '').toLowerCase();
+      return Boolean(bt && !bt.startsWith('none') && !bt.startsWith('0'));
+    });
+    this.editor.pushUndoSnapshot();
+    for (const cell of cells) {
+      if (hasTop) {
+        cell.style.borderTop = '';
+        delete cell.dataset['wordTopBorder'];
+      } else {
+        cell.style.borderTop = '1px solid #000000';
+        cell.dataset['wordTopBorder'] = 'true';
+      }
+    }
+    this.editor.commitPageDomToState(this.editor.activePageIndex());
+    this.editor.checkAndPaginateOverflow(this.editor.activePageIndex());
+    return !hasTop;
   }
 
   activeTableToolsVisible(): boolean {

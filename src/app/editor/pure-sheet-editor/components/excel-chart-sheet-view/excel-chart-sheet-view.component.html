@@ -76,6 +76,8 @@
 
     <!-- Chart Box -->
     <div class="h-96 w-full rounded-lg p-4 border transition-colors"
+         role="region"
+         [attr.aria-label]="i18n.currentLang() === 'es' ? 'Lienzo de gráfico de hoja' : 'Sheet chart canvas'"
          [class.bg-slate-900]="themeService.isDark()"
          [class.border-slate-700]="themeService.isDark()"
          [class.bg-white]="!themeService.isDark()"

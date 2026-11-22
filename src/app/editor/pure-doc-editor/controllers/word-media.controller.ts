@@ -10,6 +10,7 @@ import type { WordEditorHooks } from './word-editor-hooks';
 
 type WordMediaControllerHost = Pick<PureDocEditorComponent,
   | 'activePageIndex'
+  | 'canvasEnabled'
   | 'checkAndPaginateOverflow'
   | 'commitPageDomToState'
   | 'copiedInlineStyle'
@@ -79,6 +80,12 @@ export class WordMediaController {
       const figureHtml = `<figure style="margin: 1.5rem auto; text-align: center; max-width: 100%;"><img src="${displayUrl}" alt="${file.name}" style="max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: inline-block;" /><figcaption style="font-size: 0.8rem; color: #64748b; text-align: center; margin-top: 6px; font-style: italic;">Figura: ${file.name}</figcaption></figure><p><br/></p>`;
 
       this.hooks.restoreSelection();
+      if (this.editor.canvasEnabled()) {
+        this.editor.insertHtmlAtCursorOrActivePage(figureHtml);
+        this.hooks.showToast('Imagen persistida físicamente en servidor con éxito');
+        return;
+      }
+
       const activeEl = this.editor.getPageBody(this.editor.pages()[targetIdx]?.id) || this.hooks.getActivePageElement();
 
       if (activeEl) {
@@ -92,6 +99,9 @@ export class WordMediaController {
         this.editor.commitPageDomToState(targetIdx);
         this.editor.checkAndPaginateOverflow(targetIdx);
         this.hooks.scheduleAutoSave(this.hooks.collectDocData());
+        this.hooks.showToast('Imagen persistida físicamente en servidor con éxito');
+      } else {
+        this.editor.insertHtmlAtCursorOrActivePage(figureHtml);
         this.hooks.showToast('Imagen persistida físicamente en servidor con éxito');
       }
     } catch (err) {
@@ -139,14 +149,12 @@ export class WordMediaController {
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) return;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.type.startsWith('image/')) {
-        e.preventDefault();
-        this.editor.activePageIndex.set(pageIndex);
-        await this.uploadAndInsertImageFile(file, pageIndex);
-        return;
-      }
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+    if (!imageFiles.length) return;
+    e.preventDefault();
+    this.editor.activePageIndex.set(pageIndex);
+    for (const file of imageFiles) {
+      await this.uploadAndInsertImageFile(file, pageIndex);
     }
   }
 
@@ -186,9 +194,10 @@ export class WordMediaController {
   }
 
   handleInsertScreenshot(): void {
+    const cameraSvg = '<svg class="word-doc-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>';
     const figureHtml = `
       <figure class="word-screenshot-placeholder" contenteditable="false" style="margin:16px auto;text-align:center;max-width:100%;border:1.5px dashed #94a3b8;border-radius:8px;padding:16px;background:#f8fafc;">
-        <div style="font-size:24px;margin-bottom:6px;">📸</div>
+        <div style="display:flex;justify-content:center;margin-bottom:6px;">${cameraSvg}</div>
         <div contenteditable="true" style="font-weight:600;font-size:13px;color:#334155;outline:none;">Captura de Pantalla</div>
         <div style="font-size:11px;color:#64748b;margin-top:2px;">(Pega una imagen con Ctrl+V o arrastra una imagen aquí)</div>
       </figure><p><br/></p>

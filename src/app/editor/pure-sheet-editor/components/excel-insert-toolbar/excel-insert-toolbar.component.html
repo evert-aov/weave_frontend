@@ -7,8 +7,9 @@
        [class.border-slate-200]="!themeService.isDark()">
     <div class="flex items-center gap-1.5">
       <button type="button"
-              (click)="handleOpenModal('recommended')"
-              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              (click)="openPivot.emit()"
+              data-testid="insert-pivot-btn"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors cursor-pointer"
               [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
               [class.hover:bg-slate-100]="!themeService.isDark()">
         <svg lucideIcon="file-spreadsheet" [size]="18" class="text-sky-400 mb-0.5"></svg>
@@ -17,20 +18,11 @@
 
       <button type="button"
               (click)="formatSelectionAsTable.emit()"
-              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
+              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors cursor-pointer"
               [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
               [class.hover:bg-slate-100]="!themeService.isDark()">
         <svg lucideIcon="table" [size]="18" class="text-emerald-400 mb-0.5"></svg>
         <span>Table</span>
-      </button>
-
-      <button type="button"
-              (click)="formatSelectionAsTable.emit()"
-              class="flex flex-col items-center px-2 py-1 rounded text-center transition-colors"
-              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
-              [class.hover:bg-slate-100]="!themeService.isDark()">
-        <svg lucideIcon="file-text" [size]="18" class="text-teal-400 mb-0.5"></svg>
-        <span>Forms</span>
       </button>
     </div>
     <div class="text-[10px] text-gray-400 text-center mt-1">Tables</div>
@@ -42,8 +34,9 @@
        [class.border-slate-200]="!themeService.isDark()">
     <div class="flex items-center gap-1.5">
       <button type="button"
-              (click)="handleOpenModal('all', 'column')"
-              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              (click)="insertPicture.emit()"
+              data-testid="insert-picture-btn"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors cursor-pointer"
               [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
               [class.hover:bg-slate-100]="!themeService.isDark()">
         <svg lucideIcon="image" [size]="18" class="text-sky-400 mb-0.5"></svg>
@@ -52,7 +45,7 @@
 
       <button type="button"
               (click)="openShapes.emit()"
-              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors cursor-pointer"
               [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
               [class.hover:bg-slate-100]="!themeService.isDark()">
         <svg lucideIcon="shapes" [size]="18" class="text-sky-400 mb-0.5"></svg>
@@ -61,31 +54,12 @@
 
       <button type="button"
               (click)="openIcons.emit()"
-              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors cursor-pointer"
               [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
               [class.hover:bg-slate-100]="!themeService.isDark()">
         <svg lucideIcon="sparkles" [size]="18" class="text-amber-400 mb-0.5"></svg>
         <span>Icons</span>
       </button>
-
-      <div class="flex flex-col gap-0.5">
-        <button type="button"
-                (click)="handleOpenModal('all', 'surface')"
-                class="flex items-center gap-1 px-1.5 py-0.5 rounded text-left transition-colors"
-                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
-                [class.hover:bg-slate-100]="!themeService.isDark()">
-          <svg lucideIcon="box" [size]="12" class="text-sky-400"></svg>
-          <span>3D Models</span>
-        </button>
-        <button type="button"
-                (click)="handleOpenModal('all', 'treemap')"
-                class="flex items-center gap-1 px-1.5 py-0.5 rounded text-left transition-colors"
-                [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
-                [class.hover:bg-slate-100]="!themeService.isDark()">
-          <svg lucideIcon="activity" [size]="12" class="text-emerald-400"></svg>
-          <span>SmartArt</span>
-        </button>
-      </div>
     </div>
     <div class="text-[10px] text-gray-400 text-center mt-1">Illustrations</div>
   </div>
@@ -454,9 +428,37 @@
     <div class="text-[10px] text-gray-400 text-center mt-1">Charts</div>
   </div>
 
+  <!-- 4b. Sparklines Group -->
+  <div class="flex flex-col items-center px-2 border-r h-full justify-between"
+       [class.border-[#3d3d3d]]="themeService.isDark()"
+       [class.border-slate-300]="!themeService.isDark()">
+    <div class="flex items-center gap-1 my-auto">
+      <button type="button"
+              (click)="openSparklineModal.emit()"
+              data-testid="insert-sparkline-btn"
+              class="flex flex-col items-center justify-center p-1.5 rounded hover:bg-[#3d3d3d]/50 transition-colors text-[10px] w-14 h-14"
+              title="Insertar minigráfico en celda">
+        <svg lucideIcon="activity" [size]="18" class="text-emerald-400 mb-0.5"></svg>
+        <span>Minigráficos</span>
+      </button>
+    </div>
+    <div class="text-[10px] text-gray-400 text-center mt-1">Sparklines</div>
+  </div>
+
   <!-- 5. Links & Symbols Group -->
   <div class="flex flex-col justify-between px-2 shrink-0">
     <div class="flex items-center gap-1.5">
+      <button type="button"
+              (click)="openHyperlinkModal.emit()"
+              data-testid="insert-hyperlink-btn"
+              title="Insertar o editar hipervínculo (Ctrl+K)"
+              class="flex flex-col items-center px-1.5 py-1 rounded transition-colors"
+              [class.hover:bg-[#2d2d2d]]="themeService.isDark()"
+              [class.hover:bg-slate-100]="!themeService.isDark()">
+        <svg lucideIcon="link" [size]="18" class="text-sky-400 mb-0.5"></svg>
+        <span>Link</span>
+      </button>
+
       <button type="button"
               (click)="insertEquation.emit()"
               title="Insertar ecuación matemática"

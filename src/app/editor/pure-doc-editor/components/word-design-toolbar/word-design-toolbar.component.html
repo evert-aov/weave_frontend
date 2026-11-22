@@ -55,11 +55,11 @@
           >
             <!-- Miniature Document Sheet Preview (Matching Image 0) -->
             <div class="mini-sheet">
-              <div class="mini-title" [style.fontFamily]="h1?.fontFamily" [style.color]="h1?.color">
+              <div class="mini-title" [style.fontFamily]="h1?.fontFamily" [style.color]="resolveMiniColor(h1?.color)">
                 {{ t('word.design.mini_title', 'TÍTULO') }}
               </div>
-              <div class="mini-divider" [style.backgroundColor]="h1?.color"></div>
-              <div class="mini-heading" [style.color]="tpl.rules['H2']?.color">
+              <div class="mini-divider" [style.backgroundColor]="resolveMiniColor(h1?.color, true)"></div>
+              <div class="mini-heading" [style.color]="resolveMiniColor(tpl.rules['H2']?.color)">
                 {{ t('word.design.mini_heading', 'Título 1') }}
               </div>
               <div class="mini-body-lines">
@@ -168,15 +168,15 @@
           }
         </div>
 
-        <!-- Effects -->
+        <!-- Templates (formerly Effects) -->
         <button
           type="button"
           class="btn-compact-text"
           (click)="openDesigner.emit()"
-          [title]="t('word.design.effects', 'Efectos')"
+          [title]="t('word.design.templates', 'Plantillas')"
         >
-          <svg lucideIcon="sparkles" [size]="13" class="text-indigo-600"></svg>
-          <span>{{ t('word.design.effects', 'Efectos') }}</span>
+          <svg lucideIcon="layers" [size]="13" [class]="darkMode ? 'text-blue-400' : 'text-indigo-600'"></svg>
+          <span>{{ t('word.design.templates', 'Plantillas') }}</span>
           <svg lucideIcon="chevron-down" [size]="9"></svg>
         </button>
 

@@ -5,14 +5,6 @@
   overflow: hidden;
 }
 
-table {
-  border-spacing: 0;
-}
-
-td, th {
-  box-sizing: border-box;
-}
-
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
@@ -32,36 +24,36 @@ td, th {
 .trace-targets button:hover, .trace-back:hover { background: #3b82f615; }
 .trace-targets button:disabled { opacity: .5; cursor: default; }
 .trace-back { margin-top: 10px; }
-.trace-cell-highlight::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 15;
-  background: rgba(245, 158, 11, .24);
-  box-shadow: inset 0 0 0 3px #f59e0b;
+.sheet-canvas-world { overflow-anchor: none; }
+
+.sheet-footer {
+  flex-wrap: nowrap;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  white-space: nowrap;
 }
-
-.virtual-sheet-table { overflow-anchor: none; }
-.virtual-spacer { padding: 0 !important; border: 0 !important; line-height: 0; pointer-events: none; }
-
 .sheet-tabs-scroll {
   display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-content: flex-start;
+  flex: 1 1 0%;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 4px;
   min-width: 0;
-  max-height: 60px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #94a3b8 transparent;
+  height: 28px;
+  max-height: 28px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.sheet-tab { flex: 0 0 auto; height: 28px; max-width: 100%; white-space: nowrap; }
-.sheet-tab-name { min-width: 12px; max-width: 220px; overflow: hidden; white-space: nowrap; }
+.sheet-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+.sheet-tab { flex: 0 0 auto; height: 28px; max-height: 28px; max-width: 100%; white-space: nowrap; }
+.sheet-tab-name { min-width: 12px; max-width: 220px; max-height: 20px; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet-tab-name:focus { box-shadow: inset 0 -1px currentColor; }
-.sheet-status { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; max-width: 50%; }
+.sheet-status { flex: 0 0 auto; flex-wrap: nowrap; white-space: nowrap; justify-content: flex-end; height: 28px; }
 
 .formula-completion { position: fixed; z-index: 65; width: 420px; max-width: calc(100vw - 16px); max-height: 260px; overflow: auto; background: #fff; color: #334155; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 24px #0003; font-size: 12px; }
 .formula-completion button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 6px 12px; text-align: left; }

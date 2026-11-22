@@ -1,11 +1,12 @@
+import { HeadingOutlineCounter } from './heading-outline-counter';
 import { markDocumentSelection, restoreDocumentSelection } from './document-selection';
 
 const PREFIX = '[data-word-heading-number]';
-const HEADINGS = 'h1,h2,h3,h4,h5,h6';
+const HEADINGS = 'h1,h2,h3,h4,h5,h6,p[data-apa-run-in]';
 
 /** Number a single outline across page hosts. Only generated prefixes are mutable. */
 export function renumberHeadings(bodies: HTMLElement[], enabled: boolean): boolean {
-  const counters = [0,0,0,0,0,0];
+  const outline = new HeadingOutlineCounter();
   const actions: (() => void)[] = [];
   for (const body of bodies) {
     body.querySelectorAll<HTMLElement>(PREFIX).forEach(prefix => {
@@ -14,36 +15,47 @@ export function renumberHeadings(bodies: HTMLElement[], enabled: boolean): boole
     if (!enabled) continue;
     body.querySelectorAll<HTMLElement>(HEADINGS).forEach(heading => {
       const prefixes = Array.from(heading.querySelectorAll<HTMLElement>(PREFIX));
-      if (heading.hasAttribute('data-word-continuation')) {
-        prefixes.forEach(prefix => actions.push(() => prefix.remove())); return;
-      }
-      const level = Number(heading.tagName.slice(1));
       const walker = document.createTreeWalker(heading,NodeFilter.SHOW_TEXT);
       let title = '';
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         if (!node.parentElement?.closest(PREFIX)) title += node.textContent || '';
       }
-      title = title.trim();
-      // Existing imported/written numbering is content, never erase or duplicate it.
-      const manual = title.match(/^(\d+(?:\.\d+)*)(?:\.)?\s+/);
-      if (manual && manual[1].split('.').length === level) {
-        const values = manual[1].split('.').map(Number);
-        for (let index = 0; index < level; index++) counters[index] = values[index];
-        counters.fill(0,level);
+      const hasTitle = title.replace(/[\u200b-\u200d\ufeff]/g, '').trim().length > 0;
+      if (hasTitle && heading.hasAttribute('data-word-chapter') && !heading.hasAttribute('data-word-continuation')) outline.startChapter();
+      if (!hasTitle || heading.hasAttribute('data-word-chapter') || heading.hasAttribute('data-word-continuation')) {
         prefixes.forEach(prefix => actions.push(() => prefix.remove())); return;
       }
-      for (let index = 0; index < level - 1; index++) if (!counters[index]) counters[index] = 1;
-      counters[level - 1]++; counters.fill(0,level);
-      const number = counters.slice(0,level).join('.') + (level === 1 ? '.' : '') + ' ';
+      const level = heading.hasAttribute('data-apa-run-in')
+        ? Math.min(6, Math.max(1, Number(heading.getAttribute('data-apa-run-in')) || 4))
+        : Number(heading.tagName.slice(1));
+      const oldPrefixLength = outline.chapterPrefixLength(title);
+      if (oldPrefixLength) actions.push(() => {
+        // Selection bookmarks can split text runs before actions are executed.
+        const textWalker = document.createTreeWalker(heading, NodeFilter.SHOW_TEXT);
+        let remaining = oldPrefixLength;
+        for (let node = textWalker.nextNode(); node && remaining; node = textWalker.nextNode()) {
+          if (node.parentElement?.closest(PREFIX)) continue;
+          const text = node as Text;
+          const count = Math.min(remaining, text.data.length);
+          text.data = text.data.slice(count);
+          remaining -= count;
+        }
+      });
+      title = title.trim();
+      const number = outline.next(level, title);
+      if (number === null) {
+        prefixes.forEach(prefix => actions.push(() => prefix.remove())); return;
+      }
       const prefix = prefixes[0];
       prefixes.slice(1).forEach(extra => actions.push(() => extra.remove()));
-      if (!prefix || prefix.textContent !== number || prefix.parentElement !== heading) actions.push(() => {
+      const target = heading.querySelector<HTMLElement>('[data-apa-heading-level]') ?? heading;
+      if (!prefix || prefix.textContent !== number || prefix.parentElement !== target) actions.push(() => {
         const element = prefix ?? document.createElement('span');
         element.dataset['wordHeadingNumber'] = 'true';
         element.setAttribute('contenteditable','false');
         element.style.cssText = 'font:inherit;color:inherit;white-space:pre;margin-right:0.4em;';
         element.textContent = number;
-        if (!prefix || element.parentElement !== heading) heading.prepend(element);
+        if (!prefix || element.parentElement !== target) target.prepend(element);
       });
     });
   }

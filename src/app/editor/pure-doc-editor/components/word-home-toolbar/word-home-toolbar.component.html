@@ -50,11 +50,12 @@
         @if (menu() === 'list') { <div class="home-menu">@for (item of listStyles; track item.value) { <button type="button" (click)="run('listStyle', item.value)">{{ item.label }}</button> }</div> }
       </div>
       <div class="menu-anchor">
-        <button type="button" [title]="t('word.paragraph.multilevel')" [attr.aria-label]="t('word.paragraph.multilevel')" [attr.aria-expanded]="menu() === 'outline'" [class.active]="headingNumbering" [disabled]="template.academicStyle === 'apa7'" (click)="toggle('outline')"><svg lucideIcon="list-tree" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
+        <button type="button" [title]="t('word.paragraph.multilevel')" [attr.aria-label]="t('word.paragraph.multilevel')" [attr.aria-expanded]="menu() === 'outline'" [class.active]="headingNumbering" (click)="toggle('outline')"><svg lucideIcon="list-tree" [size]="16"></svg><svg lucideIcon="chevron-down" [size]="10"></svg></button>
         @if (menu() === 'outline') { <div class="home-menu">
           <button type="button" (click)="run('headingNumbering','on')">{{ t('word.paragraph.h_numbered') }}</button>
           <button type="button" (click)="run('headingNumbering','off')">{{ t('word.paragraph.h_unnumbered') }}</button>
           <button type="button" (click)="run('multilevelList')">{{ t('word.paragraph.multilevel_paragraphs') }}</button>
+          <button type="button" (click)="run('restartListNumbering')">Reiniciar numeración en 1</button>
         </div> }
       </div>
       <button type="button" [title]="t('word.paragraph.outdent')" [attr.aria-label]="t('word.paragraph.outdent')" (click)="run('outdent')"><svg lucideIcon="indent-decrease" [size]="16"></svg></button>
@@ -88,6 +89,7 @@
   </section>
   <section class="home-group styles-group" [attr.aria-label]="t('word.group.styles')">
     <div class="style-gallery" (wheel)="onGalleryWheel($event)">
+      <div class="style-tile"><button type="button" class="style-apply" (click)="run('chapter')" [attr.aria-label]="t('word.style.chapter')"><strong class="style-label">{{ t('word.style.chapter') }}</strong></button></div>
       @for (tag of tags; track tag) {
         @let rule = template.rules[tag];
         <div class="style-tile" [class.selected]="formats.heading === tag" (contextmenu)="$event.preventDefault(); toggleStyleMenu(tag, $event)">

@@ -29,6 +29,15 @@ describe('bounded AI requests', () => {
   });
   afterEach(() => { http?.verify(); vi.restoreAllMocks(); });
 
+  it('sends explicit attachments independently of the active-document context',()=>{
+    service.includeDocumentContext.set(false);
+    const attachments=[{name:'datos.txt',mimeType:'text/plain' as const,text:'Ventas 120'}];
+    expect(service.sendMessage('Analiza los adjuntos',attachments)).toBe(true);
+    const req=http.expectOne(url);expect(req.request.body.attachments).toEqual(attachments);
+    expect(req.request.body.documentContext).toBeUndefined();
+    req.flush({reply:'Analizado'});
+  });
+
   it('skips embedded binary images and non-readable HTML while retaining the text after them', () => {
     const html = '<p>Inicio &amp; texto</p><img alt="a > b" src="data:image/png;base64,'
       + 'A'.repeat(2_000_000) + '"><style>PRIVATE_STYLE</style><script>PRIVATE_SCRIPT</script>'
@@ -43,12 +52,12 @@ describe('bounded AI requests', () => {
   it('caps a large Word context before HTTP serialization and stops reading later pages', () => {
     const laterPage = { get html(): string { throw new Error('Unneeded page was read'); } };
     currentNote.set({ title: 'Word', docType: 'doc', docData: {
-      pages: [{ html: `<p>${'Texto '.repeat(70_000)}</p>` }, laterPage],
+      pages: [{ html: `<p>${'Texto '.repeat(300_000)}</p>` }, laterPage],
     } } as Note);
     service.sendMessage('Resume el documento');
     const request = http.expectOne(url);
     expect(request.request.body.documentContext.content.length).toBeLessThanOrEqual(AI_REQUEST_LIMITS.document);
-    expect(new TextEncoder().encode(JSON.stringify(request.request.body)).byteLength).toBeLessThan(1_000_000);
+    expect(new TextEncoder().encode(JSON.stringify(request.request.body)).byteLength).toBeLessThan(2_000_000);
     expect(service.documentContextTruncated()).toBe(true);
     request.flush({ reply: 'Resumen' });
     expect(service.isGenerating()).toBe(false);
@@ -90,20 +99,23 @@ describe('bounded AI requests', () => {
   });
 
   it('sends the selected model in the request payload and updates activeModel on response', () => {
-    service.setSelectedModel('gemini-4-argon');
-    service.sendMessage('Razona este problema');
-    const request = http.expectOne(url);
-    expect(request.request.body.model).toBe('gemini-4-argon');
-    request.flush({ reply: 'Solución', model: 'gemini-4-argon' });
-    expect(service.activeModel()).toBe('gemini-4-argon');
+    for (const model of ['gemini-4-argon', 'gemini-4-hydrogen', 'gemini-4-carbon']) {
+      expect(service.availableModels.some((item) => item.id === model)).toBe(true);
+      service.setSelectedModel(model);
+      service.sendMessage('Razona este problema');
+      const request = http.expectOne(url);
+      expect(request.request.body.model).toBe(model);
+      request.flush({ reply: 'Solución', model });
+      expect(service.activeModel()).toBe(model);
+    }
   });
 
   it('reports an oversized current message without silently truncating or sending it', () => {
-    service.sendMessage('x'.repeat(12_001));
+    service.sendMessage('x'.repeat(AI_REQUEST_LIMITS.message + 1));
     http.expectNone(url);
     expect(service.isGenerating()).toBe(false);
     expect(service.messages().at(-1)!.error).toBe(true);
-    expect(service.messages().at(-1)!.content).toContain('12 000');
+    expect(service.messages().at(-1)!.content).toContain('250 000');
   });
 
   it('shows an actionable 413 error and releases the generating state for retry', () => {
@@ -114,6 +126,17 @@ describe('bounded AI requests', () => {
     expect(service.messages().at(-1)!.content).toContain('Desactiva el contexto');
     service.sendMessage('Reintentar');
     http.expectOne(url).flush({ reply: 'OK' });
+  });
+
+  it('shows safe API validation details for a rejected chat request', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    service.sendMessage('Actualiza el documento');
+    http.expectOne(url).flush(
+      { statusCode: 400, message: ['editTargets must contain no more than 10000 elements'] },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    expect(service.messages().at(-1)!.content).toContain('editTargets must contain no more than 10000 elements');
+    expect(service.isGenerating()).toBe(false);
   });
 
   it('starts empty and restores persisted messages with their original identifiers and dates', () => {
@@ -179,5 +202,44 @@ describe('bounded AI requests', () => {
     expect(service.messages()).toEqual([]);
     expect(service.historyReady()).toBe(false);
     http.expectNone((request) => request.method === 'DELETE');
+  });
+
+  it('pins conversation attachments across follow-up turns until unpinned', () => {
+    service.includeDocumentContext.set(false);
+    const attachment = { name: 'ventas.csv', mimeType: 'text/plain' as const, text: 'Mes,Total\nEne,500' };
+    expect(service.sendMessage('Analiza ventas', [attachment])).toBe(true);
+    const req1 = http.expectOne(url);
+    expect(req1.request.body.attachments).toEqual([attachment]);
+    req1.flush({ reply: 'Resumen ventas' });
+
+    expect(service.activePinnedAttachments()).toEqual([attachment]);
+    expect(service.sendMessage('Calcula promedio')).toBe(true);
+    const req2 = http.expectOne(url);
+    expect(req2.request.body.attachments).toEqual([attachment]);
+    req2.flush({ reply: 'Promedio listo' });
+
+    service.unpinAttachment('ventas.csv');
+    expect(service.activePinnedAttachments()).toEqual([]);
+    expect(service.sendMessage('Sin adjunto')).toBe(true);
+    const req3 = http.expectOne(url);
+    expect(req3.request.body.attachments).toBeUndefined();
+    req3.flush({ reply: 'OK' });
+  });
+
+  it('queues concurrent prompts and supports cancelling in-flight generation', () => {
+    expect(service.sendMessage('Primera consulta')).toBe(true);
+    expect(service.isGenerating()).toBe(true);
+    expect(service.sendMessage('Segunda consulta')).toBe(true);
+    expect(service.queuedPrompts().map(q => q.prompt)).toEqual(['Segunda consulta']);
+
+    const req1 = http.expectOne(url);
+    req1.flush({ reply: 'Primera respuesta' });
+
+    expect(service.queuedPrompts()).toEqual([]);
+    const req2 = http.expectOne(url);
+    expect(req2.request.body.message).toBe('Segunda consulta');
+    service.cancelGeneration();
+    expect(req2.cancelled).toBe(true);
+    expect(service.isGenerating()).toBe(false);
   });
 });

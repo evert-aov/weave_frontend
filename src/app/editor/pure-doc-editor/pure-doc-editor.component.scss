@@ -241,6 +241,7 @@ app-pure-doc-editor {
   .word-toc-entry {
     display: flex;
     align-items: baseline;
+    box-sizing: border-box;
     width: 100%;
     margin-top: 0pt;
     margin-bottom: 3.5pt;
@@ -250,7 +251,7 @@ app-pure-doc-editor {
     color: #0f172a;
     cursor: pointer;
     border-radius: 3px;
-    padding: 1px 4px;
+    padding: 1px 4px 1px 0;
     transition: background-color 0.15s ease, color 0.15s ease;
     user-select: none;
 
@@ -269,8 +270,8 @@ app-pure-doc-editor {
 
   .word-toc-dots {
     flex: 1;
-    border-bottom: 1.5px dotted #64748b;
-    margin: 0 6px;
+    border-bottom: 1.5px dotted currentColor;
+    margin: 0 4px;
     min-width: 20px;
     height: 0.75em;
   }
@@ -556,4 +557,10 @@ app-pure-doc-editor {
 .word-editor-canvas .word-toc-page-section[data-native-word-toc] {
   .word-toc-entry { align-items:flex-end; }
   .word-toc-title { white-space:normal; overflow:visible; text-overflow:clip; min-width:0; }
+}
+
+.word-editor-canvas.word-hybrid-source { opacity: 0; }
+@media print {
+  .word-hybrid-surface { display: none !important; }
+  .word-editor-canvas.word-hybrid-source { opacity: 1 !important; }
 }

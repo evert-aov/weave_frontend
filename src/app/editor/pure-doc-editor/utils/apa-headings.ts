@@ -2,7 +2,7 @@ import type { StyleTemplate } from '../models/word-document.model';
 import { applyStyleRule } from './document-formatting';
 
 export const APA_HEADING_SELECTOR = 'h1,h2,h3,h4,h5,h6,[data-apa-heading-level]';
-export function headingLevel(element: HTMLElement): number { return Number(element.dataset['apaHeadingLevel'] || element.tagName.slice(1)); }
+export function headingLevel(element: HTMLElement): number { return element.hasAttribute('data-word-chapter')?0:Number(element.dataset['apaHeadingLevel'] || element.tagName.slice(1)); }
 export function clearRunInHeading(block: HTMLElement): void {
   block.removeAttribute('data-apa-run-in');
   block.querySelectorAll<HTMLElement>('[data-apa-heading-level]').forEach(span => span.replaceWith(...Array.from(span.childNodes)));
@@ -33,7 +33,15 @@ export function runInHeading(block: HTMLElement, level: 4 | 5, template: StyleTe
   return paragraph;
 }
 export function normalizeApaHeadings(bodies: HTMLElement[], template: StyleTemplate): void {
+  const hasChapters = bodies.some(body => Array.from(body.querySelectorAll<HTMLElement>('[data-word-chapter]')).some(heading => heading.textContent?.replace(/[\u200b-\u200d\ufeff]/g, '').trim()));
   bodies.forEach(body => {
+    body.querySelectorAll<HTMLElement>('h1').forEach(heading => {
+      const chapter = heading.hasAttribute('data-word-chapter');
+      if (!hasChapters && !heading.hasAttribute('data-word-apa-chapter-style')) return;
+      applyStyleRule(heading, hasChapters && !chapter ? template.rules.H2 : template.rules.H1);
+      if (hasChapters) heading.setAttribute('data-word-apa-chapter-style', 'true');
+      else heading.removeAttribute('data-word-apa-chapter-style');
+    });
     body.querySelectorAll<HTMLElement>('h4,h5,h6,p[data-apa-run-in]').forEach(block => {
       if (!block.isConnected && body.isConnected) return;
       if (block.tagName === 'P' && !block.querySelector('[data-apa-heading-level]')) { block.removeAttribute('data-apa-run-in'); return; }

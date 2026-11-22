@@ -1,4 +1,4 @@
-import { CalcArray, CalcError, fail, first, LIMIT, Value } from './calc-types';
+import { CalcArray, CalcError, fail, first, LIMIT, parseNumericLiteral, Value } from './calc-types';
 import { evaluateTree, parseFormula, mayReturnArray, Node } from './formula-parser';
 import { callFunction, dateSerial } from './calc-functions';
 import { Injectable } from '@angular/core';
@@ -429,7 +429,7 @@ export function evaluateConditionalFormat(
   return matchedResult;
 }
 
-function interpolateColorScale(
+export function interpolateColorScale(
   ratio: number,
   preset: 'green-yellow-red' | 'red-yellow-green' | 'blue-white-red'
 ): { bg: string; text: string } {
@@ -623,7 +623,11 @@ export function evaluateCellValue(cellId: string, grid: SheetGrid, visited: Set<
   const raw = cell.raw.trim();
   if (!raw.startsWith('=')) {
     if (cell.xlsxType === 'date') return dateSerial(new Date(raw));
-    return cell.xlsxType === 'text' ? raw : Number.isFinite(Number(raw)) && raw !== '' ? Number(raw) : raw;
+    if (cell.xlsxType === 'text') return raw;
+    if (raw !== '' && Number.isFinite(Number(raw))) return Number(raw);
+    const parsedLiteral = parseNumericLiteral(raw);
+    if (parsedLiteral !== null) return parsedLiteral.value;
+    return raw;
   }
   visited.add(key);
   try {

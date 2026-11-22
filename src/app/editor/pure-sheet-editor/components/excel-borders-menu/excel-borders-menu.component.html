@@ -249,17 +249,15 @@
               </button>
             </div>
 
-            <!-- Automatic Option (adapts to light/dark theme) -->
+            <!-- Automatic Option (matches white editable cell surface) -->
             <button type="button"
                     (click)="onColorClick(automaticColor)"
                     class="w-full flex items-center gap-2.5 px-1.5 py-1 rounded-sm mb-2 cursor-pointer transition-colors"
                     [class.hover:bg-slate-100]="!themeService.isDark()"
                     [class.hover:bg-slate-700]="themeService.isDark()">
-              <span class="w-3.5 h-3.5 border shrink-0"
-                    [class.bg-black]="!themeService.isDark()"
+              <span class="w-3.5 h-3.5 border bg-black shrink-0"
                     [class.border-slate-300]="!themeService.isDark()"
-                    [class.bg-slate-100]="themeService.isDark()"
-                    [class.border-slate-600]="themeService.isDark()"></span>
+                    [class.border-slate-500]="themeService.isDark()"></span>
               <span class="text-[12px] font-medium">Automatic</span>
               @if (lineColor.toLowerCase() === automaticColor.toLowerCase()) {
                 <svg lucideIcon="check" [size]="14" class="text-emerald-500 ml-auto"></svg>
@@ -543,13 +541,7 @@
               </button>
 
               <!-- Central Cell Preview with simulated borders -->
-              <div class="w-36 h-24 border rounded flex items-center justify-center text-xs select-none relative transition-all"
-                   [class.bg-white]="!themeService.isDark()"
-                   [class.border-slate-200]="!themeService.isDark()"
-                   [class.text-slate-500]="!themeService.isDark()"
-                   [class.bg-slate-800]="themeService.isDark()"
-                   [class.border-slate-700]="themeService.isDark()"
-                   [class.text-slate-400]="themeService.isDark()"
+              <div class="w-36 h-24 border border-slate-200 rounded flex items-center justify-center text-xs select-none relative transition-all bg-white text-slate-600"
                    [style.border-top]="customTop ? (customStyle === 'thick' ? '3px solid ' + customColor : customStyle === 'medium' ? '2px solid ' + customColor : '1px solid ' + customColor) : '1px dashed #94a3b8'"
                    [style.border-bottom]="customBottom ? (customStyle === 'thick' ? '3px solid ' + customColor : customStyle === 'medium' ? '2px solid ' + customColor : '1px solid ' + customColor) : '1px dashed #94a3b8'"
                    [style.border-left]="customLeft ? (customStyle === 'thick' ? '3px solid ' + customColor : customStyle === 'medium' ? '2px solid ' + customColor : '1px solid ' + customColor) : '1px dashed #94a3b8'"

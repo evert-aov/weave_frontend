@@ -46,6 +46,20 @@ describe('Word Home through its real ribbon and editor template', () => {
     const range = document.createRange(); range.selectNodeContents(sample);
     window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
   }
+  it('commits model text input through Word and restores it with document undo',()=>{
+    const editor=fixture.componentInstance;
+    const sample=fixture.nativeElement.querySelector('#sample') as HTMLElement;
+    const body=sample.closest<HTMLElement>('[data-page-body-id]')!;
+    body.focus();window.getSelection()!.collapse(sample.firstChild!,2);
+    const original=sample.outerHTML;
+    const event=new InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType:'insertText',data:'á'});
+    body.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(sample.textContent).toBe('Saámple');
+    expect(editor.pages()[0].html).toContain('Saámple');
+    editor.handleGlobalUndo();
+    expect(editor.pages()[0].html).toContain(original);
+  });
   it('saves autocorrected text through Word input and preserves formatting and undo', () => {
     const editor = fixture.componentInstance;
     const writing = TestBed.inject(ProofreadingService); writing.setLanguage('es'); writing.enabled.set(true);
@@ -53,9 +67,12 @@ describe('Word Home through its real ribbon and editor template', () => {
     const body = sample.closest<HTMLElement>('[data-page-body-id]')!;
     sample.textContent = 'informacion'; editor.commitPageDomToState(0);
     body.focus(); window.getSelection()?.collapse(sample.firstChild, 11);
-    body.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' }));
-    sample.textContent += ' '; window.getSelection()?.collapse(sample.firstChild, 12);
-    body.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ' ' }));
+    const event=new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: ' ' });
+    body.dispatchEvent(event);
+    if(!event.defaultPrevented){
+      sample.textContent += ' '; window.getSelection()?.collapse(sample.firstChild, 12);
+      body.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ' ' }));
+    }
     expect(sample.textContent).toBe('información ');
     expect(sample.style.fontFamily).toContain('Arial Black');
     expect(editor.pages()[0].html).toContain('información ');
@@ -108,9 +125,10 @@ describe('Word Home through its real ribbon and editor template', () => {
     expect(fixture.nativeElement.querySelectorAll('h1')).toHaveLength(3);
     expect(fixture.nativeElement.querySelector('h1#sample').style.fontSize).toBe('18pt');
   });
-  it('reloads the updated style in the designer and saves changes as one undo step', () => {
+  it('reloads the updated style in the designer and saves changes as one undo step', async () => {
     selectSample(); fixture.componentInstance.handleUpdateStyleFromSelection('H1'); fixture.detectChanges();
     fixture.componentInstance.styleModalOpen.set(true); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
     const modal = fixture.debugElement.query(By.directive(WordStyleTemplatesModalComponent)).componentInstance as WordStyleTemplatesModalComponent;
     expect(modal.currentRule().fontSizePt).toBe(18);
     modal.updateCurrentRule({ fontSizePt:22 }); modal.handleSaveAndApplyAll(); fixture.detectChanges();

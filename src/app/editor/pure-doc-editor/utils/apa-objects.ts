@@ -1,5 +1,6 @@
 import type { AcademicObject, CaptionRequest } from '../models/academic.model';
 import type { StyleTemplate } from '../models/word-document.model';
+import { styleTableElement } from './table-styling-dom';
 
 /** Clear imported fills and colored runs, retaining the colors inside actual illustrations. */
 function plainAcademicColors(root: HTMLElement): void {
@@ -20,6 +21,7 @@ export function academicObjects(bodies: HTMLElement[]): { element: HTMLElement; 
   const titles = new Map(bodies.flatMap(root => Array.from(root.querySelectorAll<HTMLElement>('[data-apa-role="title"]'))).map(p => [p.dataset['apaCaptionFor'], p.textContent]));
   return bodies.flatMap(body => Array.from(body.querySelectorAll<HTMLElement>('table,img')).flatMap(element => {
     if (element.closest('td,th') && element.tagName === 'TABLE') return [];
+    if (element.dataset['wordContinuation']) return [];
     const id = element.dataset['wordObjectId'] ||= crypto.randomUUID();
     if (seen.has(id)) return []; seen.add(id);
     const kind = element.tagName === 'TABLE' ? 'table' : 'figure';
@@ -53,6 +55,8 @@ export function academicParagraph(element: HTMLElement, template: StyleTemplate,
   if (role === 'endnote') element.style.textIndent = '36pt';
 }
 function styleTable(table: HTMLTableElement, template: StyleTemplate): void {
+  if (table.dataset['wordTableBinding'] === 'fixed') return;
+  if (template.tableStyle && template.tableStyle.mode !== 'inherit') { styleTableElement(table, template.tableStyle); return; }
   plainAcademicColors(table);
   table.style.backgroundColor = '#ffffff';
   table.querySelectorAll<HTMLElement>('thead,tbody,tfoot,tr,colgroup,col').forEach(element => element.style.border = 'none');
@@ -62,16 +66,20 @@ function styleTable(table: HTMLTableElement, template: StyleTemplate): void {
   });
   table.dataset['apaTable'] = 'true';
   Object.assign(table.style, { border: 'none', borderCollapse: 'collapse', borderTop: '1px solid #000', borderBottom: '1px solid #000',
-    fontFamily: template.rules.P.fontFamily, fontSize: `${template.rules.P.fontSizePt}pt`, lineHeight: '1.5', maxWidth: '100%' });
+    fontFamily: template.rules.P.fontFamily, fontSize: `${template.rules.P.fontSizePt}pt`, lineHeight: '1.1', maxWidth: '100%' });
   for (const row of Array.from(table.rows)) {
     const header = row.parentElement?.tagName === 'THEAD' || row.rowIndex === 0;
     for (const cell of Array.from(row.cells)) {
       Object.assign(cell.style, { border: 'none', borderBottom: header ? '1px solid #000' : 'none',
-        borderTop: row.parentElement?.tagName === 'TFOOT' ? '1px solid #000' : 'none',
+        borderTop: (row.parentElement?.tagName === 'TFOOT' || cell.dataset['wordTopBorder'] === 'true') ? '1px solid #000' : 'none',
         textAlign: header ? 'center' : 'left', fontFamily: template.rules.P.fontFamily,
-        fontSize: `${template.rules.P.fontSizePt}pt`, lineHeight: '1.5', padding: '4px 8px' });
+        fontSize: `${template.rules.P.fontSizePt}pt`, lineHeight: '1.1', padding: '2px 4px' });
       cell.querySelectorAll<HTMLElement>('p').forEach(p => {
-        academicParagraph(p, template, 'body'); p.style.lineHeight = '1.5'; p.style.textAlign = cell.style.textAlign;
+        academicParagraph(p, template, 'body');
+        p.style.margin = '0pt';
+        p.style.textIndent = '0pt';
+        p.style.lineHeight = '1.1';
+        p.style.textAlign = cell.style.textAlign;
       });
     }
   }
