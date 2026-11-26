@@ -256,6 +256,16 @@
         <span class="btn-label">{{ t('word.insert.text_box', 'Cuadro de texto') }}</span>
       </button>
 
+      <button
+        type="button"
+        class="btn-vertical"
+        (click)="insertNote.emit()"
+        [title]="t('word.insert.note', 'Nota')"
+      >
+        <svg lucideIcon="sticky-note" [size]="20" class="icon-blue"></svg>
+        <span class="btn-label">{{ t('word.insert.note', 'Nota') }}</span>
+      </button>
+
       <!-- WordArt dropdown -->
       <div class="relative">
         <button

@@ -1,5 +1,5 @@
 import {Directive,ElementRef,Input,OnChanges,OnDestroy,inject,output} from '@angular/core';
-import {CanvasPageRenderer,PageDisplayList} from './canvas-page-renderer';
+import {CanvasPageRenderer,PageDisplayList,canvasPixelRatio} from './canvas-page-renderer';
 /** A mounted viewport slot owns one buffer, disposed when the slot leaves the viewport. */
 @Directive({selector:'canvas[wordCanvasSurface]',standalone:true})
 export class CanvasPageSurfaceDirective implements OnChanges,OnDestroy {
@@ -11,7 +11,7 @@ export class CanvasPageSurfaceDirective implements OnChanges,OnDestroy {
  ngOnChanges():void {
   if(!this.wordCanvasSurface)return;
   try {
-    this.renderer.render(this.canvas,this.wordCanvasSurface,this.canvasZoom,Math.min(2,window.devicePixelRatio||1));
+    this.renderer.render(this.canvas,this.wordCanvasSurface,this.canvasZoom,canvasPixelRatio());
   } catch (error) {
     console.error('[CanvasPageSurfaceDirective] render failed:', error);
     this.renderError.emit(error);

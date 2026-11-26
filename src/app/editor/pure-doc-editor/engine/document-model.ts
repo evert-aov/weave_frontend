@@ -206,6 +206,8 @@ function replaceInContainer(
   });
 }
 
+let splitIdSequence = 0;
+
 /** Applies an immutable transaction. Invalid operations never modify the previous state. */
 export function applyDocumentOperation(state: DocumentState, operation: DocumentOperation): DocumentState {
   if (operation.type === 'setAttributes') {
@@ -270,7 +272,7 @@ export function applyDocumentOperation(state: DocumentState, operation: Document
     const { position } = operation;
     const target = findEnclosingBlock(state.roots, position.nodeId);
     if (!target) throw new Error('Cannot split outside a block element');
-    const suffix = `:split-${state.revision + 1}`;
+    const suffix = `:split-${state.revision + 1}-${++splitIdSequence}`;
     const splitState: { seen: boolean; found: boolean; firstRightTextId?: string } = { seen: false, found: false };
     const { left, right } = splitSubtree(
       target.block.children.length

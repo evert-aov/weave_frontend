@@ -429,6 +429,10 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'word.group.header_footer': 'Encabezado y pie',
     'word.group.text': 'Texto',
     'word.group.symbols': 'Símbolos',
+    'word.group.references_toc': 'Índice',
+    'word.group.references_indexes': 'Tablas y figuras',
+    'word.group.references_sources': 'Fuentes y citas',
+    'word.group.references_apa': 'APA',
 
     // Formato & Historial
     'word.action.undo': 'Deshacer (Ctrl+Z)',
@@ -581,6 +585,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'word.insert.footer': 'Pie de página',
     'word.insert.page_number': 'Número de página',
     'word.insert.text_box': 'Cuadro de texto',
+    'word.insert.note': 'Nota',
     'word.insert.wordart': 'WordArt',
     'word.insert.drop_cap': 'Letra capital',
     'word.insert.signature_line': 'Línea de firma',
@@ -1410,6 +1415,10 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'word.group.header_footer': 'Header & Footer',
     'word.group.text': 'Text',
     'word.group.symbols': 'Symbols',
+    'word.group.references_toc': 'Table of contents',
+    'word.group.references_indexes': 'Tables and figures',
+    'word.group.references_sources': 'Sources and citations',
+    'word.group.references_apa': 'APA',
 
     // Format & History
     'word.action.undo': 'Undo (Ctrl+Z)',
@@ -1562,6 +1571,7 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'word.insert.footer': 'Footer',
     'word.insert.page_number': 'Page Number',
     'word.insert.text_box': 'Text Box',
+    'word.insert.note': 'Note',
     'word.insert.wordart': 'WordArt',
     'word.insert.drop_cap': 'Drop Cap',
     'word.insert.signature_line': 'Signature Line',

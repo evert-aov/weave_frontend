@@ -297,13 +297,26 @@ export class WordInsertController {
 
   handleInsertTextBox(): void {
     const textBoxHtml = `
-      <div class="word-textbox" style="background:#ffffff;border:1px solid #94a3b8;border-left:4px solid #2563eb;padding:12px 16px;border-radius:6px;margin:12px 0;">
-        <p contenteditable="true" style="font-weight:700;font-size:13px;color:#1e293b;margin:0 0 4px 0;outline:none;">Cuadro de texto</p>
+      <div class="word-textbox" style="background:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #2563eb;padding:12px 16px;border-radius:6px;margin:12px 0;">
+        <p contenteditable="true" style="font-weight:700;font-size:13px;color:#0f172a;margin:0 0 6px 0;outline:none;">Cuadro de texto</p>
         <p contenteditable="true" style="font-size:12px;color:#334155;margin:0;outline:none;">Escribe o pega contenido destacado aquí.</p>
       </div><p><br/></p>
     `;
     this.insertHtmlAtCursorOrActivePage(textBoxHtml);
     this.hooks.showToast('Cuadro de texto insertado');
+  }
+
+  handleInsertNote(): void {
+    const selectedText = (this.hooks.selectedText?.() ?? (window.getSelection()?.toString() || '')).trim();
+    const safeText = (selectedText || 'Escribe tu nota aquí.')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const noteHtml = `
+      <blockquote class="word-note" style="border-left:4px solid #3b82f6;background:#f8fafc;padding:10px 16px;margin:10px 0;font-style:normal;color:#1e293b;">${safeText}</blockquote><p><br/></p>
+    `;
+    this.insertHtmlAtCursorOrActivePage(noteHtml);
+    this.hooks.showToast('Nota insertada');
   }
 
   handleInsertWordArt(preset: WordArtPreset): void {

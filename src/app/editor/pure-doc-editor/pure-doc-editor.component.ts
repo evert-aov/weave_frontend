@@ -1,10 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../shared/components/ng-lucide-icon.directive';
 import { aiTableFields, aiTableInsertionFields, applyAiTableEdits } from './utils/ai-table-edit';
 import {
-  WORD_CONTROL_TARGET,
-  applyWordControlPayload,
-  wordControlField,
-  type WordControlHost,
-} from './utils/ai-word-control';
+  WORD_CONTROL_TARGET, applyWordControlPayload, wordControlField, type WordControlHost, } from './utils/ai-word-control';
 import { WordCanvasEditorComponent } from './components/word-canvas-editor/word-canvas-editor.component';
 import type { CanvasHistoryMeta } from './engine/canvas-edit-session';
 import type { DocumentSelection } from './engine/document-model';
@@ -25,51 +22,10 @@ import { domTextFields, applyHtmlText } from '../../core/utils/ai-edit-text';
 import { resolveDocumentPageSections } from './utils/page-section-layout';
 import type { SectionPageConfig } from './models/word-document.model';
 import {
-  ChangeDetectionStrategy,
-  Component,
-  HostListener,
-  Input,
-  OnInit,
-  AfterViewInit,
-  AfterViewChecked,
-  OnChanges,
-  OnDestroy,
-  SimpleChanges,
-  ElementRef,
-  ViewChild,
-  ViewChildren,
-  QueryList,
-  ViewEncapsulation,
-  inject,
-  signal,
-  input,
-  untracked,
-  computed,
-  effect,
-  ChangeDetectorRef,
-  NgZone,
-} from '@angular/core';
+  ChangeDetectionStrategy, Component, HostListener, Input, OnInit, AfterViewInit, AfterViewChecked, OnChanges, OnDestroy, SimpleChanges, ElementRef, ViewChild, ViewChildren, QueryList, ViewEncapsulation, inject, signal, input, untracked, computed, effect, ChangeDetectorRef, NgZone, } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  LucideDynamicIcon,
-  LucideFileText,
-  LucideCheckCircle2,
-  LucidePlus,
-  LucideTrash2,
-  LucideColumns,
-  LucideRows,
-  LucideDownload,
-  LucideUpload,
-  LucideFilePlus2,
-  LucideChevronUp,
-  LucideChevronDown,
-  LucidePalette,
-  LucideChevronsLeft,
-  LucideChevronsRight,
-  LucideMinimize2,
-  provideLucideIcons,
-} from '@lucide/angular';
+import { lucideFileText, lucideCheckCircle2, lucidePlus, lucideTrash2, lucideColumns, lucideRows, lucideDownload, lucideUpload, lucideFilePlus2, lucideChevronUp, lucideChevronDown, lucidePalette, lucideChevronsLeft, lucideChevronsRight, lucideMinimize2 } from '@ng-icons/lucide';
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -166,26 +122,24 @@ import type { WordEditorHooks } from './controllers/word-editor-hooks';
     WordInteractiveRulerComponent,
   ],
   providers: [
-    provideLucideIcons(
-      LucideFileText,
-      LucideCheckCircle2,
-      LucidePlus,
-      LucideTrash2,
-      LucideColumns,
-      LucideRows,
-      LucideDownload,
-      LucideUpload,
-      LucideFilePlus2,
-      LucideChevronUp,
-      LucideChevronDown,
-      LucidePalette,
-      LucideChevronsLeft,
-      LucideChevronsRight,
-      LucideMinimize2
-    ),
+    provideLucideIcons({ lucideFileText,
+      lucideCheckCircle2,
+      lucidePlus,
+      lucideTrash2,
+      lucideColumns,
+      lucideRows,
+      lucideDownload,
+      lucideUpload,
+      lucideFilePlus2,
+      lucideChevronUp,
+      lucideChevronDown,
+      lucidePalette,
+      lucideChevronsLeft,
+      lucideChevronsRight,
+      lucideMinimize2 }),
   ],
   templateUrl: './pure-doc-editor.component.html',
-  styleUrls: ['./pure-doc-editor.component.scss'],
+  styleUrls: ['./pure-doc-editor.component.css'],
 })
 export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewChecked, OnChanges, OnDestroy {
   readonly active = input(true);
@@ -1359,9 +1313,9 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       if (['bold', 'italic', 'underline', 'strikeThrough', 'subscript', 'superscript'].includes(command)) {
         handled = session.toggleInlineCommand(command as any);
       } else if (command === 'insertUnorderedList') {
-        handled = session.toggleList('ul');
+        handled = session.toggleList('ul', undefined, this.canvasStyleTemplate());
       } else if (command === 'insertOrderedList') {
-        handled = session.toggleList('ol');
+        handled = session.toggleList('ol', undefined, this.canvasStyleTemplate());
       } else if (command === 'insertHTML' && value) {
         handled = session.insertHtml(value, false, this.activePageIndex());
       } else if (command === 'insertHorizontalRule') {
@@ -1846,6 +1800,8 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
   handleInsertTextBox(): void { return this.insertController.handleInsertTextBox(); }
 
+  handleInsertNote(): void { return this.insertController.handleInsertNote(); }
+
   handleInsertWordArt(preset: WordArtPreset): void { return this.insertController.handleInsertWordArt(preset); }
 
   handleInsertDropCap(): void { return this.insertController.handleInsertDropCap(); }
@@ -2160,7 +2116,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
         return;
       }
       if (command === 'listStyle' && value) {
-        if (session.applyListStyle(value)) {
+        if (session.applyListStyle(value, this.canvasStyleTemplate())) {
           this.canvasEditor.publishNow();
           this.updateSelectionFormats();
           return;

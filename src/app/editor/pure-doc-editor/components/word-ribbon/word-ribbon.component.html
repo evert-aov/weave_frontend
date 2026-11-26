@@ -70,37 +70,78 @@
     (dblclick)="onPillDblClick($event)"
   >
     @if (activeTab === 'references') {
-      <div class="flex items-center gap-3 overflow-x-auto h-full w-full">
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertToc.emit()">
-          <svg lucideIcon="list-tree" [size]="22"></svg>{{ t('word.toc.insert_doc') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="updateToc.emit()">
-          <svg lucideIcon="rotate-cw" [size]="22"></svg>{{ t('word.toc.update') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertObjectIndex.emit('table')">
-          <svg lucideIcon="table" [size]="22"></svg>{{ t('word.toc.insert_tables') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertObjectIndex.emit('figure')">
-          <svg lucideIcon="image" [size]="22"></svg>{{ t('word.toc.insert_figures') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('sources')">
-          <svg lucideIcon="book-open" [size]="22"></svg>{{ t('word.academic.sources') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="insertBibliography.emit()">
-          <svg lucideIcon="list" [size]="22"></svg>{{ t('word.academic.bibliography') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('objects')">
-          <svg lucideIcon="image" [size]="22"></svg>{{ t('word.academic.objects') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('pages')">
-          <svg lucideIcon="file-text" [size]="22"></svg>{{ t('word.academic.page_settings') }}
-        </button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('structure')"><svg lucideIcon="file-text" [size]="22"></svg>{{ t('word.academic.structure') }}</button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('notes')"><svg lucideIcon="quote" [size]="22"></svg>{{ t('word.academic.notes') }}</button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="openAcademic.emit('review')"><svg lucideIcon="file-check-2" [size]="22"></svg>{{ t('word.academic.review') }}</button>
-        <button type="button" class="flex flex-col items-center gap-1 px-3 text-xs" (click)="updateAcademic.emit()">
-          <svg lucideIcon="rotate-cw" [size]="22"></svg>{{ t('word.academic.update') }}
-        </button>
+      <div class="ribbon-tab-container references-toolbar">
+        <section class="ribbon-group" [attr.aria-label]="t('word.group.references_toc', 'Índice')">
+          <div class="control-row">
+            <button type="button" class="btn-vertical references-action" (click)="insertToc.emit()" [title]="t('word.toc.insert_doc')">
+              <svg lucideIcon="list-tree" [size]="20" class="text-blue-600"></svg>
+              <span class="btn-label">{{ t('word.toc.insert_doc') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="updateToc.emit()" [title]="t('word.toc.update')">
+              <svg lucideIcon="rotate-cw" [size]="20" class="text-indigo-600"></svg>
+              <span class="btn-label">{{ t('word.toc.update') }}</span>
+            </button>
+          </div>
+          <span class="group-label">{{ t('word.group.references_toc', 'Índice') }}</span>
+        </section>
+
+        <section class="ribbon-group" [attr.aria-label]="t('word.group.references_indexes', 'Índices')">
+          <div class="control-row">
+            <button type="button" class="btn-vertical references-action" (click)="insertObjectIndex.emit('table')" [title]="t('word.toc.insert_tables')">
+              <svg lucideIcon="table" [size]="20" class="text-blue-600"></svg>
+              <span class="btn-label">{{ t('word.toc.insert_tables') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="insertObjectIndex.emit('figure')" [title]="t('word.toc.insert_figures')">
+              <svg lucideIcon="image" [size]="20" class="text-cyan-600"></svg>
+              <span class="btn-label">{{ t('word.toc.insert_figures') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="openAcademic.emit('objects')" [title]="t('word.academic.objects')">
+              <svg lucideIcon="image" [size]="20" class="text-violet-600"></svg>
+              <span class="btn-label">{{ t('word.academic.objects') }}</span>
+            </button>
+          </div>
+          <span class="group-label">{{ t('word.group.references_indexes', 'Índices') }}</span>
+        </section>
+
+        <section class="ribbon-group" [attr.aria-label]="t('word.group.references_sources', 'Fuentes')">
+          <div class="control-row">
+            <button type="button" class="btn-vertical references-action" (click)="openAcademic.emit('sources')" [title]="t('word.academic.sources')">
+              <svg lucideIcon="book-open" [size]="20" class="text-emerald-600"></svg>
+              <span class="btn-label">{{ t('word.academic.sources') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="insertBibliography.emit()" [title]="t('word.academic.bibliography')">
+              <svg lucideIcon="list" [size]="20" class="text-blue-600"></svg>
+              <span class="btn-label">{{ t('word.academic.bibliography') }}</span>
+            </button>
+          </div>
+          <span class="group-label">{{ t('word.group.references_sources', 'Fuentes') }}</span>
+        </section>
+
+        <section class="ribbon-group" [attr.aria-label]="t('word.group.references_apa', 'APA')">
+          <div class="control-row">
+            <button type="button" class="btn-vertical references-action" (click)="openAcademic.emit('pages')" [title]="t('word.academic.page_settings')">
+              <svg lucideIcon="file-text" [size]="20" class="text-blue-600"></svg>
+              <span class="btn-label">{{ t('word.academic.page_settings') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="openAcademic.emit('structure')" [title]="t('word.academic.structure')">
+              <svg lucideIcon="list-tree" [size]="20" class="text-indigo-600"></svg>
+              <span class="btn-label">{{ t('word.academic.structure') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="openAcademic.emit('notes')" [title]="t('word.academic.notes')">
+              <svg lucideIcon="quote" [size]="20" class="text-amber-600"></svg>
+              <span class="btn-label">{{ t('word.academic.notes') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="openAcademic.emit('review')" [title]="t('word.academic.review')">
+              <svg lucideIcon="file-check-2" [size]="20" class="text-emerald-600"></svg>
+              <span class="btn-label">{{ t('word.academic.review') }}</span>
+            </button>
+            <button type="button" class="btn-vertical references-action" (click)="updateAcademic.emit()" [title]="t('word.academic.update')">
+              <svg lucideIcon="rotate-cw" [size]="20" class="text-indigo-600"></svg>
+              <span class="btn-label">{{ t('word.academic.update') }}</span>
+            </button>
+          </div>
+          <span class="group-label">{{ t('word.group.references_apa', 'APA') }}</span>
+        </section>
       </div>
     }
     @if (activeTab === 'review') {
@@ -250,6 +291,7 @@
         (focusFooterArea)="focusFooterArea.emit()"
         (insertPageNumber)="insertPageNumber.emit()"
         (insertTextBox)="insertTextBox.emit()"
+        (insertNote)="insertNote.emit()"
         (insertWordArt)="insertWordArt.emit($event)"
         (insertDropCap)="insertDropCap.emit()"
         (insertSignatureLine)="insertSignatureLine.emit()"

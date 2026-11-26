@@ -512,20 +512,33 @@ function paragraphLines(block: ParagraphBlock, width: number, measure: MeasureTe
     const totalBoxHeight = lineHeight + offset + (index === lines.length - 1 ? after : 0);
     const commands: PageDrawCommand[] = [];
 
+    const hasBoxFrame = Boolean(block.borderTop || block.borderRight || block.borderBottom);
+    const hasAccentFrame = Boolean(block.borderLeft || hasBoxFrame);
+    const frameInsetLeft = hasBoxFrame ? Math.max(0, indentLeft - 14) : (block.borderLeft ? Math.max(0, indentLeft - 12) : indentLeft);
+    const frameInsetRight = hasBoxFrame ? Math.max(0, indentRight - 14) : (block.borderLeft ? Math.max(0, indentRight - 12) : indentRight);
+    const frameWidth = Math.max(0, width - frameInsetLeft - frameInsetRight);
+
     if (block.background) {
-      commands.push({ kind: 'rect', x: indentLeft, y: offset, width: Math.max(0, width - indentLeft - indentRight), height: lineHeight, color: block.background });
+      commands.push({
+        kind: 'rect',
+        x: hasAccentFrame ? frameInsetLeft : indentLeft,
+        y: hasAccentFrame ? 0 : offset,
+        width: hasAccentFrame ? frameWidth : Math.max(0, width - indentLeft - indentRight),
+        height: hasAccentFrame ? totalBoxHeight : lineHeight,
+        color: block.background,
+      });
     }
     if (index === 0 && block.borderTop && block.borderTop.width > 0) {
-      commands.push({ kind: 'rect', x: indentLeft, y: offset, width: Math.max(0, width - indentLeft - indentRight), height: block.borderTop.width, color: block.borderTop.color });
+      commands.push({ kind: 'rect', x: frameInsetLeft, y: 0, width: frameWidth, height: block.borderTop.width, color: block.borderTop.color });
     }
     if (index === lines.length - 1 && block.borderBottom && block.borderBottom.width > 0) {
-      commands.push({ kind: 'rect', x: indentLeft, y: Math.max(offset, offset + lineHeight - block.borderBottom.width), width: Math.max(0, width - indentLeft - indentRight), height: block.borderBottom.width, color: block.borderBottom.color });
+      commands.push({ kind: 'rect', x: frameInsetLeft, y: Math.max(0, totalBoxHeight - block.borderBottom.width), width: frameWidth, height: block.borderBottom.width, color: block.borderBottom.color });
     }
     if (block.borderRight && block.borderRight.width > 0) {
-      commands.push({ kind: 'rect', x: Math.max(0, width - indentRight - block.borderRight.width), y: offset, width: block.borderRight.width, height: lineHeight, color: block.borderRight.color });
+      commands.push({ kind: 'rect', x: Math.max(0, frameInsetLeft + frameWidth - block.borderRight.width), y: 0, width: block.borderRight.width, height: totalBoxHeight, color: block.borderRight.color });
     }
     if (block.borderLeft && block.borderLeft.width > 0) {
-      commands.push({ kind: 'rect', x: Math.max(0, indentLeft - 8), y: 0, width: block.borderLeft.width, height: totalBoxHeight, color: block.borderLeft.color });
+      commands.push({ kind: 'rect', x: frameInsetLeft, y: 0, width: block.borderLeft.width, height: totalBoxHeight, color: block.borderLeft.color });
     }
     if (index === 0 && block.marker) {
       const markerOffset = block.marker.offset ?? 16;

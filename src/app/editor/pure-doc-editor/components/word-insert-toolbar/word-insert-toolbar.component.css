@@ -114,7 +114,7 @@
   min-height: 16px;
 }
 
-// Icon accents
+/* Icon accents */
 .icon-blue { color: #2563eb; }
 .icon-indigo { color: #4f46e5; }
 .icon-cyan { color: #0284c7; }
@@ -124,7 +124,7 @@
 .icon-amber { color: #d97706; }
 .icon-slate { color: #64748b; }
 
-// ==================== SHAPES DROPDOWN (Image 1) ====================
+/* ==================== SHAPES DROPDOWN (Image 1) ==================== */
 .shapes-dropdown-menu {
   position: absolute;
   top: 100%;
@@ -224,7 +224,7 @@
   }
 }
 
-// ==================== WORDART DROPDOWN ====================
+/* ==================== WORDART DROPDOWN ==================== */
 .wordart-dropdown-menu {
   position: absolute;
   top: 100%;
@@ -268,7 +268,7 @@
   }
 }
 
-// ==================== SYMBOLS DROPDOWN ====================
+/* ==================== SYMBOLS DROPDOWN ==================== */
 .symbols-dropdown-menu {
   position: absolute;
   top: 100%;
@@ -308,7 +308,7 @@
   }
 }
 
-// ==================== DARK MODE ENHANCEMENTS ====================
+/* ==================== DARK MODE ENHANCEMENTS ==================== */
 .insert-ribbon.dark-mode {
   color: #e4e4e7;
 

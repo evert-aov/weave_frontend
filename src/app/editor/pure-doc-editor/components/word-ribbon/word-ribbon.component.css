@@ -36,6 +36,28 @@
   overflow: visible;
 }
 
+.ribbon-tab-container.references-toolbar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.references-toolbar > .ribbon-group {
+  flex-shrink: 0;
+}
+
+.references-toolbar .references-action {
+  width: 108px;
+  min-width: 108px;
+  padding-inline: 4px;
+}
+
+.references-toolbar .references-action .btn-label {
+  max-width: 100px;
+  white-space: normal;
+  text-wrap: balance;
+}
+
 .ribbon-group {
   display: flex;
   flex-direction: column;
@@ -149,7 +171,7 @@
   }
 }
 
-// ==================== DARK MODE ENHANCEMENTS ====================
+/* ==================== DARK MODE ENHANCEMENTS ==================== */
 .ribbon-pill-container.dark-mode {
   .ribbon-tab-container {
     color: #e4e4e7;

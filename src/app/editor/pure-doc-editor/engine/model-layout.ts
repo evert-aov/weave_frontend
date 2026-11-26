@@ -821,6 +821,10 @@ export function layoutModelDocument(
           node.attributes['data-native-word-toc'] !== 'true' &&
           (containerStyle.background || containerStyle.borderTop || containerStyle.borderRight || containerStyle.borderBottom || containerStyle.borderLeft)
         ) {
+          const containerCss = parseInlineCss(node.attributes['style']);
+          const padBox = parseCssBoxShorthand(containerCss['padding']);
+          const padTop = parsePx(containerCss['padding-top'] || padBox.top, 0);
+          const padBottom = parsePx(containerCss['padding-bottom'] || padBox.bottom, 0);
           const paraIndices = blocks.map((b, i) => (b.kind === 'paragraph' ? i : -1)).filter(i => i >= 0);
           const firstParaIdx = paraIndices[0];
           const lastParaIdx = paraIndices[paraIndices.length - 1];
@@ -831,8 +835,18 @@ export function layoutModelDocument(
               background: b.background ?? containerStyle.background,
               borderLeft: b.borderLeft ?? containerStyle.borderLeft,
               borderRight: b.borderRight ?? containerStyle.borderRight,
-              ...(idx === firstParaIdx ? { borderTop: b.borderTop ?? containerStyle.borderTop } : {}),
-              ...(idx === lastParaIdx ? { borderBottom: b.borderBottom ?? containerStyle.borderBottom } : {}),
+              ...(idx === firstParaIdx
+                ? {
+                    borderTop: b.borderTop ?? containerStyle.borderTop,
+                    before: Math.max(b.before ?? 0, padTop),
+                  }
+                : {}),
+              ...(idx === lastParaIdx
+                ? {
+                    borderBottom: b.borderBottom ?? containerStyle.borderBottom,
+                    after: Math.max(b.after ?? 0, padBottom),
+                  }
+                : {}),
             };
           });
         }
@@ -1219,6 +1233,16 @@ function parseCssBorder(raw?: string): { width: number; color: string } | null |
   return { width: Math.max(0.5, width), color: colorTokens.join(' ') || '#94a3b8' };
 }
 
+function parseCssBoxShorthand(raw: string | undefined): { top?: string; right?: string; bottom?: string; left?: string } {
+  if (!raw) return {};
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return { top: parts[0], right: parts[0], bottom: parts[0], left: parts[0] };
+  if (parts.length === 2) return { top: parts[0], right: parts[1], bottom: parts[0], left: parts[1] };
+  if (parts.length === 3) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[1] };
+  if (parts.length >= 4) return { top: parts[0], right: parts[1], bottom: parts[2], left: parts[3] };
+  return {};
+}
+
 /** Pure non-DOM style resolver from document tags and inline CSS attributes. */
 export function resolveDefaultModelStyles(
   state: DocumentState,
@@ -1313,30 +1337,37 @@ export function resolveDefaultModelStyles(
       ? '#fef3c7'
       : undefined;
     const background = validBg ?? defaultCommentBg ?? inherited.background;
-    const marginTopAttr = cssVal(inline['margin-top']);
-    const marginBottomAttr = cssVal(inline['margin-bottom']);
-    const before = insideCell ? 0 : marginTopAttr ? parsePx(marginTopAttr, 0) : (isHeading ? 8 : 0);
+    const marginBox = parseCssBoxShorthand(cssVal(inline['margin']));
+    const padBox = parseCssBoxShorthand(cssVal(inline['padding']));
+    const marginTopAttr = cssVal(inline['margin-top']) ?? marginBox.top;
+    const marginBottomAttr = cssVal(inline['margin-bottom']) ?? marginBox.bottom;
+    const padTopAttr = cssVal(inline['padding-top']) ?? padBox.top;
+    const padBottomAttr = cssVal(inline['padding-bottom']) ?? padBox.bottom;
+    const isDirectLeafBox = node.tag === 'blockquote' || node.tag === 'pre';
+    const before = insideCell
+      ? 0
+      : (marginTopAttr ? parsePx(marginTopAttr, 0) : (isHeading ? 8 : 0)) + (isDirectLeafBox && padTopAttr ? parsePx(padTopAttr, 0) : 0);
     const after = insideCell
       ? 0
-      : marginBottomAttr
-        ? parsePx(marginBottomAttr, 0)
-        : isTocHeader
-          ? 16
-          : isTocEntry
-            ? (lineHeight >= fontSizePx * 1.6 ? 0 : 4)
-            : node.tag === 'p' || isHeading
-              ? 4
-              : 0;
+      : (marginBottomAttr
+          ? parsePx(marginBottomAttr, 0)
+          : isTocHeader
+            ? 16
+            : isTocEntry
+              ? (lineHeight >= fontSizePx * 1.6 ? 0 : 4)
+              : node.tag === 'p' || isHeading
+                ? 4
+                : 0) + (isDirectLeafBox && padBottomAttr ? parsePx(padBottomAttr, 0) : 0);
     const textIndentAttr = cssVal(inline['text-indent']);
     const firstLineIndent = !insideCell && textIndentAttr && !('data-word-continuation' in node.attributes)
       ? parsePx(textIndentAttr, 0)
       : 0;
-    const padLeftAttr = cssVal(inline['padding-left']);
-    const marginLeftAttr = cssVal(inline['margin-left']);
+    const padLeftAttr = cssVal(inline['padding-left']) ?? padBox.left;
+    const marginLeftAttr = cssVal(inline['margin-left']) ?? marginBox.left;
     const indentLeft = (inherited.indentLeft || 0) + (padLeftAttr ? parsePx(padLeftAttr, 0) : 0) + (marginLeftAttr ? parsePx(marginLeftAttr, 0) : 0);
 
-    const padRightAttr = cssVal(inline['padding-right']);
-    const marginRightAttr = cssVal(inline['margin-right']);
+    const padRightAttr = cssVal(inline['padding-right']) ?? padBox.right;
+    const marginRightAttr = cssVal(inline['margin-right']) ?? marginBox.right;
     const indentRight = (inherited.indentRight || 0) + (padRightAttr ? parsePx(padRightAttr, 0) : 0) + (marginRightAttr ? parsePx(marginRightAttr, 0) : 0);
 
     const vAlign = cssVal(inline['vertical-align']);

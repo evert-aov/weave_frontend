@@ -1516,4 +1516,193 @@ describe('persistent Canvas editing',()=>{
   expect(s.selectedText()).toBe('amortización');
  });
 
+ it('removes mixed nested lists across a full selection and preserves nested children when unwrapping a single parent item',()=>{
+  const s=new CanvasEditSession({width:500,height:600,top:20,right:20,bottom:20,left:20});
+  const nestedHtml =
+    '<ul>' +
+      '<li><b>Diseño:</b>' +
+        '<ul>' +
+          '<li><b>Diseño de Arquitectura:</b> Descomposición en 4 vistas esenciales:' +
+            '<ol>' +
+              '<li><i>Arquitectura de Backend.</i></li>' +
+              '<li><i>Arquitectura de Frontend.</i></li>' +
+            '</ol>' +
+          '</li>' +
+          '<li>Diseño de interfaz / experiencia de usuario.</li>' +
+        '</ul>' +
+      '</li>' +
+      '<li><b>Implementación:</b> Técnicas y convenciones.</li>' +
+      '<li><b>Pruebas:</b> Pruebas unitarias y de carga.</li>' +
+    '</ul>';
+
+  // Case 1: Select from "Diseño:" through "Pruebas:" (spanning nested <ul> and <ol>) and toggle off <ul>
+  s.load([{id:'p1',html:nestedHtml}]);
+  let leaves=textNodes(s.engine.getSections()[0].model.state.roots).filter(l=>l.text.trim());
+  const firstLeaf=leaves[0];
+  const lastLeaf=leaves[leaves.length-1];
+  s.setSelection(0,{anchor:{nodeId:firstLeaf.id,offset:0},focus:{nodeId:lastLeaf.id,offset:lastLeaf.text.length}});
+  expect(s.toggleList('ul')).toBe(true);
+  expect(s.pages[0].html).not.toContain('<ul');
+  expect(s.pages[0].html).not.toContain('<ol');
+  expect(s.pages[0].html).not.toContain('<li');
+  const fullTextAfterRemove=s.getReadableText();
+  expect(fullTextAfterRemove).toContain('Diseño:');
+  expect(fullTextAfterRemove).toContain('Diseño de Arquitectura:');
+  expect(fullTextAfterRemove).toContain('Arquitectura de Backend.');
+  expect(fullTextAfterRemove).toContain('Arquitectura de Frontend.');
+  expect(fullTextAfterRemove).toContain('Diseño de interfaz');
+  expect(fullTextAfterRemove).toContain('Implementación:');
+  expect(fullTextAfterRemove).toContain('Pruebas:');
+
+  // Case 2: Put caret ONLY on "Diseño:" and toggle off <ul> -> "Diseño:" becomes <p> AND all nested children are preserved and rendered
+  s.load([{id:'p2',html:nestedHtml}]);
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots).filter(l=>l.text.trim());
+  const disenoLeaf=leaves.find(l=>l.text.includes('Diseño:'))!;
+  s.setSelection(0,{anchor:{nodeId:disenoLeaf.id,offset:0},focus:{nodeId:disenoLeaf.id,offset:0}});
+  expect(s.toggleList('ul')).toBe(true);
+  expect(s.getSelectionContext()?.formats.insertUnorderedList).toBe(false);
+  const renderedAfterSingle=s.displayLists[0].commands
+    .filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text')
+    .map(c=>c.text)
+    .join('');
+  expect(renderedAfterSingle).toContain('Diseño:');
+  expect(renderedAfterSingle).toContain('Diseño de Arquitectura:');
+  expect(renderedAfterSingle).toContain('Arquitectura de Backend.');
+  expect(renderedAfterSingle).toContain('Arquitectura de Frontend.');
+  expect(renderedAfterSingle).toContain('Diseño de interfaz');
+  expect(renderedAfterSingle).toContain('Implementación:');
+  expect(renderedAfterSingle).toContain('Pruebas:');
+
+  // Case 3: Backspace at offset 0 on "Diseño:" also unwraps it without losing nested children
+  s.load([{id:'p3',html:nestedHtml}]);
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots).filter(l=>l.text.trim());
+  const disenoLeafBs=leaves.find(l=>l.text.includes('Diseño:'))!;
+  s.setSelection(0,{anchor:{nodeId:disenoLeafBs.id,offset:0},focus:{nodeId:disenoLeafBs.id,offset:0}});
+  expect(s.delete(true)).toBe(true);
+  const renderedAfterBs=s.displayLists[0].commands
+    .filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text')
+    .map(c=>c.text)
+    .join('');
+  expect(renderedAfterBs).toContain('Diseño:');
+  expect(renderedAfterBs).toContain('Diseño de Arquitectura:');
+  expect(renderedAfterBs).toContain('Arquitectura de Backend.');
+  expect(renderedAfterBs).toContain('Pruebas:');
+
+  // Case 4: Select ONLY a nested <ol> item ("Arquitectura de Backend.") and toggle off <ol>
+  s.load([{id:'p4',html:nestedHtml}]);
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots).filter(l=>l.text.trim());
+  const backendLeaf=leaves.find(l=>l.text.includes('Arquitectura de Backend.'))!;
+  s.setSelection(0,{anchor:{nodeId:backendLeaf.id,offset:0},focus:{nodeId:backendLeaf.id,offset:0}});
+  expect(s.getSelectionContext()?.formats.insertOrderedList).toBe(true);
+  expect(s.getSelectionContext()?.formats.insertUnorderedList).toBe(false);
+  expect(s.toggleList('ol')).toBe(true);
+  expect(s.getSelectionContext()?.formats.insertOrderedList).toBe(false);
+  expect(s.getSelectionContext()?.formats.insertUnorderedList).toBe(false);
+  const textAfterNestedOl=s.getReadableText();
+  expect(textAfterNestedOl).toContain('Diseño de Arquitectura:');
+  expect(textAfterNestedOl).toContain('Arquitectura de Backend.');
+  expect(textAfterNestedOl).toContain('Arquitectura de Frontend.');
+  expect(textAfterNestedOl).toContain('Pruebas:');
+
+  // Case 5: Direct sibling nested lists (<ul><li>A</li><ul><li>B</li><ol><li>C</li></ol></ul><li>D</li></ul>) toggle off cleanly
+  s.load([{id:'p5',html:'<ul><li>A</li><ul><li>B</li><ol><li>C</li></ol></ul><li>D</li></ul>'}]);
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots).filter(l=>l.text.trim());
+  s.setSelection(0,{anchor:{nodeId:leaves[0].id,offset:0},focus:{nodeId:leaves[leaves.length-1].id,offset:leaves[leaves.length-1].text.length}});
+  expect(s.toggleList('ul')).toBe(true);
+  expect(s.pages[0].html).not.toContain('<ul');
+  expect(s.pages[0].html).not.toContain('<ol');
+  expect(s.pages[0].html).not.toContain('<li');
+  expect(s.getReadableText()).toContain('A');
+  expect(s.getReadableText()).toContain('B');
+  expect(s.getReadableText()).toContain('C');
+  expect(s.getReadableText()).toContain('D');
+ });
+
+ it('deletes stray empty paragraphs, wraps naked pasted text on style apply, and toggles bold/italic across empty lines and nested spans',()=>{
+  const s=new CanvasEditSession({width:500,height:600,top:20,right:20,bottom:20,left:20});
+  const brokenPastedHtml =
+    '<p style="font-family: Google Sans Text, sans-serif;">El Marco es la <b>base referencial</b> en la ingeniería de software</p>' +
+    '<p style="font-family: Google Sans Text, sans-serif;"></p>' +
+    '. Independientemente de la estrategia.';
+
+  // 1) Backspace at offset 0 of naked root text removes the preceding empty <p>
+  s.load([{id:'bp1',html:brokenPastedHtml}]);
+  let leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  const indepLeaf=leaves.find(l=>l.text.includes('. Independientemente'))!;
+  s.setSelection(0,{anchor:{nodeId:indepLeaf.id,offset:0},focus:{nodeId:indepLeaf.id,offset:0}});
+  expect(s.delete(true)).toBe(true);
+  // Second Backspace merges the naked text into the preceding <p>
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  const indepLeaf2=leaves.find(l=>l.text.includes('. Independientemente'))!;
+  s.setSelection(0,{anchor:{nodeId:indepLeaf2.id,offset:0},focus:{nodeId:indepLeaf2.id,offset:0}});
+  expect(s.delete(true)).toBe(true);
+  expect(s.pages[0].html).not.toContain('<p style="font-family: Google Sans Text, sans-serif;"></p>');
+  expect(s.getReadableText()).toContain('ingeniería de software. Independientemente');
+
+  // 2) Applying Normal style works even on naked root text and strips external Google Sans Text font
+  s.load([{id:'bp2',html:brokenPastedHtml}]);
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  s.setSelection(0,{anchor:{nodeId:leaves[0].id,offset:0},focus:{nodeId:leaves[leaves.length-1].id,offset:leaves[leaves.length-1].text.length}});
+  const applied = s.applyBlockRule({
+    target:'P',label:'Normal',fontFamily:'Times New Roman',fontSizePt:12,bold:false,italic:false,underline:false,strikeThrough:false,uppercase:false,color:'#000000',align:'left',lineHeight:1.5,spaceBeforePt:0,spaceAfterPt:6,firstLineIndentPt:0,
+  });
+  expect(applied).toBe(true);
+  expect(s.pages[0].html).not.toContain('Google Sans Text');
+  expect(s.pages[0].html).toContain('Times New Roman');
+  expect(s.engine.getSections()[0].model.state.roots.every(r=>r.kind==='element'&&r.tag==='p')).toBe(true);
+
+  // 3) Toggling Bold/Italic works even when selection starts on an empty <p> or covers a <span> with nested <b>
+  s.load([{id:'bp3',html:'<p></p><p><span style="font-family: Google Sans Text;">Texto con <b>negrita</b> interna</span></p>'}]);
+  const roots3=s.engine.getSections()[0].model.state.roots;
+  const emptyP=roots3[0];
+  const leaves3=textNodes(roots3);
+  const lastLeaf3=leaves3[leaves3.length-1];
+  s.setSelection(0,{anchor:{nodeId:emptyP.id,offset:0},focus:{nodeId:lastLeaf3.id,offset:lastLeaf3.text.length}});
+  expect(s.toggleInlineCommand('italic')).toBe(true);
+  expect(s.pages[0].html).toContain('font-style: italic');
+  expect(s.toggleInlineCommand('bold')).toBe(true);
+  expect(s.pages[0].html).toContain('font-weight: bold');
+ });
+
+ it('converts leaf divs and APA run-in headings to lists without duplicating or sharing node IDs across splits',()=>{
+  const s=new CanvasEditSession({width:500,height:600,top:20,right:20,bottom:20,left:20});
+  s.load([{id:'dup1',html:'<div>Capacitación y soporte al usuario</div><p data-apa-run-in="4"><span data-apa-heading-level="4">Migración de datos</span></p>'}]);
+  let leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  s.setSelection(0,{anchor:{nodeId:leaves[0].id,offset:0},focus:{nodeId:leaves[leaves.length-1].id,offset:leaves[leaves.length-1].text.length}});
+  expect(s.toggleList('ul')).toBe(true);
+  expect(s.pages[0].html).toContain('<ul');
+  expect(s.pages[0].html).not.toContain('data-apa-heading-level');
+
+  // Verify every node ID in the tree is strictly unique after split + toggleList
+  const collectIds=(nodes:readonly DocumentNode[], out:string[]=[])=>{
+    for(const n of nodes){out.push(n.id);if(n.kind==='element')collectIds(n.children,out);}
+    return out;
+  };
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  s.setSelection(0,{anchor:{nodeId:leaves[0].id,offset:5},focus:{nodeId:leaves[0].id,offset:5}});
+  expect(s.enter()).toBe(true);
+  const ids=collectIds(s.engine.getSections()[0].model.state.roots);
+  expect(new Set(ids).size).toBe(ids.length);
+ });
+
+ it('splits <br>-separated pasted lines into list items and applies the document template font while preserving bold',()=>{
+  const s=new CanvasEditSession({width:500,height:600,top:20,right:20,bottom:20,left:20});
+  s.load([{id:'pf1',html:'<p style="font-family: Google Sans Text, sans-serif;"><span style="font-family: Google Sans Text;"><b>Definición:</b> Tiempo de respuesta.<br><b>El problema común:</b> Se vuelve lento.</span></p>'}]);
+  const leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  s.setSelection(0,{anchor:{nodeId:leaves[0].id,offset:0},focus:{nodeId:leaves[leaves.length-1].id,offset:leaves[leaves.length-1].text.length}});
+  const mockTemplate={
+    id:'t1',name:'APA',rules:{
+      P:{target:'P' as const,label:'Normal',fontFamily:'Times New Roman',fontSizePt:12,bold:false,italic:false,underline:false,strikeThrough:false,uppercase:false,color:'#000000',align:'left' as const,lineHeight:1.5,spaceBeforePt:0,spaceAfterPt:6,firstLineIndentPt:0},
+    },
+  } as any;
+  expect(s.toggleList('ul',undefined,mockTemplate)).toBe(true);
+  expect(s.pages[0].html).toContain('<ul');
+  expect(s.pages[0].html).toContain('Times New Roman');
+  expect(s.pages[0].html).not.toContain('Google Sans Text');
+  expect(s.pages[0].html).toContain('<b>Definición:</b>');
+  expect(s.pages[0].html).toContain('<b>El problema común:</b>');
+  expect(s.pages[0].html.match(/<li\b/g)?.length).toBe(2);
+  expect(s.getSelectionContext()?.formats.fontName).toBe('Times New Roman');
+ });
+
 });

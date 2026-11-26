@@ -320,4 +320,36 @@ describe('document model to independent layout',()=>{
   const rendered=pages[0].commands.filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text').map(t=>t.text).join('');
   expect(rendered).toBe('6.2.1 Cálculo De La Amortización Diferida Y Niño Pingüino');
  });
+
+ it('renders .word-textbox and .word-note with inner padding so text never overlaps the left border and right borders stay continuous',()=>{
+  const html =
+    '<div class="word-textbox" style="background:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #2563eb;padding:12px 16px;margin:12px 0;">' +
+      '<p style="font-weight:700;font-size:13px;color:#0f172a;margin:0 0 6px 0;">Cuadro de texto</p>' +
+      '<p style="font-size:12px;color:#334155;margin:0;">Escribe o pega contenido destacado aquí.</p>' +
+    '</div>' +
+    '<blockquote class="word-note" style="border-left:4px solid #3b82f6;background:#f8fafc;padding:10px 16px;margin:10px 0;font-style:normal;color:#1e293b;">Nota destacada sin cursiva.</blockquote>';
+  const state=htmlToDocumentState(html,1);
+  const styles=resolveDefaultModelStyles(state);
+  const pages=layoutModelDocument(state,{width:600,height:500,top:20,right:20,bottom:20,left:20},t=>({width:[...t].length*7,ascent:11,descent:3}),styles);
+  const rects=pages[0].commands.filter((c):c is Extract<typeof c,{kind:'rect'}>=>c.kind==='rect');
+  const texts=pages[0].commands.filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text'&&!!c.text);
+
+  // Text inside textbox starts strictly to the right of the 4px blue left border
+  const leftBlueBars=rects.filter(r=>r.color==='#2563eb'&&r.width===4);
+  expect(leftBlueBars.length).toBeGreaterThanOrEqual(2);
+  const titleGlyph=texts.find(t=>t.text==='C')!;
+  expect(titleGlyph.x).toBeGreaterThanOrEqual(leftBlueBars[0].x + leftBlueBars[0].width + 8);
+
+  // Right border of the two paragraphs inside textbox connects seamlessly without a vertical gap
+  const rightBorders=rects.filter(r=>r.color==='#cbd5e1'&&r.width===1&&r.height>5).sort((a,b)=>a.y-b.y);
+  expect(rightBorders.length).toBe(2);
+  expect(Math.abs((rightBorders[0].y + rightBorders[0].height) - rightBorders[1].y)).toBeLessThanOrEqual(0.5);
+
+  // Note block renders non-italic with left #3b82f6 bar and clear text spacing
+  const noteBar=rects.find(r=>r.color==='#3b82f6'&&r.width===4)!;
+  expect(noteBar).toBeTruthy();
+  const noteGlyph=texts.find(t=>t.text==='N')!;
+  expect(noteGlyph.font).not.toContain('italic');
+  expect(noteGlyph.x).toBeGreaterThanOrEqual(noteBar.x + noteBar.width + 6);
+ });
 });

@@ -788,8 +788,8 @@ export class CanvasEditSession {
       if (node.attributes['data-apa-heading-level']) {
         headingTag = `H${node.attributes['data-apa-heading-level']}`;
       }
-      if (node.tag === 'ul') inUl = true;
-      if (node.tag === 'ol') inOl = true;
+      if (node.tag === 'ul') { inUl = true; inOl = false; }
+      if (node.tag === 'ol') { inOl = true; inUl = false; }
       if (node.tag === 'table') {
         tableNode = node;
         tableId = node.id;
@@ -1220,13 +1220,46 @@ export class CanvasEditSession {
     this.typingAt = now;
   }
 
+  private dedupeNodeIds(roots: readonly DocumentNode[]): readonly DocumentNode[] {
+    const seen = new Set<string>();
+    let hasDup = false;
+    const scan = (nodes: readonly DocumentNode[]) => {
+      for (const n of nodes) {
+        if (seen.has(n.id)) {
+          hasDup = true;
+          return;
+        }
+        seen.add(n.id);
+        if (n.kind === 'element' && n.children.length) {
+          scan(n.children);
+          if (hasDup) return;
+        }
+      }
+    };
+    scan(roots);
+    if (!hasDup) return roots;
+    const used = new Set<string>();
+    const fix = (nodes: readonly DocumentNode[]): readonly DocumentNode[] =>
+      nodes.map(n => {
+        const nextId = used.has(n.id) ? this.uid(n.kind === 'text' ? 't' : n.tag) : n.id;
+        used.add(nextId);
+        if (n.kind === 'text') {
+          return nextId === n.id ? n : { ...n, id: nextId };
+        }
+        const nextChildren = n.children.length ? fix(n.children) : n.children;
+        return nextId === n.id && nextChildren === n.children ? n : { ...n, id: nextId, children: nextChildren };
+      });
+    return fix(roots);
+  }
+
   private commitCustomState(nextRoots: readonly DocumentNode[], nextSelection: DocumentSelection | null, kind: string): boolean {
     const section = this.engine.getSections()[this.section];
     if (!section) return false;
+    const safeRoots = this.dedupeNodeIds(nextRoots);
     const before = this.snapshot();
     const nextState: DocumentState = {
       revision: section.model.state.revision + 1,
-      roots: nextRoots,
+      roots: safeRoots,
       selection: nextSelection,
     };
     this.engine.commitSectionState(this.section, nextState, this.geometry);
@@ -1274,15 +1307,114 @@ export class CanvasEditSession {
     return ids;
   }
 
+  private wrapNakedInlineRoots(roots: readonly DocumentNode[]): readonly DocumentNode[] {
+    const isInlineRoot = (n: DocumentNode): boolean =>
+      n.kind === 'text' || INLINE_RUN_TAGS.has(n.tag) || n.tag === 'br' || n.tag === 'sub' || n.tag === 'sup';
+    if (!roots.some(n => (n.kind === 'text' && n.text.trim().length > 0) || (n.kind === 'element' && isInlineRoot(n)))) {
+      return roots;
+    }
+    const out: DocumentNode[] = [];
+    let inlineBuf: DocumentNode[] = [];
+    const flush = () => {
+      if (!inlineBuf.length) return;
+      const hasMeaningful = inlineBuf.some(n => (n.kind === 'text' && n.text.trim().length > 0) || n.kind === 'element');
+      if (hasMeaningful) {
+        out.push({ id: this.uid('p'), kind: 'element', tag: 'p', attributes: {}, children: inlineBuf });
+      }
+      inlineBuf = [];
+    };
+    for (const n of roots) {
+      if (isInlineRoot(n)) {
+        inlineBuf.push(n);
+      } else {
+        flush();
+        out.push(n);
+      }
+    }
+    flush();
+    return out;
+  }
+
   private mapSelectedBlocks(
     transform: (block: Extract<DocumentNode, { kind: 'element' }>) => DocumentNode,
     kind: string,
   ): boolean {
-    const targetBlockIds = this.selectedBlockIds();
-    if (!targetBlockIds.size) return false;
     const section = this.engine.getSections()[this.section];
-    if (!section) return false;
-    let changed = false;
+    if (!section || !this.selection) return false;
+    const normalizedRoots = this.wrapNakedInlineRoots(section.model.state.roots);
+    const rootsChangedByWrap = normalizedRoots !== section.model.state.roots;
+
+    const targetBlockIds = new Set<string>();
+    const leaves = textNodes(normalizedRoots);
+    const ai = leaves.findIndex(n => n.id === this.selection!.anchor.nodeId);
+    const bi = leaves.findIndex(n => n.id === this.selection!.focus.nodeId);
+    const orderMap = new Map<string, number>();
+    let seq = 0;
+    const indexNodes = (nodes: readonly DocumentNode[]) => {
+      for (const n of nodes) {
+        orderMap.set(n.id, seq++);
+        if (n.kind === 'element') indexNodes(n.children);
+      }
+    };
+    indexNodes(normalizedRoots);
+    const aOrd = orderMap.get(this.selection.anchor.nodeId);
+    const bOrd = orderMap.get(this.selection.focus.nodeId);
+
+    if (ai < 0 || bi < 0) {
+      const fallbackPath = findAncestorPath(normalizedRoots, this.selection.focus.nodeId);
+      for (let j = fallbackPath.length - 1; j >= 0; j--) {
+        const node = fallbackPath[j];
+        if (node.kind === 'element' && BLOCK_TAGS.has(node.tag)) {
+          targetBlockIds.add(node.id);
+          break;
+        }
+      }
+      if (aOrd !== undefined && bOrd !== undefined) {
+        const minOrd = Math.min(aOrd, bOrd);
+        const maxOrd = Math.max(aOrd, bOrd);
+        const collectInRange = (nodes: readonly DocumentNode[]) => {
+          for (const n of nodes) {
+            if (n.kind !== 'element') continue;
+            const ord = orderMap.get(n.id) ?? -1;
+            if (BLOCK_TAGS.has(n.tag) && ord >= minOrd && ord <= maxOrd) {
+              targetBlockIds.add(n.id);
+            }
+            collectInRange(n.children);
+          }
+        };
+        collectInRange(normalizedRoots);
+      }
+    } else {
+      const [start, end] = ai <= bi ? [ai, bi] : [bi, ai];
+      for (let i = start; i <= end; i++) {
+        const path = findAncestorPath(normalizedRoots, leaves[i].id);
+        for (let j = path.length - 1; j >= 0; j--) {
+          const node = path[j];
+          if (node.kind === 'element' && BLOCK_TAGS.has(node.tag)) {
+            targetBlockIds.add(node.id);
+            break;
+          }
+        }
+      }
+      if (aOrd !== undefined && bOrd !== undefined && aOrd !== bOrd) {
+        const minOrd = Math.min(aOrd, bOrd);
+        const maxOrd = Math.max(aOrd, bOrd);
+        const collectEmptyInRange = (nodes: readonly DocumentNode[]) => {
+          for (const n of nodes) {
+            if (n.kind !== 'element') continue;
+            const ord = orderMap.get(n.id) ?? -1;
+            if (BLOCK_TAGS.has(n.tag) && ord > minOrd && ord < maxOrd) {
+              targetBlockIds.add(n.id);
+            }
+            collectEmptyInRange(n.children);
+          }
+        };
+        collectEmptyInRange(normalizedRoots);
+      }
+    }
+    if (!targetBlockIds.size) return false;
+
+    let changed = rootsChangedByWrap;
     const rewrite = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => {
       let localChanged = false;
       const mapped = nodes.map(node => {
@@ -1313,7 +1445,7 @@ export class CanvasEditSession {
       });
       return localChanged ? mapped : nodes;
     };
-    const nextRoots = rewrite(section.model.state.roots);
+    const nextRoots = rewrite(normalizedRoots);
     if (!changed) return false;
     return this.commitCustomState(nextRoots, this.selection, kind);
   }
@@ -1535,12 +1667,58 @@ export class CanvasEditSession {
     const leaves = textNodes(roots);
     let ai = leaves.findIndex(n => n.id === anchor.nodeId);
     let bi = leaves.findIndex(n => n.id === focus.nodeId);
-    if (ai < 0 || bi < 0) return false;
     let startPos = anchor;
     let endPos = focus;
-    if (ai > bi || (ai === bi && anchor.offset > focus.offset)) {
+    if ((ai < 0 || bi < 0) && leaves.length > 0) {
+      const orderMap = new Map<string, number>();
+      let seq = 0;
+      const indexTree = (nodes: readonly DocumentNode[]) => {
+        for (const n of nodes) {
+          orderMap.set(n.id, seq++);
+          if (n.kind === 'element') indexTree(n.children);
+        }
+      };
+      indexTree(roots);
+      const aOrd = orderMap.get(anchor.nodeId);
+      const bOrd = orderMap.get(focus.nodeId);
+      if (aOrd !== undefined && bOrd !== undefined) {
+        const minOrd = Math.min(aOrd, bOrd);
+        const maxOrd = Math.max(aOrd, bOrd);
+        const swapped = aOrd > bOrd;
+        if (ai < 0) {
+          if (!swapped) {
+            ai = leaves.findIndex(l => (orderMap.get(l.id) ?? -1) >= minOrd);
+            if (ai >= 0) startPos = { nodeId: leaves[ai].id, offset: 0 };
+          } else {
+            for (let k = leaves.length - 1; k >= 0; k--) {
+              if ((orderMap.get(leaves[k].id) ?? Infinity) <= maxOrd) {
+                ai = k;
+                startPos = { nodeId: leaves[k].id, offset: leaves[k].text.length };
+                break;
+              }
+            }
+          }
+        }
+        if (bi < 0) {
+          if (!swapped) {
+            for (let k = leaves.length - 1; k >= 0; k--) {
+              if ((orderMap.get(leaves[k].id) ?? Infinity) <= maxOrd) {
+                bi = k;
+                endPos = { nodeId: leaves[k].id, offset: leaves[k].text.length };
+                break;
+              }
+            }
+          } else {
+            bi = leaves.findIndex(l => (orderMap.get(l.id) ?? -1) >= minOrd);
+            if (bi >= 0) endPos = { nodeId: leaves[bi].id, offset: 0 };
+          }
+        }
+      }
+    }
+    if (ai < 0 || bi < 0) return false;
+    if (ai > bi || (ai === bi && startPos.offset > endPos.offset)) {
       [ai, bi] = [bi, ai];
-      [startPos, endPos] = [focus, anchor];
+      [startPos, endPos] = [endPos, startPos];
     }
 
     const selectedLeafRanges = new Map<string, { start: number; end: number }>();
@@ -1630,15 +1808,45 @@ export class CanvasEditSession {
             if ((node.tag === 'sub' || node.tag === 'sup') && (patch['vertical-align'] === null || patch['vertical-align'] === 'baseline')) {
               tag = 'span';
             }
+            const clearPatchedDescendants = (children: readonly DocumentNode[]): readonly DocumentNode[] =>
+              children.map(child => {
+                if (child.kind !== 'element') return child;
+                const nextGrand = clearPatchedDescendants(child.children);
+                const childStyle = parseStyleMap(child.attributes['style']);
+                let childChanged = nextGrand !== child.children;
+                for (const k of Object.keys(patch)) {
+                  if (k in childStyle) {
+                    delete childStyle[k];
+                    childChanged = true;
+                  }
+                }
+                let nextTag = child.tag;
+                if (patch['font-weight'] === 'normal' && (child.tag === 'b' || child.tag === 'strong')) {
+                  nextTag = 'span';
+                  childChanged = true;
+                }
+                if (patch['font-style'] === 'normal' && (child.tag === 'i' || child.tag === 'em')) {
+                  nextTag = 'span';
+                  childChanged = true;
+                }
+                if (!childChanged) return child;
+                const nextAttrs = { ...child.attributes };
+                const serializedChild = serializeStyleMap(childStyle);
+                if (serializedChild) nextAttrs['style'] = serializedChild;
+                else delete nextAttrs['style'];
+                return { ...child, tag: nextTag, attributes: nextAttrs, children: nextGrand };
+              });
+            const cleanedChildren = clearPatchedDescendants(node.children);
             const newStyle = serializeStyleMap(styleMap);
             const nonStyleAttrs = Object.keys(node.attributes).filter(k => k !== 'style' && k !== 'id');
             if (tag === 'span' && !newStyle && nonStyleAttrs.length === 0) {
-              out.push(...node.children);
+              out.push(...cleanedChildren);
             } else {
               out.push({
                 ...node,
                 tag,
                 attributes: newStyle ? { ...node.attributes, style: newStyle } : { ...node.attributes, style: '' },
+                children: cleanedChildren,
               });
             }
             continue;
@@ -2817,13 +3025,32 @@ export class CanvasEditSession {
     return this.commitCustomState(nextRoots, { anchor: pos, focus: pos }, 'merge-table-cells');
   }
 
-  private unwrapListItemChildren(item: Extract<DocumentNode, { kind: 'element' }>): readonly DocumentNode[] {
-    const meaningful = item.children.filter(c => !(c.kind === 'text' && !c.text.trim() && item.children.some(x => x.kind === 'element')));
+  private splitListItemChildren(item: Extract<DocumentNode, { kind: 'element' }>): {
+    inlineChildren: readonly DocumentNode[];
+    nestedLists: readonly Extract<DocumentNode, { kind: 'element' }>[];
+  } {
+    const nonListChildren: DocumentNode[] = [];
+    const nestedLists: Extract<DocumentNode, { kind: 'element' }>[] = [];
+    for (const c of item.children) {
+      if (c.kind === 'element' && (c.tag === 'ul' || c.tag === 'ol')) {
+        nestedLists.push(c);
+      } else {
+        nonListChildren.push(c);
+      }
+    }
+    const meaningful = nonListChildren.filter(c => !(c.kind === 'text' && !c.text.trim() && nonListChildren.some(x => x.kind === 'element')));
+    let inlineChildren: readonly DocumentNode[];
     if (meaningful.length === 1 && meaningful[0].kind === 'element' && ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(meaningful[0].tag)) {
       const inner = meaningful[0].children;
-      return inner.length ? inner : [{ id: this.uid('txt'), kind: 'text', text: '' }];
+      inlineChildren = inner.length ? inner : [{ id: this.uid('txt'), kind: 'text', text: '' }];
+    } else {
+      inlineChildren = nonListChildren.length ? nonListChildren : [{ id: this.uid('txt'), kind: 'text', text: '' }];
     }
-    return item.children.length ? item.children : [{ id: this.uid('txt'), kind: 'text', text: '' }];
+    return { inlineChildren, nestedLists };
+  }
+
+  private unwrapListItemChildren(item: Extract<DocumentNode, { kind: 'element' }>): readonly DocumentNode[] {
+    return this.splitListItemChildren(item).inlineChildren;
   }
 
   /** Ensures no <p>/heading/etc. sits directly inside a <ul>/<ol> by splitting any enclosing list around it. */
@@ -2909,9 +3136,9 @@ export class CanvasEditSession {
                 seenTarget = true;
                 changed = true;
                 flushPending();
-                const pChildren = this.unwrapListItemChildren(child);
-                const firstText = textNodes(pChildren)[0];
-                const ensuredChildren = firstText ? pChildren : [{ id: this.uid('txt'), kind: 'text' as const, text: '' }];
+                const { inlineChildren, nestedLists } = this.splitListItemChildren(child);
+                const firstText = textNodes(inlineChildren)[0];
+                const ensuredChildren = firstText ? inlineChildren : [{ id: this.uid('txt'), kind: 'text' as const, text: '' }];
                 caretNodeId = textNodes(ensuredChildren)[0].id;
                 out.push({
                   id: this.uid('p'),
@@ -2920,6 +3147,9 @@ export class CanvasEditSession {
                   attributes: {},
                   children: ensuredChildren,
                 });
+                for (const nested of nestedLists) {
+                  out.push(nested);
+                }
                 ordinal += 1;
                 segmentStart = ordinal;
               } else {
@@ -2955,11 +3185,83 @@ export class CanvasEditSession {
     return { nextRoots, caretNodeId };
   }
 
-  toggleList(type: 'ul' | 'ol', listStyleType?: string): boolean {
+  private stripExternalFontOverrides(nodes: readonly DocumentNode[]): readonly DocumentNode[] {
+    const fontKeys = ['font-family', 'font-size', 'line-height'];
+    const walk = (list: readonly DocumentNode[]): readonly DocumentNode[] => {
+      let changed = false;
+      const out = list.map(node => {
+        if (node.kind !== 'element') return node;
+        if ('data-word-rev' in node.attributes || node.tag === 'code' || node.tag === 'pre') return node;
+        const nextChildren = node.children.length ? walk(node.children) : node.children;
+        let nextAttrs: Record<string, string> | Readonly<Record<string, string>> = node.attributes;
+        let attrChanged = false;
+        if (node.attributes['style']) {
+          const styleMap = parseStyleMap(node.attributes['style']);
+          for (const k of fontKeys) {
+            if (k in styleMap) {
+              delete styleMap[k];
+              attrChanged = true;
+            }
+          }
+          if (attrChanged) {
+            const mutableAttrs: Record<string, string> = { ...node.attributes };
+            const serialized = serializeStyleMap(styleMap);
+            if (serialized) mutableAttrs['style'] = serialized;
+            else delete mutableAttrs['style'];
+            nextAttrs = mutableAttrs;
+          }
+        }
+        if (node.tag === 'font' && ('face' in nextAttrs || 'size' in nextAttrs)) {
+          const mutableAttrs: Record<string, string> = { ...nextAttrs };
+          delete mutableAttrs['face'];
+          delete mutableAttrs['size'];
+          nextAttrs = mutableAttrs;
+          attrChanged = true;
+        }
+        if (attrChanged || nextChildren !== node.children) {
+          changed = true;
+          return { ...node, attributes: nextAttrs, children: nextChildren };
+        }
+        return node;
+      });
+      return changed ? out : list;
+    };
+    return walk(nodes);
+  }
+
+  private splitBlockChildrenOnBr(children: readonly DocumentNode[]): DocumentNode[][] {
+    const containsBr = (nodes: readonly DocumentNode[]): boolean =>
+      nodes.some(c => c.kind === 'element' && (c.tag === 'br' || (c.tag === 'span' && containsBr(c.children))));
+    if (!containsBr(children)) return [children as DocumentNode[]];
+    const lines: DocumentNode[][] = [];
+    let current: DocumentNode[] = [];
+    const flushLine = () => {
+      if (current.some(n => (n.kind === 'text' && n.text.length > 0) || n.kind === 'element')) {
+        lines.push(current);
+      }
+      current = [];
+    };
+    const walk = (nodes: readonly DocumentNode[]) => {
+      for (const c of nodes) {
+        if (c.kind === 'element' && c.tag === 'br') {
+          flushLine();
+        } else if (c.kind === 'element' && c.tag === 'span' && containsBr(c.children)) {
+          walk(c.children);
+        } else {
+          current.push(c);
+        }
+      }
+    };
+    walk(children);
+    flushLine();
+    return lines.length ? lines : [children as DocumentNode[]];
+  }
+
+  toggleList(type: 'ul' | 'ol', listStyleType?: string, template?: StyleTemplate): boolean {
     if (!this.selection) return false;
     const section = this.engine.getSections()[this.section];
     if (!section) return false;
-    const roots = section.model.state.roots;
+    const roots = this.wrapNakedInlineRoots(section.model.state.roots);
     const leaves = textNodes(roots);
     const { anchor, focus } = this.selection;
     let ai = leaves.findIndex(n => n.id === anchor.nodeId);
@@ -2971,27 +3273,80 @@ export class CanvasEditSession {
       for (const leaf of leaves.slice(ai, bi + 1)) {
         targetPaths.push(findAncestorPath(roots, leaf.id));
       }
+    } else if (anchor.nodeId !== focus.nodeId && leaves.length > 0) {
+      const orderMap = new Map<string, number>();
+      let seq = 0;
+      const indexTree = (nodes: readonly DocumentNode[]) => {
+        for (const n of nodes) {
+          orderMap.set(n.id, seq++);
+          if (n.kind === 'element') indexTree(n.children);
+        }
+      };
+      indexTree(roots);
+      const aOrd = orderMap.get(anchor.nodeId);
+      const bOrd = orderMap.get(focus.nodeId);
+      if (aOrd !== undefined && bOrd !== undefined) {
+        const minOrd = Math.min(aOrd, bOrd);
+        const maxOrd = Math.max(aOrd, bOrd);
+        for (const leaf of leaves) {
+          const ord = orderMap.get(leaf.id) ?? -1;
+          if (ord >= minOrd && ord <= maxOrd) {
+            targetPaths.push(findAncestorPath(roots, leaf.id));
+          }
+        }
+      }
+      if (!targetPaths.length) {
+        const fallbackPath = findAncestorPath(roots, focus.nodeId);
+        if (fallbackPath.length) targetPaths.push(fallbackPath);
+      }
     } else {
       const fallbackPath = findAncestorPath(roots, focus.nodeId);
       if (fallbackPath.length) targetPaths.push(fallbackPath);
     }
 
+    const isLeafDiv = (n: DocumentNode): boolean =>
+      n.kind === 'element' &&
+      n.tag === 'div' &&
+      !n.children.some(c => c.kind === 'element' && ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'table', 'div'].includes(c.tag));
+
     const blockIds = new Set<string>();
     for (const path of targetPaths) {
       const li = [...path].reverse().find(n => n.kind === 'element' && n.tag === 'li');
-      const block = li ?? [...path].reverse().find(n => n.kind === 'element' && ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(n.tag));
+      const block =
+        li ??
+        [...path].reverse().find(
+          n => n.kind === 'element' && (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'].includes(n.tag) || isLeafDiv(n)),
+        );
       if (block) blockIds.add(block.id);
     }
     if (!blockIds.size) return false;
 
+    const listHasSelectedDirectLi = (listNode: Extract<DocumentNode, { kind: 'element' }>): boolean =>
+      listNode.children.some(c => c.kind === 'element' && c.tag === 'li' && blockIds.has(c.id));
+
     let allInTargetList = targetPaths.length > 0;
     for (const path of targetPaths) {
-      const list = [...path].reverse().find(n => n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol'));
-      if (!list || list.kind !== 'element' || list.tag !== type) {
+      const effectiveList =
+        path.find(
+          (n): n is Extract<DocumentNode, { kind: 'element' }> =>
+            n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol') && listHasSelectedDirectLi(n),
+        ) ??
+        [...path].reverse().find(
+          (n): n is Extract<DocumentNode, { kind: 'element' }> =>
+            n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol'),
+        );
+      if (!effectiveList || effectiveList.tag !== type) {
         allInTargetList = false;
         break;
       }
     }
+
+    const docBodyRule = template?.rules?.P;
+    const docFontFamily = docBodyRule?.fontFamily
+      ? (docBodyRule.fontFamily.includes(',') ? docBodyRule.fontFamily : `"${docBodyRule.fontFamily}", serif`)
+      : undefined;
+    const docFontSize = docBodyRule?.fontSizePt ? `${docBodyRule.fontSizePt}pt` : undefined;
+    const docLineHeight = docBodyRule?.lineHeight ? String(docBodyRule.lineHeight) : undefined;
 
     const buildListAttrs = (baseAttrs: Record<string, string>, nextTag: 'ul' | 'ol', prevTag?: string): Record<string, string> => {
       const attrs = { ...baseAttrs };
@@ -3000,6 +3355,14 @@ export class CanvasEditSession {
         styleMap['list-style-type'] = listStyleType;
       } else if (prevTag && prevTag !== nextTag) {
         delete styleMap['list-style-type'];
+      } else if ((styleMap['list-style-type'] || '').toLowerCase() === 'none') {
+        delete styleMap['list-style-type'];
+      }
+      if (docFontFamily) styleMap['font-family'] = docFontFamily;
+      if (docFontSize) styleMap['font-size'] = docFontSize;
+      if (docLineHeight) {
+        styleMap['line-height'] = docLineHeight;
+        attrs['data-word-line-spacing'] = docLineHeight;
       }
       const serialized = serializeStyleMap(styleMap);
       if (serialized) attrs['style'] = serialized;
@@ -3033,6 +3396,37 @@ export class CanvasEditSession {
       result.push(listNode);
     };
 
+    const transformListItem = (li: Extract<DocumentNode, { kind: 'element' }>): DocumentNode[] => {
+      if (li.tag !== 'li' || !li.children.some(c => c.kind === 'element' && (c.tag === 'ul' || c.tag === 'ol'))) {
+        return [li];
+      }
+      const keptChildren: DocumentNode[] = [];
+      const hoistedAfter: DocumentNode[] = [];
+      let hoisting = false;
+      for (const c of li.children) {
+        if (c.kind === 'element' && (c.tag === 'ul' || c.tag === 'ol')) {
+          const transformed = transformNodes([c]);
+          for (const tn of transformed) {
+            if (hoisting || (tn.kind === 'element' && tn.tag !== 'ul' && tn.tag !== 'ol')) {
+              hoisting = true;
+              hoistedAfter.push(tn);
+            } else {
+              keptChildren.push(tn);
+            }
+          }
+        } else if (hoisting) {
+          hoistedAfter.push(c);
+        } else {
+          keptChildren.push(c);
+        }
+      }
+      if (!hoistedAfter.length) {
+        const changed = keptChildren.length !== li.children.length || keptChildren.some((c, idx) => c !== li.children[idx]);
+        return [changed ? { ...li, children: keptChildren } : li];
+      }
+      return [{ ...li, children: keptChildren }, ...hoistedAfter];
+    };
+
     const transformNodes = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => {
       const result: DocumentNode[] = [];
       for (let i = 0; i < nodes.length; i++) {
@@ -3042,39 +3436,66 @@ export class CanvasEditSession {
           if (hasSelectedChild) {
             if (allInTargetList && !listStyleType) {
               let pendingList: DocumentNode[] = [];
+              const flushPending = () => {
+                if (pendingList.length) {
+                  result.push({ id: this.uid(node.tag), kind: 'element', tag: node.tag, attributes: { ...node.attributes }, children: pendingList });
+                  pendingList = [];
+                }
+              };
               for (const child of node.children) {
                 if (blockIds.has(child.id) && child.kind === 'element' && child.tag === 'li') {
-                  if (pendingList.length) {
-                    result.push({ id: this.uid(node.tag), kind: 'element', tag: node.tag, attributes: { ...node.attributes }, children: pendingList });
-                    pendingList = [];
-                  }
-                  const pChildren = this.unwrapListItemChildren(child);
+                  flushPending();
+                  const { inlineChildren, nestedLists } = this.splitListItemChildren(child);
                   result.push({
                     id: this.uid('p'),
                     kind: 'element',
                     tag: 'p',
                     attributes: {},
-                    children: pChildren,
+                    children: inlineChildren,
                   });
+                  if (nestedLists.length) {
+                    result.push(...transformNodes(nestedLists));
+                  }
+                } else if (child.kind === 'element' && (child.tag === 'ul' || child.tag === 'ol')) {
+                  const transformedNested = transformNodes([child]);
+                  const hasNonList = transformedNested.some(
+                    n => n.kind === 'element' && n.tag !== 'ul' && n.tag !== 'ol' && n.tag !== 'li',
+                  );
+                  if (hasNonList) {
+                    flushPending();
+                    result.push(...transformedNested);
+                  } else {
+                    pendingList.push(...transformedNested);
+                  }
                 } else if (child.kind === 'text' && !child.text.trim()) {
                   continue;
+                } else if (child.kind === 'element' && child.tag === 'li') {
+                  const transformedItem = transformListItem(child);
+                  if (transformedItem.length === 1 && transformedItem[0].kind === 'element' && transformedItem[0].tag === 'li') {
+                    pendingList.push(transformedItem[0]);
+                  } else {
+                    flushPending();
+                    result.push(...transformedItem);
+                  }
                 } else {
                   pendingList.push(child);
                 }
               }
-              if (pendingList.length) {
-                result.push({ id: this.uid(node.tag), kind: 'element', tag: node.tag, attributes: { ...node.attributes }, children: pendingList });
-              }
+              flushPending();
             } else {
               const allChildrenSelected = node.children
                 .filter(c => c.kind === 'element' && c.tag === 'li')
                 .every(c => blockIds.has(c.id));
               if (allChildrenSelected) {
+                const mappedChildren = node.children
+                  .filter(c => !(c.kind === 'text' && !c.text.trim()))
+                  .flatMap(c => (c.kind === 'element' ? transformNodes([c]) : [c]))
+                  .map(c => (c.kind === 'element' && c.tag === 'li' ? this.stripExternalFontOverrides([c])[0] : c));
                 const updated: Extract<DocumentNode, { kind: 'element' }> = {
                   ...node,
                   tag: type,
                   attributes: buildListAttrs(node.attributes, type, node.tag),
-                  children: node.children.filter(c => !(c.kind === 'text' && !c.text.trim())),
+                  children: mappedChildren,
                 };
                 pushListResult(result, updated, true);
               } else {
@@ -3101,6 +3522,15 @@ export class CanvasEditSession {
                 };
                 for (const child of node.children) {
                   if (child.kind === 'text' && !child.text.trim()) continue;
+                  if (child.kind === 'element' && (child.tag === 'ul' || child.tag === 'ol')) {
+                    if (!currentTag) {
+                      currentTag = node.tag as 'ul' | 'ol';
+                      currentAttrs = { ...node.attributes };
+                      currentIsConverted = false;
+                    }
+                    currentItems.push(...transformNodes([child]));
+                    continue;
+                  }
                   const isSel = blockIds.has(child.id);
                   const segTag: 'ul' | 'ol' = isSel ? type : (node.tag as 'ul' | 'ol');
                   const segAttrs = isSel
@@ -3112,7 +3542,14 @@ export class CanvasEditSession {
                     currentAttrs = segAttrs;
                     currentIsConverted = isSel;
                   }
-                  currentItems.push(child);
+                  if (child.kind === 'element') {
+                    const transformed = transformNodes([child]);
+                    currentItems.push(
+                      ...(isSel ? this.stripExternalFontOverrides(transformed) : transformed),
+                    );
+                  } else {
+                    currentItems.push(child);
+                  }
                 }
                 flushSegment();
               }
@@ -3121,14 +3558,31 @@ export class CanvasEditSession {
           }
         }
 
-        if (blockIds.has(node.id) && node.kind === 'element' && ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(node.tag)) {
-          const listItems: DocumentNode[] = [{
-            id: this.uid('li'),
-            kind: 'element',
-            tag: 'li',
-            attributes: {},
-            children: node.children.length ? node.children : [{ id: this.uid('txt'), kind: 'text', text: '' }]
-          }];
+        if (node.kind === 'element' && node.tag === 'li') {
+          result.push(...transformListItem(node));
+          continue;
+        }
+
+        const isConvertibleBlock = (n: DocumentNode): boolean =>
+          blockIds.has(n.id) &&
+          n.kind === 'element' &&
+          (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'].includes(n.tag) || isLeafDiv(n));
+
+        if (node.kind === 'element' && isConvertibleBlock(node)) {
+          const toListItems = (blk: Extract<DocumentNode, { kind: 'element' }>): DocumentNode[] => {
+            const unwrapped = blk.children.length
+              ? this.stripExternalFontOverrides(unwrapApaRunInChildren(blk.children))
+              : [{ id: this.uid('txt'), kind: 'text' as const, text: '' }];
+            const segments = this.splitBlockChildrenOnBr(unwrapped);
+            return segments.map(seg => ({
+              id: this.uid('li'),
+              kind: 'element' as const,
+              tag: 'li',
+              attributes: {},
+              children: seg.length ? seg : [{ id: this.uid('txt'), kind: 'text' as const, text: '' }],
+            }));
+          };
+          const listItems: DocumentNode[] = [...toListItems(node)];
           let j = i + 1;
           while (j < nodes.length) {
             const nextNode = nodes[j];
@@ -3136,14 +3590,8 @@ export class CanvasEditSession {
               j++;
               continue;
             }
-            if (blockIds.has(nextNode.id) && nextNode.kind === 'element' && ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(nextNode.tag)) {
-              listItems.push({
-                id: this.uid('li'),
-                kind: 'element',
-                tag: 'li',
-                attributes: {},
-                children: nextNode.children.length ? nextNode.children : [{ id: this.uid('txt'), kind: 'text', text: '' }]
-              });
+            if (nextNode.kind === 'element' && isConvertibleBlock(nextNode)) {
+              listItems.push(...toListItems(nextNode));
               j++;
             } else {
               break;
@@ -3166,7 +3614,11 @@ export class CanvasEditSession {
 
         if (node.kind === 'element') {
           const nextChildren = transformNodes(node.children);
-          result.push(nextChildren !== node.children ? { ...node, children: nextChildren } : node);
+          if (nextChildren !== node.children && (node.tag === 'ul' || node.tag === 'ol')) {
+            result.push(...this.hoistNonListBlocksFromLists([{ ...node, children: nextChildren }]));
+          } else {
+            result.push(nextChildren !== node.children ? { ...node, children: nextChildren } : node);
+          }
         } else {
           result.push(node);
         }
@@ -3194,11 +3646,11 @@ export class CanvasEditSession {
   }
 
   /** Applies a specific CSS `list-style-type` (`disc`, `circle`, `square`, `decimal`, `lower-alpha`, `upper-roman`, etc.) to the selected blocks without toggling off an active list. */
-  applyListStyle(listStyleType: string): boolean {
+  applyListStyle(listStyleType: string, template?: StyleTemplate): boolean {
     const normalized = (listStyleType || '').trim().toLowerCase();
     if (!normalized) return false;
     const ordered = ['decimal', 'lower-alpha', 'lower-latin', 'upper-alpha', 'upper-latin', 'lower-roman', 'upper-roman'].includes(normalized);
-    return this.toggleList(ordered ? 'ol' : 'ul', normalized);
+    return this.toggleList(ordered ? 'ol' : 'ul', normalized, template);
   }
 
   /** Inserts or updates a LaTeX formula block (`.word-latex-formula`) directly in the DocumentModel. */
@@ -5009,7 +5461,7 @@ export class CanvasEditSession {
     const inlineEmptyTags = new Set(['br', 'span', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'font', 'sub', 'sup', 'a', 'code', 'mark', 'small', 'big', 'del', 'ins']);
     const check = (n: DocumentNode): boolean =>
       n.kind === 'text'
-        ? n.text.length === 0
+        ? /^[\u200B\u200C\u200D\uFEFF]*$/.test(n.text)
         : (editableBlocks.has(n.tag) || inlineEmptyTags.has(n.tag)) && n.children.every(check);
     return check(node);
   }
@@ -5163,11 +5615,12 @@ export class CanvasEditSession {
     const isWhitespaceNode = (n: DocumentNode): boolean => n.kind === 'text' && !n.text.trim();
     const rawBlock = path.slice().reverse().find((n): n is Extract<DocumentNode, { kind: 'element' }> => n.kind === 'element' && editableBlocks.has(n.tag));
     const enclosingLi = path.slice().reverse().find((n): n is Extract<DocumentNode, { kind: 'element' }> => n.kind === 'element' && n.tag === 'li');
+    const isNestedList = (n: DocumentNode): boolean => n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol');
     const block =
       enclosingLi &&
       rawBlock &&
       rawBlock.id !== enclosingLi.id &&
-      (this.isEditableBlockEmpty(enclosingLi) || enclosingLi.children.filter(c => !isWhitespaceNode(c)).length === 1)
+      (this.isEditableBlockEmpty(enclosingLi) || enclosingLi.children.filter(c => !isWhitespaceNode(c) && !isNestedList(c)).length === 1)
         ? enclosingLi
         : rawBlock;
     const empty = (node: DocumentNode): boolean => this.isEditableBlockEmpty(node);
@@ -5222,9 +5675,19 @@ export class CanvasEditSession {
         const target=neighbor||meaningfulSiblings[at+(backward?1:-1)];
         if(target)return removeEmpty(block,target);
       }
+      if (empty(block) && meaningfulSiblings.length === 1 && parent?.kind === 'element' && ['div', 'section', 'article'].includes(parent.tag)) {
+        const gpIndex = parentIndex - 1;
+        const gp = gpIndex >= 0 ? path[gpIndex] : null;
+        const gpSiblings = (gp?.kind === 'element' ? gp.children : roots).filter(n => !isWhitespaceNode(n));
+        const pAt = gpSiblings.findIndex(n => n.id === parent.id);
+        if (gpSiblings.length > 1 && pAt >= 0) {
+          const target = gpSiblings[pAt + (backward ? -1 : 1)] || gpSiblings[pAt + (backward ? 1 : -1)];
+          if (target) return removeEmpty(parent, target);
+        }
+      }
       if(boundary&&neighbor?.kind==='element'&&editableBlocks.has(neighbor.tag)&&empty(neighbor))return removeEmpty(neighbor,block);
       // Merge a paragraph right after a list into the list's last <li> on Backspace at offset 0.
-      if (backward && boundary && block.tag !== 'li' && neighbor?.kind === 'element' && (neighbor.tag === 'ul' || neighbor.tag === 'ol')) {
+      if (backward && boundary && !parent && block.tag !== 'li' && neighbor?.kind === 'element' && (neighbor.tag === 'ul' || neighbor.tag === 'ol')) {
         const listItems = neighbor.children.filter((c): c is Extract<DocumentNode, { kind: 'element' }> => c.kind === 'element' && c.tag === 'li');
         const lastLi = listItems.at(-1);
         if (lastLi) {
@@ -5297,6 +5760,40 @@ export class CanvasEditSession {
         this.engine.setSelection(this.section,this.selection);this.typingAt=0;this.onCheckpoint?.();return true;
       }
       const block = blockOf(leaf.id, roots), adjacent = blockOf(other.id, roots);
+      if (!block && backward && focus.offset === 0) {
+        const rootIdx = roots.findIndex(r => r.id === leaf.id || (r.kind === 'element' && getSubtreeIds(r).has(leaf.id)));
+        if (rootIdx > 0) {
+          let prevIdx = rootIdx - 1;
+          while (prevIdx >= 0 && isWhitespaceNode(roots[prevIdx])) prevIdx--;
+          const prevRoot = prevIdx >= 0 ? roots[prevIdx] : null;
+          if (prevRoot && prevRoot.kind === 'element' && editableBlocks.has(prevRoot.tag) && empty(prevRoot)) {
+            const pos = { nodeId: leaf.id, offset: 0 };
+            this.typingAt = 0;
+            this.commit({ type: 'removeNode', nodeId: prevRoot.id, selection: { anchor: pos, focus: pos } }, 'remove-empty-block');
+            return true;
+          }
+          if (prevRoot && prevRoot.kind === 'element' && editableBlocks.has(prevRoot.tag)) {
+            const wrapped = this.wrapNakedInlineRoots(roots);
+            if (wrapped !== roots) {
+              const prevLeaves = textNodes([prevRoot]);
+              const joinLeaf = prevLeaves.at(-1);
+              const joinOffset = joinLeaf?.text.length ?? 0;
+              const currentRoot = roots[rootIdx];
+              const nextRoots = roots.reduce<DocumentNode[]>((acc, r, idx) => {
+                if (idx === rootIdx) return acc;
+                if (idx === prevIdx && r.kind === 'element') {
+                  acc.push({ ...r, children: [...r.children, currentRoot] });
+                  return acc;
+                }
+                acc.push(r);
+                return acc;
+              }, []);
+              const pos = joinLeaf ? { nodeId: joinLeaf.id, offset: joinOffset } : { nodeId: leaf.id, offset: 0 };
+              return this.commitCustomState(nextRoots, { anchor: pos, focus: pos }, 'merge');
+            }
+          }
+        }
+      }
       if (block && adjacent && block.id !== adjacent.id) {
         const leftPath=findAncestorPath(roots,block.id),rightPath=findAncestorPath(roots,adjacent.id);
         const lp=leftPath.at(-2),rp=rightPath.at(-2);
@@ -5307,6 +5804,9 @@ export class CanvasEditSession {
           if (block.kind !== 'element' || adjacent.kind !== 'element') return false;
           const leftBlock = backward ? adjacent : block;
           const rightBlock = backward ? block : adjacent;
+          if (getSubtreeIds(leftBlock).has(rightBlock.id) || getSubtreeIds(rightBlock).has(leftBlock.id)) {
+            return false;
+          }
           const rightInline = (rightBlock.tag === 'li' ? this.unwrapListItemChildren(rightBlock) : rightBlock.children)
             .filter(c => !(c.kind === 'element' && c.tag === 'br'));
           const leftLeaves = textNodes([leftBlock]);
@@ -5343,7 +5843,23 @@ export class CanvasEditSession {
           return this.commitCustomState(nextRoots, { anchor: pos, focus: pos }, 'merge');
         }
         const siblings=(lp?.kind==='element'?lp.children:roots).filter(n => !isWhitespaceNode(n));
-        if(Math.abs(siblings.findIndex(n=>n.id===block.id)-siblings.findIndex(n=>n.id===adjacent.id))!==1)return false;
+        const bIdx = siblings.findIndex(n => n.id === block.id);
+        const aIdx = siblings.findIndex(n => n.id === adjacent.id);
+        if (Math.abs(bIdx - aIdx) !== 1) {
+          if (bIdx >= 0 && aIdx >= 0) {
+            const step = backward ? -1 : 1;
+            const immediate = siblings[bIdx + step];
+            if (immediate && immediate.kind === 'element' && editableBlocks.has(immediate.tag) && empty(immediate)) {
+              const texts = textNodes([block]);
+              const text = backward ? texts[0] : texts.at(-1);
+              const pos = { nodeId: text?.id || block.id, offset: backward ? 0 : (text?.text.length || 0) };
+              this.typingAt = 0;
+              this.commit({ type: 'removeNode', nodeId: immediate.id, selection: { anchor: pos, focus: pos } }, 'remove-empty-block');
+              return true;
+            }
+          }
+          return false;
+        }
         this.typingAt = 0;
         this.commit({ type: 'mergeBlocks', leftBlockId: backward ? adjacent.id : block.id, rightBlockId: backward ? block.id : adjacent.id }, 'merge');
         return true;
@@ -5736,9 +6252,10 @@ export class CanvasEditSession {
       return items;
     };
 
+    const normalizedInsertedRoots = this.wrapNakedInlineRoots(insertedRoots);
     const allInsertedAreLists =
-      insertedRoots.length > 0 &&
-      insertedRoots.every(n => n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol'));
+      normalizedInsertedRoots.length > 0 &&
+      normalizedInsertedRoots.every(n => n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol'));
 
     let placed = false;
     const placeBlocks = (nodes: readonly DocumentNode[], parentTag?: string): readonly DocumentNode[] => {
@@ -5746,13 +6263,13 @@ export class CanvasEditSession {
       for (const node of nodes) {
         if (node.kind === 'element' && node.id === targetBlockId && !placed) {
           if ((parentTag === 'ul' || parentTag === 'ol') && allInsertedAreLists) {
-            const splicedItems = extractListItems(insertedRoots);
+            const splicedItems = extractListItems(normalizedInsertedRoots);
             if (targetBlockEmpty) out.push(...splicedItems);
             else out.push(node, ...splicedItems);
           } else if (targetBlockEmpty) {
-            out.push(...insertedRoots);
+            out.push(...normalizedInsertedRoots);
           } else {
-            out.push(node, ...insertedRoots);
+            out.push(node, ...normalizedInsertedRoots);
           }
           placed = true;
         } else if (node.kind === 'element') {
@@ -5764,9 +6281,9 @@ export class CanvasEditSession {
       return out;
     };
 
-    const nextRoots = targetBlockId ? this.hoistNonListBlocksFromLists(placeBlocks(baseRoots)) : [...baseRoots, ...insertedRoots];
-    const finalRoots = placed ? nextRoots : [...baseRoots, ...insertedRoots];
-    const leaves = textNodes(insertedRoots);
+    const nextRoots = targetBlockId ? this.hoistNonListBlocksFromLists(placeBlocks(baseRoots)) : [...baseRoots, ...normalizedInsertedRoots];
+    const finalRoots = placed ? nextRoots : [...baseRoots, ...normalizedInsertedRoots];
+    const leaves = textNodes(normalizedInsertedRoots);
     const lastLeaf = leaves[leaves.length - 1];
     const nextSel: DocumentSelection | null = lastLeaf
       ? {

@@ -31,6 +31,7 @@ function filterCss(styleText: string | null, allowed: Set<string>): string {
     if (prop === 'font-weight' && (val === 'normal' || val === '400')) continue;
     if (prop === 'font-style' && val === 'normal') continue;
     if ((prop === 'text-decoration' || prop === 'text-decoration-line') && val === 'none') continue;
+    if (prop === 'list-style-type' && val.toLowerCase() === 'none') continue;
     kept.push(`${prop}: ${val}`);
   }
   return kept.join('; ');
@@ -51,16 +52,25 @@ export function hasRichClipboardFormatting(html: string): boolean {
     (html.match(/<(?:p|div)\b/gi)?.length ?? 0) > 1;
 }
 
+const INLINE_CONTAINER_TAGS = new Set([
+  'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'span', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'sub', 'sup', 'code', 'a',
+]);
+
 /**
  * Sanitiza y normaliza HTML proveniente de Google Docs, Word o navegadores
  * para que sea compatible con el modelo Canvas de Weave.
  */
 export function sanitizeClipboardHtml(html: string): string | null {
   if (!html || !html.trim()) return null;
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('script, style, meta, link, title, head, noscript, iframe, object, embed').forEach(el => el.remove());
+  // Quitar widgets inline de citas de IA (ej. Gemini) antes de DOMParser para evitar que un <div> interno cierre el <p> padre
+  const preCleaned = html.replace(/<(sources-carousel-inline|source-footnote)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+  const doc = new DOMParser().parseFromString(preCleaned, 'text/html');
+  doc
+    .querySelectorAll('script, style, meta, link, title, head, noscript, iframe, object, embed, button, svg, input, select, textarea, template')
+    .forEach(el => el.remove());
 
-  const cleanNode = (node: Node, insideList = false): Node[] => {
+  const cleanNode = (node: Node, insideList = false, insideParagraph = false): Node[] => {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent ?? '';
       return text ? [doc.createTextNode(text)] : [];
@@ -71,24 +81,34 @@ export function sanitizeClipboardHtml(html: string): string | null {
 
     // Google Docs envuelve todo el fragmento en <b id="docs-internal-guid-..." style="font-weight:normal;">
     if (tag === 'b' && (el.id.startsWith('docs-internal-guid') || el.style.fontWeight === 'normal')) {
-      return Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList));
+      return Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, insideParagraph));
     }
 
     // Google Docs coloca <p> dentro de <li>; lo aplanamos a contenido inline para el layout de listas
-    if (insideList && (tag === 'p' || tag === 'div')) {
-      const children = Array.from(el.childNodes).flatMap(c => cleanNode(c, true));
+    if ((insideList || insideParagraph) && (tag === 'p' || tag === 'div')) {
+      const children = Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, insideParagraph));
       return children;
     }
 
     if (tag === 'div' || tag === 'section' || tag === 'article' || tag === 'header' || tag === 'footer') {
+      if (insideList || insideParagraph) {
+        return Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, insideParagraph));
+      }
       const hasBlockChildren = Array.from(el.children).some(c => BLOCK_TAGS.has(c.tagName.toLowerCase()));
       if (hasBlockChildren) {
-        return Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList));
+        return Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, false));
       }
+      const cleanedChildren = Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, true));
+      const hasMeaningful = cleanedChildren.some(
+        c => (c.nodeType === Node.TEXT_NODE && (c.textContent ?? '').trim().length > 0) ||
+          (c.nodeType === Node.ELEMENT_NODE && ['img', 'br', 'hr', 'table'].includes((c as Element).tagName.toLowerCase())) ||
+          (c.nodeType === Node.ELEMENT_NODE && ((c as Element).textContent ?? '').trim().length > 0),
+      );
+      if (!hasMeaningful) return [];
       const p = doc.createElement('p');
       const style = filterCss(el.getAttribute('style'), ALLOWED_BLOCK_STYLES);
       if (style) p.setAttribute('style', style);
-      Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList)).forEach(c => p.appendChild(c));
+      cleanedChildren.forEach(c => p.appendChild(c));
       return [p];
     }
 
@@ -100,12 +120,12 @@ export function sanitizeClipboardHtml(html: string): string | null {
       if (color) styles.push(`color: ${color}`);
       if (face) styles.push(`font-family: ${face}`);
       if (styles.length) span.setAttribute('style', styles.join('; '));
-      Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList)).forEach(c => span.appendChild(c));
+      Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, true)).forEach(c => span.appendChild(c));
       return span.childNodes.length ? [span] : [];
     }
 
     if (!ALLOWED_TAGS.has(tag)) {
-      return Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList));
+      return Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, insideParagraph));
     }
 
     // Convertir <span style="vertical-align: super|sub"> de Google Docs en <sup>/<sub>
@@ -113,7 +133,7 @@ export function sanitizeClipboardHtml(html: string): string | null {
       const va = el.style.verticalAlign;
       if (va === 'super' || va === 'sub') {
         const subSup = doc.createElement(va === 'super' ? 'sup' : 'sub');
-        Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList)).forEach(c => subSup.appendChild(c));
+        Array.from(el.childNodes).flatMap(c => cleanNode(c, insideList, true)).forEach(c => subSup.appendChild(c));
         return subSup.childNodes.length ? [subSup] : [];
       }
     }
@@ -145,16 +165,18 @@ export function sanitizeClipboardHtml(html: string): string | null {
     if (filteredStyle) out.setAttribute('style', filteredStyle);
 
     const nextInsideList = insideList || tag === 'li';
-    const cleanedChildren = Array.from(el.childNodes).flatMap(c => cleanNode(c, nextInsideList));
+    const nextInsideParagraph = insideParagraph || INLINE_CONTAINER_TAGS.has(tag);
+    const cleanedChildren = Array.from(el.childNodes).flatMap(c => cleanNode(c, nextInsideList, nextInsideParagraph));
     cleanedChildren.forEach(c => out.appendChild(c));
 
-    // Evitar <span> vacíos sin atributos ni texto
-    if (tag === 'span' && !out.getAttribute('style') && !out.childNodes.length) return [];
+    // Evitar <span> vacíos sin contenido y <p> vacíos residuales (sin texto, <br> ni <img>)
+    if (tag === 'span' && !out.childNodes.length) return [];
+    if (tag === 'p' && !(out.textContent ?? '').trim() && !out.querySelector('br, img, hr, table')) return [];
     return [out];
   };
 
   const container = doc.createElement('div');
-  Array.from(doc.body.childNodes).flatMap(c => cleanNode(c, false)).forEach(c => container.appendChild(c));
+  Array.from(doc.body.childNodes).flatMap(c => cleanNode(c, false, false)).forEach(c => container.appendChild(c));
   const result = container.innerHTML.trim();
   return result || null;
 }

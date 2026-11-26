@@ -142,6 +142,13 @@ export interface PageDisplayList {
   pdfHeadings?: readonly PdfOutlineHeading[];
 }
 
+/** Supersamples Canvas pages for sharper text and images, with a bounded zoom buffer. */
+export function canvasPixelRatio(zoom = 1): number {
+  const deviceRatio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+  const targetRatio = Math.min(3, Math.max(2, deviceRatio));
+  return Math.min(4, targetRatio * Math.max(0.1, zoom));
+}
+
 /** Canvas backend for the hybrid engine. The caller supplies already laid out content. */
 export class CanvasPageRenderer {
   render(canvas: HTMLCanvasElement, page: PageDisplayList, zoom = 1, pixelRatio = window.devicePixelRatio || 1): void {

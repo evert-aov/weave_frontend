@@ -1,6 +1,6 @@
 import { DocumentModelDomAdapter } from './document-model-dom';
 import { AfterViewInit, Directive, ElementRef, Input, NgZone, OnChanges, OnDestroy, inject } from '@angular/core';
-import { CanvasPageRenderer, PageDisplayList } from './canvas-page-renderer';
+import { CanvasPageRenderer, PageDisplayList, canvasPixelRatio } from './canvas-page-renderer';
 import { buildDomDisplayList, buildModelPageDisplayList } from './dom-page-display-list';
 import { caretForPosition, moveCaretVertically, selectionRectsForRange } from './canvas-caret';
 import { hitTestPage } from './canvas-hit-test';
@@ -174,7 +174,7 @@ export class HybridPageDirective implements AfterViewInit, OnChanges, OnDestroy 
       caret,
       selections,
     };
-    this.renderer.render(this.canvas, this.lastPage, 1, Math.min(2, (window.devicePixelRatio || 1) * this.hybridScale));
+    this.renderer.render(this.canvas, this.lastPage, 1, canvasPixelRatio(this.hybridScale));
   }
 
   private schedule(): void {
@@ -218,7 +218,7 @@ export class HybridPageDirective implements AfterViewInit, OnChanges, OnDestroy 
       canvas.className = 'word-hybrid-surface';
       canvas.style.cssText = `position:absolute;pointer-events:none;left:${this.body.offsetLeft}px;top:${this.body.offsetTop}px;z-index:1;`;
       // The page stack already applies zoom. Only the backing buffer needs its scale.
-      this.renderer.render(canvas, page, 1, Math.min(2, (window.devicePixelRatio || 1) * this.hybridScale));
+      this.renderer.render(canvas, page, 1, canvasPixelRatio(this.hybridScale));
       this.body.after(canvas);
       this.canvas = canvas;
       this.body.classList.add('word-hybrid-source');

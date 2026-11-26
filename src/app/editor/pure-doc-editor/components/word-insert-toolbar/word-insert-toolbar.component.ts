@@ -1,42 +1,8 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  EventEmitter,
-  HostListener,
-  inject,
-  Input,
-  Output,
-  signal,
-} from '@angular/core';
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal, } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideFilePlus2,
-  LucideScissors,
-  LucideTrash2,
-  LucideTable,
-  LucideImage,
-  LucideShapes,
-  LucideSmile,
-  LucideBox,
-  LucideBarChart3,
-  LucideCamera,
-  LucideLink,
-  LucideMessageSquare,
-  LucidePanelTop,
-  LucidePanelBottom,
-  LucideHash,
-  LucideType,
-  LucideSparkles,
-  LucideCalendar,
-  LucidePenTool,
-  LucideSigma,
-  LucideChevronDown,
-  LucidePlus,
-} from '@lucide/angular';
+import { lucideFilePlus2, lucideScissors, lucideTrash2, lucideTable, lucideImage, lucideShapes, lucideSmile, lucideBox, lucideBarChart3, lucideCamera, lucideLink, lucideMessageSquare, lucidePanelTop, lucidePanelBottom, lucideHash, lucideType, lucideStickyNote, lucideSparkles, lucideCalendar, lucidePenTool, lucideSigma, lucideChevronDown, lucidePlus } from '@ng-icons/lucide';
 import { SHAPE_ITEMS, SYMBOL_ITEMS, WORDART_PRESETS } from '../../constants/word-insert.constants';
 import { ShapeCategory, ShapeDefinition, WordArtPreset } from '../../models/word-insert.model';
 import { WordTablePickerComponent } from '../word-table-picker/word-table-picker.component';
@@ -48,33 +14,32 @@ import { I18nService } from '../../../../core/services/i18n.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, LucideDynamicIcon, WordTablePickerComponent],
   providers: [
-    provideLucideIcons(
-      LucideFilePlus2,
-      LucideScissors,
-      LucideTrash2,
-      LucideTable,
-      LucideImage,
-      LucideShapes,
-      LucideSmile,
-      LucideBox,
-      LucideBarChart3,
-      LucideCamera,
-      LucideLink,
-      LucideMessageSquare,
-      LucidePanelTop,
-      LucidePanelBottom,
-      LucideHash,
-      LucideType,
-      LucideSparkles,
-      LucideCalendar,
-      LucidePenTool,
-      LucideSigma,
-      LucideChevronDown,
-      LucidePlus,
-    ),
+    provideLucideIcons({ lucideFilePlus2,
+      lucideScissors,
+      lucideTrash2,
+      lucideTable,
+      lucideImage,
+      lucideShapes,
+      lucideSmile,
+      lucideBox,
+      lucideBarChart3,
+      lucideCamera,
+      lucideLink,
+      lucideMessageSquare,
+      lucidePanelTop,
+      lucidePanelBottom,
+      lucideHash,
+      lucideType,
+      lucideStickyNote,
+      lucideSparkles,
+      lucideCalendar,
+      lucidePenTool,
+      lucideSigma,
+      lucideChevronDown,
+      lucidePlus, }),
   ],
   templateUrl: './word-insert-toolbar.component.html',
-  styleUrl: './word-insert-toolbar.component.scss',
+  styleUrl: './word-insert-toolbar.component.css',
 })
 export class WordInsertToolbarComponent {
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -107,6 +72,7 @@ export class WordInsertToolbarComponent {
   @Output() focusFooterArea = new EventEmitter<void>();
   @Output() insertPageNumber = new EventEmitter<void>();
   @Output() insertTextBox = new EventEmitter<void>();
+  @Output() insertNote = new EventEmitter<void>();
   @Output() insertWordArt = new EventEmitter<WordArtPreset>();
   @Output() insertDropCap = new EventEmitter<void>();
   @Output() insertSignatureLine = new EventEmitter<void>();

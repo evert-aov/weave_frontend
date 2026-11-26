@@ -4,8 +4,6 @@
  * inyecta dinámicamente vía innerHTML (sin atributos _ngcontent de Angular).
  * --------------------------------------------------------------------------- */
 
-@use '../../shared/styles/document-links' as links;
-
 app-pure-doc-editor {
   display: block;
   width: 100%;
@@ -16,9 +14,9 @@ app-pure-doc-editor {
 .word-editor-canvas {
   outline: none;
   display: flow-root;
-  // The editor is a flex child inside a fixed-size page. Declare its inline
-  // size explicitly so an empty/flex-collapsed paragraph cannot reduce the
-  // editable column to the width of a single glyph.
+  /* The editor is a flex child inside a fixed-size page. Declare its inline
+   * size explicitly so an empty/flex-collapsed paragraph cannot reduce the
+   * editable column to the width of a single glyph. */
   width: 100%;
   min-width: 0;
   flex: 1 1 auto;
@@ -30,7 +28,7 @@ app-pure-doc-editor {
   line-height: 1.15;
   font-size: 11pt;
 
-  // A fragment on a new sheet continues its paragraph without a second indent or list bullet.
+  /* A fragment on a new sheet continues its paragraph without a second indent or list bullet. */
   [data-word-continuation] {
     margin-top: 0 !important;
     text-indent: 0 !important;
@@ -169,7 +167,27 @@ app-pure-doc-editor {
     border-top: 1.5px solid #cbd5e1;
     margin: 0.75rem 0;
   }
-  @include links.document-links;
+  a[href] {
+    color: #1d4ed8 !important;
+    text-decoration: underline;
+    text-decoration-thickness: 1.25px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    border-radius: 2px;
+
+    span, strong, em, b, i, u, s, code { color: inherit !important; }
+
+    &:hover {
+      color: #1e40af !important;
+      background-color: #eff6ff;
+      text-decoration-thickness: 2px;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #1d4ed8;
+      outline-offset: 3px;
+    }
+  }
   img {
     max-width: 100%;
     height: auto;
@@ -346,8 +364,17 @@ app-pure-doc-editor {
     color: #71717a !important;
   }
 
-  .word-editor-canvas {
-    @include links.document-links(#93c5fd, #bfdbfe, #1e3a8a);
+  .word-editor-canvas a[href] {
+    color: #93c5fd !important;
+
+    &:hover {
+      color: #bfdbfe !important;
+      background-color: #1e3a8a;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #93c5fd;
+    }
   }
 
   .word-latex-formula {
@@ -537,8 +564,8 @@ app-pure-doc-editor {
   pointer-events: auto; cursor: pointer;
 }
 
-// Notes are measured in normal flow on the off-screen canvas, then placed at
-// the bottom of their actual page body without consuming the page margin.
+/* Notes are measured in normal flow on the off-screen canvas, then placed at */
+/* the bottom of their actual page body without consuming the page margin. */
 .word-editor-canvas[data-page-body-id] {
   position: relative;
   > [data-word-note-list='footnote'] {

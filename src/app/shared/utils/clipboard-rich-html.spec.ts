@@ -32,4 +32,19 @@ describe('clipboard-rich-html', () => {
     expect(hasRichClipboardFormatting('<span>solo texto</span>')).toBe(false);
     expect(hasRichClipboardFormatting('<strong>negrita</strong>')).toBe(true);
   });
+
+  it('does not split paragraphs or inject empty <p> tags when pasting Gemini-like inline citation divs/buttons inside <p>', () => {
+    const geminiHtml = `
+      <p style="font-family: 'Google Sans Text', sans-serif;">
+        El Marco de Trabajo es la <b>base referencial esencial</b> en la ingeniería de software
+        <sources-carousel-inline><div class="chip"><button><svg><path d="M0 0"></path></svg></button></div></sources-carousel-inline>. Independientemente de la estrategia.
+      </p>
+    `;
+    const cleaned = sanitizeClipboardHtml(geminiHtml)!;
+    expect(cleaned).not.toContain('<button');
+    expect(cleaned).not.toContain('<svg');
+    expect(cleaned.match(/<p\b/g)?.length).toBe(1);
+    expect(cleaned).toContain('en la ingeniería de software');
+    expect(cleaned).toContain('. Independientemente de la estrategia.');
+  });
 });
