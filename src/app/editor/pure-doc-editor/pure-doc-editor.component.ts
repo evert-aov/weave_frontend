@@ -2086,6 +2086,23 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
 
   handleDistributeColumns(): void {
     if (!this.documentReady() || this.isReadMode()) return;
+    if (this.canvasEnabled() && this.canvasEditor?.session) {
+      const tableId = this.canvasEditor.session.getSelectionContext()?.table?.tableId;
+      if (!tableId) return;
+      const tblDisplay = this.canvasEditor.session.displayLists
+        .flatMap((p) => p.tables || [])
+        .find((t) => t.tableId === tableId);
+      const colCount = tblDisplay?.columns.length || 0;
+      if (colCount > 0) {
+        const equalPct = Array.from({ length: colCount }, () => Math.round((100 / colCount) * 100) / 100);
+        if (this.canvasEditor.session.resizeTableColumn(tableId, 0, equalPct)) {
+          this.canvasEditor.publishNow();
+          this.updateSelectionFormats();
+          this.showToast('Columnas distribuidas uniformemente');
+        }
+      }
+      return;
+    }
     const table = this.activeTableCell()?.closest('table');
     if (!table) return;
     this.pushUndoSnapshot();

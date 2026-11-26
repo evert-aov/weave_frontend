@@ -147,6 +147,7 @@ export class WordTableToolbarComponent {
   ];
 
   readonly paddingOptions = [
+    { pt: 0, labelKey: 'word.table.padding_none', fallback: 'Sin margen (0 pt)' },
     { pt: 2, labelKey: 'word.table.padding_compact', fallback: 'Compacto (2 pt)' },
     { pt: 5, labelKey: 'word.table.padding_normal', fallback: 'Normal (5 pt)' },
     { pt: 8, labelKey: 'word.table.padding_wide', fallback: 'Amplio (8 pt)' },

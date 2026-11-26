@@ -106,4 +106,15 @@ describe('independent Word table designs', () => {
     expect(plainXml.getElementsByTagName('w:tblHeader')).toHaveLength(0);
     expect(Array.from(plainXml.getElementsByTagName('w:tcBorders')).every(n => Array.from(n.children).every(b => b.getAttribute('w:val') === 'nil'))).toBe(true);
   });
+
+  it('strips leftover OnlyOffice table and cell paragraph left margins/paddings when styling', () => {
+    const onlyOfficeHtml = `<table style="margin-left: 48pt; padding-left: 20pt;"><tbody><tr><td style="padding-left: 36pt;"><p style="margin-left: 42pt; padding-left: 12pt;">Id</p></td><td><p style="margin-left: 42pt;">Tarea</p></td></tr></tbody></table>`;
+    const model = htmlToDocumentState(onlyOfficeHtml).roots[0] as Extract<DocumentNode, {kind:'element'}>;
+    const styled = styleModelTable(model, rule, 'fixed');
+    const serialized = serializeDocumentNodes([styled]);
+    expect(serialized).not.toContain('margin-left: 48pt');
+    expect(serialized).not.toContain('margin-left: 42pt');
+    expect(serialized).not.toContain('padding-left: 36pt');
+    expect(serialized).not.toContain('padding-left: 12pt');
+  });
 });

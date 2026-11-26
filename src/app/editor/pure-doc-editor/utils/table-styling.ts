@@ -95,7 +95,7 @@ export function styleModelTable(
 
   const border = rule.borderWidthPt > 0 ? `${rule.borderWidthPt}pt solid ${rule.borderColor}` : 'none';
   const tableCss = css(table.attributes['style']);
-  for (const key of Object.keys(tableCss)) if (key.startsWith('border') || key === 'background') delete tableCss[key];
+  for (const key of Object.keys(tableCss)) if (key.startsWith('border') || key === 'background' || key === 'margin' || key === 'margin-left' || key === 'margin-right' || key === 'padding' || key === 'padding-left' || key === 'padding-right') delete tableCss[key];
   Object.assign(tableCss, { border: 'none', 'border-collapse': 'collapse', 'max-width': '100%', 'font-family': rule.fontFamily,
     'font-size': `${rule.fontSizePt}pt`, 'line-height': String(rule.lineHeight), color: rule.color, 'background-color': rule.backgroundColor });
   const attributes = { ...table.attributes, style: serialize(tableCss), 'data-word-table-style': 'custom',
@@ -110,6 +110,9 @@ export function styleModelTable(
     const prevAlign = preserveCellFmt ? (style['text-align'] || node.attributes['align']?.toLowerCase() || inheritedAlign) : undefined;
     const prevBold = preserveCellFmt && isExplicitBold(style['font-weight']);
     for (const key of ['font-family', 'font-size', 'line-height', 'color', 'background', 'background-color']) delete style[key];
+    if (!preserveCellFmt) {
+      for (const key of ['margin', 'margin-left', 'margin-right', 'padding', 'padding-left', 'padding-right']) delete style[key];
+    }
     const attrs = { ...node.attributes };
     if (node.tag === 'font') { delete attrs['face']; delete attrs['size']; delete attrs['color']; }
     if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'].includes(node.tag)) Object.assign(style, {

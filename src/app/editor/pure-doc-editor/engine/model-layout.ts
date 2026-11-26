@@ -1383,13 +1383,18 @@ export function resolveDefaultModelStyles(
     const firstLineIndent = !insideCell && textIndentAttr && !('data-word-continuation' in node.attributes)
       ? parsePx(textIndentAttr, 0)
       : 0;
+    const isTableStruct = ['table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th'].includes(node.tag);
     const padLeftAttr = cssVal(inline['padding-left']) ?? padBox.left;
     const marginLeftAttr = cssVal(inline['margin-left']) ?? marginBox.left;
-    const indentLeft = (inherited.indentLeft || 0) + (padLeftAttr ? parsePx(padLeftAttr, 0) : 0) + (marginLeftAttr ? parsePx(marginLeftAttr, 0) : 0);
+    const indentLeft = isTableStruct
+      ? 0
+      : (inherited.indentLeft || 0) + (padLeftAttr ? parsePx(padLeftAttr, 0) : 0) + (marginLeftAttr ? parsePx(marginLeftAttr, 0) : 0);
 
     const padRightAttr = cssVal(inline['padding-right']) ?? padBox.right;
     const marginRightAttr = cssVal(inline['margin-right']) ?? marginBox.right;
-    const indentRight = (inherited.indentRight || 0) + (padRightAttr ? parsePx(padRightAttr, 0) : 0) + (marginRightAttr ? parsePx(marginRightAttr, 0) : 0);
+    const indentRight = isTableStruct
+      ? 0
+      : (inherited.indentRight || 0) + (padRightAttr ? parsePx(padRightAttr, 0) : 0) + (marginRightAttr ? parsePx(marginRightAttr, 0) : 0);
 
     const vAlign = cssVal(inline['vertical-align']);
     const baselineOffset = inherited.baselineOffset ?? (
