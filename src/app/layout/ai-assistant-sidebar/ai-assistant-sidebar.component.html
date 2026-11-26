@@ -55,6 +55,19 @@
 
           <div class="ai-message-bubble" [class.error]="msg.error">
             <div class="ai-msg-content" [innerHTML]="formatMarkdown(msg.content)"></div>
+            @if (msg.images?.length) {
+              <div class="ai-generated-images">
+                @for (img of msg.images; track $index) {
+                  <div class="ai-generated-image-card">
+                    <img class="ai-generated-image" [src]="'data:' + img.mimeType + ';base64,' + img.data" alt="Imagen generada por IA" />
+                    <button type="button" class="ai-image-download-btn" (click)="downloadGeneratedImage(img, $index)" title="Descargar imagen" aria-label="Descargar imagen">
+                      <app-icon name="download" [size]="12" />
+                      <span>Descargar</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
             <div class="ai-msg-footer">
               <span class="ai-msg-time">{{ msg.timestamp | date:'shortTime' }}</span>
               @if (msg.role === 'assistant' && !msg.error) {

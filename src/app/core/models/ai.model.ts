@@ -24,12 +24,18 @@ export interface AiAttachment {
  * Modelos de datos para la interacción con el Agente de IA en Weave.
  */
 
+export interface GeneratedAiImage {
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  data: string;
+}
+
 export interface AiChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
   error?: boolean;
+  images?: GeneratedAiImage[];
 }
 
 export interface DocumentContextPayload {
@@ -56,6 +62,7 @@ export interface StoredAiMessage {
   content: string;
   timestamp: string;
   error: boolean;
+  images?: GeneratedAiImage[];
 }
 
 export interface AiHistoryPage {
@@ -66,6 +73,7 @@ export interface AiHistoryPage {
 
 export interface AiChatResponse {
   edits?: DocumentEdit[];
+  images?: GeneratedAiImage[];
   reply: string;
   model: string;
   provider: string;

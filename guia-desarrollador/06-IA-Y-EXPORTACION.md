@@ -144,6 +144,10 @@ El contrato `AiAttachment.mimeType` admite `image/png`, `image/jpeg`, `image/web
 
 El selector del clip (y pegado de archivos `audio/*`) admite también audio en Base64 hasta 4 MiB por archivo: `audio/wav`, `audio/mp3`, `audio/mpeg`, `audio/ogg`, `audio/aac`, `audio/flac`, `audio/webm` y `audio/mp4` (`.m4a`). Angular verifica la cabecera binaria y codifica a Base64 sin prefijo data URL; NestJS valida el `mimeType` y tamaño en `AiAttachmentDto`; FastAPI vuelve a comprobar Base64, el límite de 4 MiB y la firma binaria antes de enviar `inlineData` a Vertex AI.
 
+### Generación de imágenes
+
+`gemini-nano-banana-2.1` (predeterminado), `gemini-3.1-flash-image` y `gemini-2.5-flash-image` están disponibles en el selector de modelos de `AiService`. Además, `gemini-nano-banana-2.1` se activa automáticamente desde FastAPI cuando el usuario pide generar o crear una imagen teniendo otro modelo seleccionado (por ejemplo `gemini-3.8-flash`), sin cambiar el modelo elegido en la interfaz. Las imágenes devueltas en `images` (`[{ mimeType, data }]`) se muestran dentro de la burbuja del asistente con botón de descarga y se conservan en el historial persistente de MongoDB.
+
 Los adjuntos son independientes del contexto del documento abierto. Como los adjuntos PDF existentes, los bytes pertenecen al envío actual: el historial persistente conserva el mensaje y los nombres, sin crear una colección o almacenamiento de imágenes en Angular/NestJS. Reiniciar backend y servicio de IA cuando se despliega este contrato.
 
 

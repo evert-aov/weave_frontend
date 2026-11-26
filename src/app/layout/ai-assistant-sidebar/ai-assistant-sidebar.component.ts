@@ -1,6 +1,6 @@
 import { readAiAttachment } from '../../core/utils/ai-attachments';
 import { noteToAiAttachment, getDocTypeLabel } from '../../core/utils/ai-note-reader';
-import type { AiAttachment } from '../../core/models/ai.model';
+import type { AiAttachment, GeneratedAiImage } from '../../core/models/ai.model';
 import type { NoteSummary } from '../../core/models/note.model';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -29,7 +29,7 @@ import { ResizePanelDirective } from '../../shared/directives/resize-panel.direc
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent, ResizePanelDirective],
   templateUrl: './ai-assistant-sidebar.component.html',
-  styleUrls: ['./ai-assistant-sidebar.component.scss'],
+  styleUrls: ['./ai-assistant-sidebar.component.css'],
   host: {
     '[class.is-open]': 'aiService.isSidebarOpen()',
     '[style.--assistant-width]': 'layout.assistantWidth() + "px"',
@@ -214,6 +214,14 @@ export class AiAssistantSidebarComponent {
       this.copiedMessageId.set(id);
       setTimeout(() => this.copiedMessageId.set(null), 2000);
     });
+  }
+
+  downloadGeneratedImage(image: GeneratedAiImage, index: number): void {
+    const ext = image.mimeType === 'image/jpeg' ? 'jpg' : image.mimeType === 'image/webp' ? 'webp' : 'png';
+    const link = document.createElement('a');
+    link.href = `data:${image.mimeType};base64,${image.data}`;
+    link.download = `weave-ai-image-${index + 1}.${ext}`;
+    link.click();
   }
 
   formatMarkdown(content: string): SafeHtml {

@@ -99,7 +99,7 @@ describe('bounded AI requests', () => {
   });
 
   it('sends the selected model in the request payload and updates activeModel on response', () => {
-    for (const model of ['gemini-4-argon', 'gemini-4-hydrogen', 'gemini-4-carbon']) {
+    for (const model of ['gemini-nano-banana-2.1', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-4-argon', 'gemini-4-hydrogen', 'gemini-4-carbon']) {
       expect(service.availableModels.some((item) => item.id === model)).toBe(true);
       service.setSelectedModel(model);
       service.sendMessage('Razona este problema');
@@ -108,6 +108,21 @@ describe('bounded AI requests', () => {
       request.flush({ reply: 'Solución', model });
       expect(service.activeModel()).toBe(model);
     }
+  });
+
+  it('stores generated images on the assistant message without changing selectedModel on auto-routing', () => {
+    service.setSelectedModel('gemini-3.8-flash');
+    service.sendMessage('Genera una imagen de un árbol');
+    const request = http.expectOne(url);
+    expect(request.request.body.model).toBe('gemini-3.8-flash');
+    request.flush({
+      reply: 'Imagen generada.',
+      model: 'gemini-nano-banana-2.1',
+      images: [{ mimeType: 'image/png', data: 'iVBORw0KGgo=' }],
+    });
+    expect(service.selectedModel()).toBe('gemini-3.8-flash');
+    expect(service.activeModel()).toBe('gemini-nano-banana-2.1');
+    expect(service.messages().at(-1)?.images).toEqual([{ mimeType: 'image/png', data: 'iVBORw0KGgo=' }]);
   });
 
   it('reports an oversized current message without silently truncating or sending it', () => {

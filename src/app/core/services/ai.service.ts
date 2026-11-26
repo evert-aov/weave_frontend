@@ -85,6 +85,9 @@ export class AiService {
   readonly availableModels = [
     { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Recomendado', desc: 'Rápido, multimodal y contexto de 1M tokens' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Ligero', desc: 'Respuestas veloces y eficientes' },
+    { id: 'gemini-nano-banana-2.1', name: 'Gemini Nano Banana 2.1', tag: 'Imágenes', desc: 'Modelo predeterminado para generación de imágenes' },
+    { id: 'gemini-3.1-flash-image', name: 'Gemini 3.1 Flash Image', tag: 'Imágenes', desc: 'Generación rápida de imágenes de alta calidad' },
+    { id: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image', tag: 'Imágenes', desc: 'Generación y edición de imágenes con IA' },
     { id: 'gemini-4-argon', name: 'Gemini 4 Argon', tag: 'Razonamiento', desc: 'Modelo frontera para razonamiento profundo' },
     { id: 'gemini-4-hydrogen', name: 'Gemini 4 Hydrogen', tag: 'Gemini 4', desc: 'Modelo rápido y eficiente de la familia Gemini 4' },
     { id: 'gemini-4-carbon', name: 'Gemini 4 Carbon', tag: 'Gemini 4', desc: 'Modelo de alta capacidad de la familia Gemini 4' },
@@ -498,6 +501,7 @@ export class AiService {
             id: `assistant-${Date.now()}-${++this.messageSequence}`,
             role: 'assistant' as const, content: res.reply,
             timestamp: new Date(res.timestamp || Date.now()),
+            ...(res.images?.length ? { images: res.images } : {}),
           };
           this.messages.update((previous) => [
             ...previous.map((message) => message.id === userMsgId && res.userMessage
