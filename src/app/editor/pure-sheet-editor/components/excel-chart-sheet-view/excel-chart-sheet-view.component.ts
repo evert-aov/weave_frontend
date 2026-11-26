@@ -11,7 +11,7 @@ import { I18nService } from '../../../../core/services/i18n.service';
   standalone: true,
   imports: [CommonModule, FormsModule, ExcelChartRendererComponent],
   templateUrl: './excel-chart-sheet-view.component.html',
-  styleUrls: ['./excel-chart-sheet-view.component.scss'],
+  styleUrls: ['./excel-chart-sheet-view.component.css'],
 })
 export class ExcelChartSheetViewComponent {
   @Input() dataRevision = 0;

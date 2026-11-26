@@ -24,7 +24,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent],
   templateUrl: './image-block.component.html',
-  styleUrls: ['./image-block.component.scss'],
+  styleUrls: ['./image-block.component.css'],
 })
 export class ImageBlockComponent implements OnInit, OnDestroy {
   @Input({ required: true }) block!: Block;

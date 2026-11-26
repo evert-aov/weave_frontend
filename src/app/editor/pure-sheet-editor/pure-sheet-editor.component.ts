@@ -1,4 +1,5 @@
-import {ExcelCellContextMenuComponent,CellInsertAction} from './components/excel-cell-context-menu/excel-cell-context-menu.component';
+import { LucideDynamicIcon, provideLucideIcons } from '../../shared/components/ng-lucide-icon.directive';
+import { ExcelCellContextMenuComponent, CellInsertAction} from './components/excel-cell-context-menu/excel-cell-context-menu.component';
 import {applyWorkbookOperations} from '../../shared/utils/ai-workbook-control';
 import type { SheetEditorHooks } from './controllers/sheet-editor-hooks';
 import { Completion } from './services/formula-completion';
@@ -38,24 +39,12 @@ import { ExcelTextToColumnsModalComponent } from './components/excel-text-to-col
 import { ExcelPivotModalComponent } from './components/excel-pivot-modal/excel-pivot-modal.component';
 import { ExcelSparklineModalComponent } from './components/excel-sparkline-modal/excel-sparkline-modal.component';
 import {
-  applyTextToColumns,
-  buildPivotTableMatrix,
-  computeReplacedCellRaw,
-  extractPivotHeaders,
-  FindMatch,
-  FindReplaceOptions,
-  findWorkbookMatches,
-  PivotTableConfig,
-  removeDuplicatesFromRange,
-  replaceAllWorkbookMatches,
-  resolveValidationListOptions,
-  TextToColumnsDelimiters,
-} from './services/sheet-data-tools.service';
+  applyTextToColumns, buildPivotTableMatrix, computeReplacedCellRaw, extractPivotHeaders, FindMatch, FindReplaceOptions, findWorkbookMatches, PivotTableConfig, removeDuplicatesFromRange, replaceAllWorkbookMatches, resolveValidationListOptions, TextToColumnsDelimiters, } from './services/sheet-data-tools.service';
 import { ExcelCanvasGridComponent, ExcelCanvasGridHost } from './components/excel-canvas-grid/excel-canvas-grid.component';
 import { CanvasObjectsLayerHost, ExcelCanvasObjectsLayerComponent } from './components/excel-canvas-objects-layer/excel-canvas-objects-layer.component';
 import { GridAxis } from './services/grid-viewport';
 import { SHEET_HEADER_COL_WIDTH, SHEET_HEADER_ROW_HEIGHT, SheetActiveEditorState } from './services/sheet-canvas-renderer';
-import { LucideDynamicIcon, provideLucideIcons, LucideSun, LucideMoon, LucideSparkles, LucideMessageSquare, LucideShare2, LucideLock, LucideCheck, LucideX, LucideChevronDown, LucideChevronUp, LucidePlus, LucideSearch, LucideFileSpreadsheet, LucideBarChart2, LucidePanelLeft, LucideSave, LucideDownload, LucideSlidersHorizontal, LucideMaximize, LucideMinimize, LucideList } from '@lucide/angular';
+import { lucideSun, lucideMoon, lucideSparkles, lucideMessageSquare, lucideShare2, lucideLock, lucideCheck, lucideX, lucideChevronDown, lucideChevronUp, lucidePlus, lucideSearch, lucideFileSpreadsheet, lucideBarChart2, lucidePanelLeft, lucideSave, lucideDownload, lucideSlidersHorizontal, lucideMaximize, lucideMinimize, lucideList } from '@ng-icons/lucide';
 import { SheetViewportController } from './controllers/sheet-viewport.controller';
 import { SheetFormattingController } from './controllers/sheet-formatting.controller';
 import { SheetDataController } from './controllers/sheet-data.controller';
@@ -93,32 +82,30 @@ import type { SheetReferenceTarget, SheetReferenceTrace } from './models/editor-
     ExportModalComponent,
   ],
   providers: [
-    provideLucideIcons(
-      LucideSun,
-      LucideMoon,
-      LucideSparkles,
-      LucideMessageSquare,
-      LucideShare2,
-      LucideLock,
-      LucideCheck,
-      LucideX,
-      LucideChevronDown,
-      LucideChevronUp,
-      LucidePlus,
-      LucideSearch,
-      LucideFileSpreadsheet,
-      LucideBarChart2,
-      LucidePanelLeft,
-      LucideSave,
-      LucideDownload,
-      LucideSlidersHorizontal,
-      LucideMaximize,
-      LucideMinimize,
-      LucideList
-    ),
+    provideLucideIcons({ lucideSun,
+      lucideMoon,
+      lucideSparkles,
+      lucideMessageSquare,
+      lucideShare2,
+      lucideLock,
+      lucideCheck,
+      lucideX,
+      lucideChevronDown,
+      lucideChevronUp,
+      lucidePlus,
+      lucideSearch,
+      lucideFileSpreadsheet,
+      lucideBarChart2,
+      lucidePanelLeft,
+      lucideSave,
+      lucideDownload,
+      lucideSlidersHorizontal,
+      lucideMaximize,
+      lucideMinimize,
+      lucideList }),
   ],
   templateUrl: './pure-sheet-editor.component.html',
-  styleUrls: ['./pure-sheet-editor.component.scss'],
+  styleUrls: ['./pure-sheet-editor.component.css'],
 })
 export class PureSheetEditorComponent implements ExcelCanvasGridHost, CanvasObjectsLayerHost, OnInit, OnChanges, OnDestroy {
   @Input({ required: true }) note!: Note;

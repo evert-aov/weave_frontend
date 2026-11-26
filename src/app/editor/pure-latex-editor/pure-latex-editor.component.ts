@@ -27,7 +27,7 @@ const TEMPLATE = String.raw`\documentclass[10pt,a4paper]{article}
 @Component({
   selector: 'app-pure-latex-editor', standalone: true,
   imports: [FullscreenPanelDirective, IconComponent, MonacoLatexEditorComponent, LatexPreviewComponent],
-  templateUrl: './pure-latex-editor.component.html', styleUrl: './pure-latex-editor.component.scss',
+  templateUrl: './pure-latex-editor.component.html', styleUrl: './pure-latex-editor.component.css',
 })
 export class PureLatexEditorComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) note!: Note;

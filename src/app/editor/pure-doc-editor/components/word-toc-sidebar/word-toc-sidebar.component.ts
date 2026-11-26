@@ -1,15 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import {
-  LucideCheckCircle2,
-  LucideChevronDown,
-  LucideChevronRight,
-  LucideDynamicIcon,
-  LucideFileText,
-  LucideListTree,
-  LucideSearch,
-  LucideTable,
-  provideLucideIcons,
-} from '@lucide/angular';
+  lucideCheckCircle2, lucideChevronDown, lucideChevronRight, lucideFileText, lucideListTree, lucideSearch, lucideTable } from '@ng-icons/lucide';
 import { HeadingItem, TableItem } from '../../models/word-document.model';
 import { I18nService } from '../../../../core/services/i18n.service';
 
@@ -35,18 +27,16 @@ const LEVEL_BADGE_COLORS: Record<number, string> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideListTree,
-      LucideFileText,
-      LucideCheckCircle2,
-      LucideChevronDown,
-      LucideChevronRight,
-      LucideTable,
-      LucideSearch
-    ),
+    provideLucideIcons({ lucideListTree,
+      lucideFileText,
+      lucideCheckCircle2,
+      lucideChevronDown,
+      lucideChevronRight,
+      lucideTable,
+      lucideSearch }),
   ],
   templateUrl: './word-toc-sidebar.component.html',
-  styleUrls: ['./word-toc-sidebar.component.scss'],
+  styleUrls: ['./word-toc-sidebar.component.css'],
 })
 export class WordTocSidebarComponent {
   readonly i18n = inject(I18nService, { optional: true });

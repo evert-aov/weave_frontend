@@ -1,43 +1,29 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FreezePanesConfig } from '../../models/excel.model';
 import { ThemeService } from '../../../../core/services/theme.service';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideFileSpreadsheet,
-  LucideEye,
-  LucideZoomIn,
-  LucideSnowflake,
-  LucideChevronDown,
-  LucideRows,
-  LucideColumns,
-  LucideX,
-  LucideLock,
-  LucideUnlock,
-} from '@lucide/angular';
+import { lucideFileSpreadsheet, lucideEye, lucideZoomIn, lucideSnowflake, lucideChevronDown, lucideRows, lucideColumns, lucideX, lucideLock, lucideUnlock } from '@ng-icons/lucide';
 
 @Component({
   selector: 'app-excel-view-toolbar',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideFileSpreadsheet,
-      LucideEye,
-      LucideZoomIn,
-      LucideSnowflake,
-      LucideChevronDown,
-      LucideRows,
-      LucideColumns,
-      LucideX,
-      LucideLock,
-      LucideUnlock
-    ),
+    provideLucideIcons({ lucideFileSpreadsheet,
+      lucideEye,
+      lucideZoomIn,
+      lucideSnowflake,
+      lucideChevronDown,
+      lucideRows,
+      lucideColumns,
+      lucideX,
+      lucideLock,
+      lucideUnlock }),
   ],
   templateUrl: './excel-view-toolbar.component.html',
-  styleUrls: ['./excel-view-toolbar.component.scss'],
+  styleUrls: ['./excel-view-toolbar.component.css'],
 })
 export class ExcelViewToolbarComponent {
   @Input() activeSheetType: 'grid' | 'chart' = 'grid';

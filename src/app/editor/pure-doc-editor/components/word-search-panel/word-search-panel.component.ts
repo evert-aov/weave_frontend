@@ -1,5 +1,6 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, inject, input, output, viewChild } from '@angular/core';
-import { LucideDynamicIcon, LucideX, LucideChevronUp, LucideChevronDown, provideLucideIcons } from '@lucide/angular';
+import { lucideX, lucideChevronUp, lucideChevronDown } from '@ng-icons/lucide';
 import { I18nService } from '../../../../core/services/i18n.service';
 
 export interface WordSearchConfig { query: string; replacement: string; matchCase: boolean; wholeWord: boolean; }
@@ -9,7 +10,7 @@ export type WordSearchAction = 'close' | 'next' | 'previous' | 'replace' | 'all'
   selector: 'app-word-search-panel', standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideX, LucideChevronUp, LucideChevronDown)],
+  providers: [provideLucideIcons({ lucideX, lucideChevronUp, lucideChevronDown })],
   template: `
     <section class="word-search-panel" [class.dark-mode]="darkMode()" [attr.aria-label]="t('word.search.panel_label')" (keydown.escape)="action.emit('close')" (mousedown)="keepSelection($event)">
       <label>{{ t('word.search.find_label') }} <input #queryInput [attr.aria-label]="t('word.search.input_placeholder')" type="search" maxlength="1000" [value]="query()" (input)="change.emit({ query: $any($event.target).value })" (keydown.enter)="action.emit($any($event).shiftKey ? 'previous' : 'next'); $event.preventDefault()" /></label>

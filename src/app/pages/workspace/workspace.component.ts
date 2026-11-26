@@ -40,7 +40,7 @@ import { AiService } from '../../core/services/ai.service';
     AiDbNoteModalComponent,
   ],
   templateUrl: './workspace.component.html',
-  styleUrl: './workspace.component.scss',
+  styleUrl: './workspace.component.css',
 })
 export class WorkspaceComponent implements OnDestroy {
   readonly notesService = inject(NotesService);

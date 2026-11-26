@@ -6,7 +6,7 @@ import { ThemeService } from '../../../../core/services/theme.service';
 
 @Component({
   selector: 'app-excel-chart-data-modal', standalone: true, imports: [ExcelChartRendererComponent],
-  templateUrl: './excel-chart-data-modal.component.html', styleUrl: './excel-chart-data-modal.component.scss',
+  templateUrl: './excel-chart-data-modal.component.html', styleUrl: './excel-chart-data-modal.component.css',
 })
 export class ExcelChartDataModalComponent implements OnInit {
   @Input() dataRevision = 0;

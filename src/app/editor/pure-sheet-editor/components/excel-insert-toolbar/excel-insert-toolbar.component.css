@@ -1,4 +1,4 @@
-@use "../excel-ribbon/toolbar-surface";
+@import "../excel-ribbon/toolbar-surface.css";
 
 :host {
   display: block;

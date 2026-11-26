@@ -22,7 +22,7 @@ import { documentHref } from '../../core/utils/document-link';
   standalone: true,
   imports: [CommonModule, IconComponent, ExportModalComponent, LazyLoadStateComponent],
   templateUrl: './document-tabs.component.html',
-  styleUrl: './document-tabs.component.scss',
+  styleUrl: './document-tabs.component.css',
 })
 export class DocumentTabsComponent {
   readonly notesService = inject(NotesService);

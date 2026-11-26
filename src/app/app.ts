@@ -12,7 +12,7 @@ import { I18nService } from './core/services/i18n.service';
   standalone: true,
   imports: [RouterOutlet],
   templateUrl: './app.html',
-  styleUrl: './app.scss',
+  styleUrl: './app.css',
 })
 export class App {
   readonly themeService = inject(ThemeService);

@@ -23,7 +23,7 @@ import { I18nService } from '../../core/services/i18n.service';
   standalone: true,
   imports: [CommonModule, IconComponent],
   templateUrl: './block-rail.component.html',
-  styleUrl: './block-rail.component.scss',
+  styleUrl: './block-rail.component.css',
 })
 export class BlockRailComponent {
   @Input() active = false;

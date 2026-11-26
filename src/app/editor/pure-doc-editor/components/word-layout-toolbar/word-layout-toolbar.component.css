@@ -134,7 +134,7 @@
   user-select: none;
 }
 
-// ==================== PARAGRAPH GROUP SPINNERS (Image 1) ====================
+/* ==================== PARAGRAPH GROUP SPINNERS (Image 1) ==================== */
 .paragraph-spinners-row {
   gap: 12px;
 }
@@ -206,7 +206,7 @@
   }
 }
 
-// ==================== ARRANGE GROUP (Image 1) ====================
+/* ==================== ARRANGE GROUP (Image 1) ==================== */
 .arrange-row {
   gap: 6px;
 }
@@ -221,7 +221,7 @@
 
 .icon-blue { color: #2563eb; }
 
-// Dropdowns
+/* Dropdowns */
 .layout-dropdown-menu {
   position: absolute;
   top: 100%;
@@ -340,7 +340,7 @@
   min-width: 210px;
 }
 
-// ==================== DARK MODE ENHANCEMENTS ====================
+/* ==================== DARK MODE ENHANCEMENTS ==================== */
 .layout-ribbon.dark-mode {
   color: #e4e4e7;
 

@@ -1,13 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  LucideCheck,
-  LucideDynamicIcon,
-  LucideLoader2,
-  LucideSparkles,
-  LucideX,
-  provideLucideIcons,
-} from '@lucide/angular';
+  lucideCheck, lucideLoader2, lucideSparkles, lucideX } from '@ng-icons/lucide';
 import { AiWriterService } from '../../services/ai-writer.service';
 
 const PRESET_PROMPTS = [
@@ -21,9 +16,9 @@ const PRESET_PROMPTS = [
   selector: 'app-word-ai-writer-modal',
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideSparkles, LucideX, LucideLoader2, LucideCheck)],
+  providers: [provideLucideIcons({ lucideSparkles, lucideX, lucideLoader2, lucideCheck })],
   templateUrl: './word-ai-writer-modal.component.html',
-  styleUrls: ['./word-ai-writer-modal.component.scss'],
+  styleUrls: ['./word-ai-writer-modal.component.css'],
 })
 export class WordAiWriterModalComponent {
   @Input() isOpen = false;

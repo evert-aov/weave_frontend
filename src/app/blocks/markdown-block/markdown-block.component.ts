@@ -10,7 +10,7 @@ import { markdownHtml, markdownParts, normalizeLiveMarkdown, richHtmlToMarkdown 
 
 @Component({
   selector: 'app-markdown-block', standalone: true,
-  templateUrl: './markdown-block.component.html', styleUrl: './markdown-block.component.scss',
+  templateUrl: './markdown-block.component.html', styleUrl: './markdown-block.component.css',
 })
 export class MarkdownBlockComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input({ required: true }) block!: Block;

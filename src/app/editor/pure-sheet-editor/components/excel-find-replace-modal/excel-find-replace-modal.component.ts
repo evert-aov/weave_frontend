@@ -1,7 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideDynamicIcon, provideLucideIcons, LucideSearch, LucideX, LucideChevronUp, LucideChevronDown } from '@lucide/angular';
+import { lucideSearch, lucideX, lucideChevronUp, lucideChevronDown } from '@ng-icons/lucide';
 import { I18nService } from '../../../../core/services/i18n.service';
 import { ThemeService } from '../../../../core/services/theme.service';
 import { FindMatch, FindReplaceOptions } from '../../services/sheet-data-tools.service';
@@ -10,7 +11,7 @@ import { FindMatch, FindReplaceOptions } from '../../services/sheet-data-tools.s
   selector: 'app-excel-find-replace-modal',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideSearch, LucideX, LucideChevronUp, LucideChevronDown)],
+  providers: [provideLucideIcons({ lucideSearch, lucideX, lucideChevronUp, lucideChevronDown })],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="close.emit()">
       <section role="dialog"

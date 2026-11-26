@@ -1,7 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, OnChanges, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideDynamicIcon, provideLucideIcons, LucideColumns, LucideX } from '@lucide/angular';
+import { lucideColumns, lucideX } from '@ng-icons/lucide';
 import { I18nService } from '../../../../core/services/i18n.service';
 import { ThemeService } from '../../../../core/services/theme.service';
 import { SelectionRange, Sheet, SheetGrid } from '../../models/excel.model';
@@ -12,7 +13,7 @@ import { previewTextToColumns, TextToColumnsDelimiters } from '../../services/sh
   selector: 'app-excel-text-to-columns-modal',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideColumns, LucideX)],
+  providers: [provideLucideIcons({ lucideColumns, lucideX })],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="close.emit()">
       <section role="dialog"

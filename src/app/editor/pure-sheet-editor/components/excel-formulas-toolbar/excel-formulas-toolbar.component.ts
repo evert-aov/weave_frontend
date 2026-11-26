@@ -1,5 +1,6 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
-import { LucideDynamicIcon, provideLucideIcons, LucideSigma, LucideStar, LucideCoins, LucideFileText, LucideClock, LucideSearch, LucideTag, LucideTable, LucideGitBranch, LucideX, LucideTriangleAlert, LucideCalculator, LucideEye, LucideChevronDown } from '@lucide/angular';
+import { lucideSigma, lucideStar, lucideCoins, lucideFileText, lucideClock, lucideSearch, lucideTag, lucideTable, lucideGitBranch, lucideX, lucideTriangleAlert, lucideCalculator, lucideEye, lucideChevronDown } from '@ng-icons/lucide';
 import { I18nService } from '../../../../core/services/i18n.service';
 
 interface FormulaTool { label: string; es: string; icon?: string; symbol?: string; action?: string; formula?: string; disabled?: boolean; dropdown?: boolean; }
@@ -7,8 +8,8 @@ interface FormulaTool { label: string; es: string; icon?: string; symbol?: strin
 @Component({
   selector: 'app-excel-formulas-toolbar', standalone: true,
   imports: [LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideSigma, LucideStar, LucideCoins, LucideFileText, LucideClock, LucideSearch, LucideTag, LucideTable, LucideGitBranch, LucideX, LucideTriangleAlert, LucideCalculator, LucideEye, LucideChevronDown)],
-  templateUrl: './excel-formulas-toolbar.component.html', styleUrl: './excel-formulas-toolbar.component.scss',
+  providers: [provideLucideIcons({ lucideSigma, lucideStar, lucideCoins, lucideFileText, lucideClock, lucideSearch, lucideTag, lucideTable, lucideGitBranch, lucideX, lucideTriangleAlert, lucideCalculator, lucideEye, lucideChevronDown })],
+  templateUrl: './excel-formulas-toolbar.component.html', styleUrl: './excel-formulas-toolbar.component.css',
 })
 export class ExcelFormulasToolbarComponent {
   @Input() showFormulas = false;

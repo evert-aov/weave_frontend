@@ -48,12 +48,12 @@ textarea { display: block; min-height: 160px; resize: vertical; width: 100%; box
 
 :host ::ng-deep {
   .cm-content, .weave-md-preview p { color: var(--custom-p-color, inherit); font-size: var(--custom-p-size, inherit); font-family: var(--custom-p-font, inherit); }
-  @for $level from 1 through 6 {
-    .weave-md-preview h#{$level}, .cm-md-h#{$level} {
-      color: var(--custom-h#{$level}-color, inherit);
-      font-family: var(--custom-h#{$level}-font, inherit);
-    }
-  }
+  .weave-md-preview h1, .cm-md-h1 { color: var(--custom-h1-color, inherit); font-family: var(--custom-h1-font, inherit); }
+  .weave-md-preview h2, .cm-md-h2 { color: var(--custom-h2-color, inherit); font-family: var(--custom-h2-font, inherit); }
+  .weave-md-preview h3, .cm-md-h3 { color: var(--custom-h3-color, inherit); font-family: var(--custom-h3-font, inherit); }
+  .weave-md-preview h4, .cm-md-h4 { color: var(--custom-h4-color, inherit); font-family: var(--custom-h4-font, inherit); }
+  .weave-md-preview h5, .cm-md-h5 { color: var(--custom-h5-color, inherit); font-family: var(--custom-h5-font, inherit); }
+  .weave-md-preview h6, .cm-md-h6 { color: var(--custom-h6-color, inherit); font-family: var(--custom-h6-font, inherit); }
   .weave-md-preview h1, .cm-md-h1 { font-size: var(--custom-h1-size, 2em); }
   .weave-md-preview h2, .cm-md-h2 { font-size: var(--custom-h2-size, 1.6em); }
   .weave-md-preview h3, .cm-md-h3 { font-size: var(--custom-h3-size, 1.3em); }

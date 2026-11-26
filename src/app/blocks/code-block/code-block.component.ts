@@ -28,7 +28,7 @@ import { ThemeService } from '../../core/services/theme.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './code-block.component.html',
-  styleUrls: ['./code-block.component.scss'],
+  styleUrls: ['./code-block.component.css'],
 })
 export class CodeBlockComponent implements OnInit, OnDestroy {
   @Input({ required: true }) block!: Block;

@@ -78,7 +78,7 @@
   overflow: hidden;
 }
 
-// Col 1: Categories
+/* Col 1: Categories */
 .categories-panel {
   width: 140px;
   background: #f8fafc;
@@ -116,7 +116,7 @@
   }
 }
 
-// Col 2: Gallery Grid
+/* Col 2: Gallery Grid */
 .gallery-panel {
   flex: 1.1;
   border-right: 1px solid #e2e8f0;
@@ -181,7 +181,7 @@
   }
 }
 
-// Col 3: Preview Panel (matching Image 2)
+/* Col 3: Preview Panel (matching Image 2) */
 .preview-panel {
   width: 250px;
   padding: 14px;
@@ -239,7 +239,7 @@
   }
 }
 
-// Footer
+/* Footer */
 .dialog-footer {
   display: flex;
   align-items: center;
@@ -280,7 +280,7 @@
   }
 }
 
-// ==================== DARK MODE ====================
+/* ==================== DARK MODE ==================== */
 .smartart-dialog.dark-mode {
   background: #18181b;
   border-color: #27272a;

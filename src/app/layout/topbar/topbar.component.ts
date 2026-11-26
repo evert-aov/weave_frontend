@@ -20,7 +20,7 @@ import { WorkspaceActionsService } from '../../core/services/workspace-actions.s
   standalone: true,
   imports: [CommonModule, IconComponent, ExportModalComponent, LazyLoadStateComponent],
   templateUrl: './topbar.component.html',
-  styleUrl: './topbar.component.scss',
+  styleUrl: './topbar.component.css',
 })
 export class TopbarComponent {
   readonly notesService = inject(NotesService);

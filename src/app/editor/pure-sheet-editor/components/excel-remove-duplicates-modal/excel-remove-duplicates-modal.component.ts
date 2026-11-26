@@ -1,7 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideDynamicIcon, provideLucideIcons, LucideCopy, LucideX } from '@lucide/angular';
+import { lucideCopy, lucideX } from '@ng-icons/lucide';
 import { I18nService } from '../../../../core/services/i18n.service';
 import { ThemeService } from '../../../../core/services/theme.service';
 
@@ -15,7 +16,7 @@ export interface DuplicateColumnOption {
   selector: 'app-excel-remove-duplicates-modal',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideCopy, LucideX)],
+  providers: [provideLucideIcons({ lucideCopy, lucideX })],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="close.emit()">
       <section role="dialog"

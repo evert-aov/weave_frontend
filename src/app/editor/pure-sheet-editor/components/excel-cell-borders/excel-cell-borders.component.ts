@@ -8,7 +8,7 @@ import { ThemeService } from '../../../../core/services/theme.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './excel-cell-borders.component.html',
-  styleUrls: ['./excel-cell-borders.component.scss'],
+  styleUrls: ['./excel-cell-borders.component.css'],
 })
 export class ExcelCellBordersComponent {
   @Input() borders?: CellBorders;

@@ -1,6 +1,14 @@
 <div class="pure-canvas-workspace">
-  <!-- Contenedor interactivo de Excalidraw -->
-  <main class="canvas-mount-container">
-    <div #canvasMount class="pure-excalidraw-mount"></div>
+  <main class="canvas-mount-container flex items-center justify-center p-8 text-center">
+    <div class="max-w-md space-y-2">
+      <p class="text-base font-semibold">
+        {{ i18n.currentLang() === 'es' ? 'Motor de dibujo propio en preparación' : 'Custom drawing engine coming soon' }}
+      </p>
+      <p class="text-sm opacity-70">
+        {{ i18n.currentLang() === 'es'
+          ? 'Excalidraw fue removido. Los datos de tus lienzos se conservan intactos para el nuevo motor.'
+          : 'Excalidraw has been removed. Your canvas data is preserved for the new engine.' }}
+      </p>
+    </div>
   </main>
 </div>

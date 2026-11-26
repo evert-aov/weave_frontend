@@ -1,22 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideArrowUp,
-  LucideArrowDown,
-  LucideArrowDownUp,
-  LucideFilter,
-  LucideFilterX,
-  LucideCheckSquare,
-  LucideColumns,
-  LucideCopy,
-  LucideSearch,
-  LucideTable,
-  LucideRefreshCw,
-  LucideLayers,
-  LucideMinus,
-} from '@lucide/angular';
+import { lucideArrowUp, lucideArrowDown, lucideArrowDownUp, lucideFilter, lucideFilterX, lucideCheckSquare, lucideColumns, lucideCopy, lucideSearch, lucideTable, lucideRefreshCw, lucideLayers, lucideMinus } from '@ng-icons/lucide';
 import { I18nService } from '../../../../core/services/i18n.service';
 import { ThemeService } from '../../../../core/services/theme.service';
 
@@ -25,21 +10,19 @@ import { ThemeService } from '../../../../core/services/theme.service';
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideArrowUp,
-      LucideArrowDown,
-      LucideArrowDownUp,
-      LucideFilter,
-      LucideFilterX,
-      LucideCheckSquare,
-      LucideColumns,
-      LucideCopy,
-      LucideSearch,
-      LucideTable,
-      LucideRefreshCw,
-      LucideLayers,
-      LucideMinus
-    ),
+    provideLucideIcons({ lucideArrowUp,
+      lucideArrowDown,
+      lucideArrowDownUp,
+      lucideFilter,
+      lucideFilterX,
+      lucideCheckSquare,
+      lucideColumns,
+      lucideCopy,
+      lucideSearch,
+      lucideTable,
+      lucideRefreshCw,
+      lucideLayers,
+      lucideMinus }),
   ],
   template: `
     <div class="excel-data-toolbar flex items-stretch gap-2 text-[11px] select-none">

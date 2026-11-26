@@ -1,22 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  LucideAlignCenter,
-  LucideAlignJustify,
-  LucideAlignLeft,
-  LucideAlignRight,
-  LucideBold,
-  LucideCheck,
-  LucideDynamicIcon,
-  LucideItalic,
-  LucidePalette,
-  LucidePlus,
-  LucideSparkles,
-  LucideTrash2,
-  LucideUnderline,
-  LucideX,
-  provideLucideIcons,
-} from '@lucide/angular';
+  lucideAlignCenter, lucideAlignJustify, lucideAlignLeft, lucideAlignRight, lucideBold, lucideCheck, lucideItalic, lucidePalette, lucidePlus, lucideSparkles, lucideTrash2, lucideUnderline, lucideX } from '@ng-icons/lucide';
 import {
   ElementStyleRule,
   StyleTargetTag,
@@ -36,24 +22,22 @@ const TARGET_TAGS: StyleTargetTag[] = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P'];
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon, WordTableStyleEditorComponent],
   providers: [
-    provideLucideIcons(
-      LucidePalette,
-      LucideX,
-      LucideCheck,
-      LucidePlus,
-      LucideAlignLeft,
-      LucideAlignCenter,
-      LucideAlignRight,
-      LucideAlignJustify,
-      LucideBold,
-      LucideItalic,
-      LucideUnderline,
-      LucideSparkles,
-      LucideTrash2
-    ),
+    provideLucideIcons({ lucidePalette,
+      lucideX,
+      lucideCheck,
+      lucidePlus,
+      lucideAlignLeft,
+      lucideAlignCenter,
+      lucideAlignRight,
+      lucideAlignJustify,
+      lucideBold,
+      lucideItalic,
+      lucideUnderline,
+      lucideSparkles,
+      lucideTrash2 }),
   ],
   templateUrl: './word-style-templates-modal.component.html',
-  styleUrls: ['./word-style-templates-modal.component.scss'],
+  styleUrls: ['./word-style-templates-modal.component.css'],
 })
 export class WordStyleTemplatesModalComponent implements OnInit, OnChanges {
   @Input() isOpen = false;

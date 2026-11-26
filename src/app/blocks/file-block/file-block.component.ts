@@ -22,7 +22,7 @@ import { IconComponent } from '../../shared/components/icon/icon.component';
   standalone: true,
   imports: [CommonModule, IconComponent],
   templateUrl: './file-block.component.html',
-  styleUrls: ['./file-block.component.scss'],
+  styleUrls: ['./file-block.component.css'],
 })
 export class FileBlockComponent implements OnInit {
   @Input({ required: true }) block!: Block;

@@ -1,21 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, inject, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideLayoutGrid,
-  LucideList,
-  LucideGitCommit,
-  LucideRefreshCw,
-  LucideNetwork,
-  LucideLayers,
-  LucideTriangle,
-  LucideImage,
-  LucideHelpCircle,
-  LucideX,
-  LucideShapes,
-  LucideCalendar,
-} from '@lucide/angular';
+import { lucideLayoutGrid, lucideList, lucideGitCommit, lucideRefreshCw, lucideNetwork, lucideLayers, lucideTriangle, lucideImage, lucideHelpCircle, lucideX, lucideShapes, lucideCalendar } from '@ng-icons/lucide';
 import { SMARTART_ITEMS } from '../../constants/word-insert.constants';
 import { SmartArtCategory, SmartArtItem } from '../../models/word-insert.model';
 import { I18nService } from '../../../../core/services/i18n.service';
@@ -25,23 +11,21 @@ import { I18nService } from '../../../../core/services/i18n.service';
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideLayoutGrid,
-      LucideList,
-      LucideGitCommit,
-      LucideRefreshCw,
-      LucideNetwork,
-      LucideLayers,
-      LucideTriangle,
-      LucideImage,
-      LucideHelpCircle,
-      LucideX,
-      LucideShapes,
-      LucideCalendar,
-    ),
+    provideLucideIcons({ lucideLayoutGrid,
+      lucideList,
+      lucideGitCommit,
+      lucideRefreshCw,
+      lucideNetwork,
+      lucideLayers,
+      lucideTriangle,
+      lucideImage,
+      lucideHelpCircle,
+      lucideX,
+      lucideShapes,
+      lucideCalendar, }),
   ],
   templateUrl: './word-smartart-modal.component.html',
-  styleUrl: './word-smartart-modal.component.scss',
+  styleUrl: './word-smartart-modal.component.css',
 })
 export class WordSmartArtModalComponent {
   private readonly i18n = inject(I18nService, { optional: true });

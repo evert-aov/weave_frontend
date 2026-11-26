@@ -1,10 +1,10 @@
-@use "../excel-ribbon/toolbar-surface";
+@import "../excel-ribbon/toolbar-surface.css";
 
 :host {
   display: block;
 }
 
-.view-freeze-menu {
+.layout-dropdown-menu {
   animation: fadeIn 0.15s ease-out;
 }
 

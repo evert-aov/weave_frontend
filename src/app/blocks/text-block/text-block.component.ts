@@ -111,7 +111,7 @@ const DEFAULT_STYLE_TEMPLATES: StyleTemplate[] = [
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent],
   templateUrl: './text-block.component.html',
-  styleUrls: ['./text-block.component.scss'],
+  styleUrls: ['./text-block.component.css'],
 })
 export class TextBlockComponent implements OnInit, OnDestroy {
   @Input({ required: true }) block!: Block;

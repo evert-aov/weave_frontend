@@ -53,7 +53,7 @@ export interface LatexCategory {
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent, MonacoLatexEditorComponent, LatexPreviewComponent],
   templateUrl: './latex-block.component.html',
-  styleUrl: './latex-block.component.scss',
+  styleUrl: './latex-block.component.css',
 })
 export class LatexBlockComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input({ required: true }) block!: Block;

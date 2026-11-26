@@ -10,7 +10,7 @@ import { referenceHtml } from '../../utils/apa-references';
 
 @Component({
   selector: 'app-word-academic-panel', standalone: true, changeDetection: ChangeDetectionStrategy.OnPush, imports: [FormsModule, WordAcademicStructureComponent],
-  templateUrl: './word-academic-panel.component.html', styleUrl: './word-academic-panel.component.scss',
+  templateUrl: './word-academic-panel.component.html', styleUrl: './word-academic-panel.component.css',
 })
 export class WordAcademicPanelComponent implements OnChanges, AfterViewInit {
   readonly i18n = inject(I18nService);

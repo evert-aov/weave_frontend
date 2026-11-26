@@ -29,7 +29,7 @@ interface CommandItem {
   standalone: true,
   imports: [CommonModule, IconComponent],
   templateUrl: './slash-menu.component.html',
-  styleUrl: './slash-menu.component.scss',
+  styleUrl: './slash-menu.component.css',
 })
 export class SlashMenuComponent {
   @Output() selectBlock = new EventEmitter<BlockType>();

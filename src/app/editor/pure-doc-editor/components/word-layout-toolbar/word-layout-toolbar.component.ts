@@ -1,40 +1,8 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  EventEmitter,
-  HostListener,
-  inject,
-  Input,
-  OnInit,
-  OnChanges,
-  Output,
-  signal,
-  SimpleChanges,
-} from '@angular/core';
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, inject, Input, OnInit, OnChanges, Output, signal, SimpleChanges, } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideRuler,
-  LucideRotateCw,
-  LucideBookOpen,
-  LucideColumns,
-  LucideScissors,
-  LucideTrash2,
-  LucideHash,
-  LucideMinus,
-  LucideChevronDown,
-  LucideAlignLeft,
-  LucideAlignCenter,
-  LucideAlignRight,
-  LucideAlignJustify,
-  LucideLayers,
-  LucideEye,
-  LucideMove,
-  LucideFrame,
-} from '@lucide/angular';
+import { lucideRuler, lucideRotateCw, lucideBookOpen, lucideColumns, lucideScissors, lucideTrash2, lucideHash, lucideMinus, lucideChevronDown, lucideAlignLeft, lucideAlignCenter, lucideAlignRight, lucideAlignJustify, lucideLayers, lucideEye, lucideMove, lucideFrame } from '@ng-icons/lucide';
 import {
   DocumentLayoutConfig,
   EditorActiveFormats,
@@ -70,28 +38,26 @@ const PAPER_FORMAT_LIST: PaperFormatId[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideRuler,
-      LucideRotateCw,
-      LucideBookOpen,
-      LucideColumns,
-      LucideScissors,
-      LucideTrash2,
-      LucideHash,
-      LucideMinus,
-      LucideChevronDown,
-      LucideAlignLeft,
-      LucideAlignCenter,
-      LucideAlignRight,
-      LucideAlignJustify,
-      LucideLayers,
-      LucideEye,
-      LucideMove,
-      LucideFrame
-    ),
+    provideLucideIcons({ lucideRuler,
+      lucideRotateCw,
+      lucideBookOpen,
+      lucideColumns,
+      lucideScissors,
+      lucideTrash2,
+      lucideHash,
+      lucideMinus,
+      lucideChevronDown,
+      lucideAlignLeft,
+      lucideAlignCenter,
+      lucideAlignRight,
+      lucideAlignJustify,
+      lucideLayers,
+      lucideEye,
+      lucideMove,
+      lucideFrame }),
   ],
   templateUrl: './word-layout-toolbar.component.html',
-  styleUrl: './word-layout-toolbar.component.scss',
+  styleUrl: './word-layout-toolbar.component.css',
 })
 export class WordLayoutToolbarComponent implements OnInit, OnChanges {
   private readonly host = inject(ElementRef<HTMLElement>);

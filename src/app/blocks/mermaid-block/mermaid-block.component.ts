@@ -27,7 +27,7 @@ import { ThemeService } from '../../core/services/theme.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './mermaid-block.component.html',
-  styleUrl: './mermaid-block.component.scss',
+  styleUrl: './mermaid-block.component.css',
 })
 export class MermaidBlockComponent implements OnInit {
   @Input({ required: true }) block!: Block;

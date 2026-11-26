@@ -18,7 +18,7 @@ import { I18nService } from '../../../../core/services/i18n.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './excel-conditional-modal.component.html',
-  styleUrls: ['./excel-conditional-modal.component.scss']
+  styleUrls: ['./excel-conditional-modal.component.css']
 })
 export class ExcelConditionalModalComponent {
   @Input({ required: true }) range!: SelectionRange;

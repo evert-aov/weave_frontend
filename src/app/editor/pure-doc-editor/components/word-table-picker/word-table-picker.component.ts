@@ -9,7 +9,7 @@ const MAX_COLS = 8;
   standalone: true,
   imports: [CommonModule],
   templateUrl: './word-table-picker.component.html',
-  styleUrls: ['./word-table-picker.component.scss'],
+  styleUrls: ['./word-table-picker.component.css'],
 })
 export class WordTablePickerComponent {
   @Input() darkMode = false;

@@ -44,7 +44,7 @@ const DEFAULT_ROW_HEIGHT = 24;
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './sheet-block.component.html',
-  styleUrls: ['./sheet-block.component.scss'],
+  styleUrls: ['./sheet-block.component.css'],
 })
 export class SheetBlockComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input({ required: true }) block!: Block;

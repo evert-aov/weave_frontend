@@ -87,8 +87,7 @@
   &.active {
     background: var(--bg);
     color: var(--text);
-    border-color: var(--border);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    border-color: var(--border-strong);
     font-weight: 600;
 
     .tab-icon {
@@ -188,9 +187,9 @@
   }
 }
 
-// =============================================================================
-// Cuatro Recuadros + Save (Cabecera Superior Unificada)
-// =============================================================================
+/* ============================================================================= */
+/* Cuatro Recuadros + Save (Cabecera Superior Unificada) */
+/* ============================================================================= */
 .header-action-boxes {
   display: flex;
   align-items: center;

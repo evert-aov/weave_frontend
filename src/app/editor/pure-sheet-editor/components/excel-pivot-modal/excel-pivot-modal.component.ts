@@ -1,7 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LucideDynamicIcon, provideLucideIcons, LucideTable, LucideX } from '@lucide/angular';
+import { lucideTable, lucideX } from '@ng-icons/lucide';
 import { I18nService } from '../../../../core/services/i18n.service';
 import { ThemeService } from '../../../../core/services/theme.service';
 import { CellData, SelectionRange, Sheet, SheetGrid } from '../../models/excel.model';
@@ -17,7 +18,7 @@ import {
   selector: 'app-excel-pivot-modal',
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideTable, LucideX)],
+  providers: [provideLucideIcons({ lucideTable, lucideX })],
   template: `
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" (click)="close.emit()">
       <section role="dialog"

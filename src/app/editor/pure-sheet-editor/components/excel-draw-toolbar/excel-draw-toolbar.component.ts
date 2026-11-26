@@ -1,21 +1,10 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DrawToolId, InkPenConfig } from '../../models/excel.model';
 import { ThemeService } from '../../../../core/services/theme.service';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideUndo2,
-  LucideRedo2,
-  LucidePlus,
-  LucideChevronDown,
-  LucideShapes,
-  LucidePlayCircle,
-  LucideHelpCircle,
-  LucideX,
-  LucideTrash2,
-} from '@lucide/angular';
+import { lucideUndo2, lucideRedo2, lucidePlus, lucideChevronDown, lucideShapes, lucidePlayCircle, lucideHelpCircle, lucideX, lucideTrash2 } from '@ng-icons/lucide';
 
 export const DEFAULT_INK_PENS: InkPenConfig[] = [
   {
@@ -81,20 +70,18 @@ export const DEFAULT_INK_PENS: InkPenConfig[] = [
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideUndo2,
-      LucideRedo2,
-      LucidePlus,
-      LucideChevronDown,
-      LucideShapes,
-      LucidePlayCircle,
-      LucideHelpCircle,
-      LucideX,
-      LucideTrash2
-    ),
+    provideLucideIcons({ lucideUndo2,
+      lucideRedo2,
+      lucidePlus,
+      lucideChevronDown,
+      lucideShapes,
+      lucidePlayCircle,
+      lucideHelpCircle,
+      lucideX,
+      lucideTrash2 }),
   ],
   templateUrl: './excel-draw-toolbar.component.html',
-  styleUrls: ['./excel-draw-toolbar.component.scss'],
+  styleUrls: ['./excel-draw-toolbar.component.css'],
 })
 export class ExcelDrawToolbarComponent {
   @Input() activeTool: DrawToolId = 'select';

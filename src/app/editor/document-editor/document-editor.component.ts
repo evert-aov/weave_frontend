@@ -69,7 +69,7 @@ import { PureSlideEditorComponent } from '../pure-slide-editor/pure-slide-editor
     PureSlideEditorComponent,
   ],
   templateUrl: './document-editor.component.html',
-  styleUrl: './document-editor.component.scss',
+  styleUrl: './document-editor.component.css',
 })
 export class DocumentEditorComponent {
   readonly notesService = inject(NotesService);

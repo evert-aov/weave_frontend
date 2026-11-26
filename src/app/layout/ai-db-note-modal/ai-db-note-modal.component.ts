@@ -22,7 +22,7 @@ import { getDocTypeLabel } from '../../core/utils/ai-note-reader';
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent],
   templateUrl: './ai-db-note-modal.component.html',
-  styleUrls: ['./ai-db-note-modal.component.scss'],
+  styleUrls: ['./ai-db-note-modal.component.css'],
 })
 export class AiDbNoteModalComponent implements OnInit {
   private readonly notesService = inject(NotesService);

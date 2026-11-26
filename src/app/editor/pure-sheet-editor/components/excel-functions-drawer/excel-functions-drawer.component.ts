@@ -11,7 +11,7 @@ import { I18nService } from '../../../../core/services/i18n.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './excel-functions-drawer.component.html',
-  styleUrls: ['./excel-functions-drawer.component.scss']
+  styleUrls: ['./excel-functions-drawer.component.css']
 })
 export class ExcelFunctionsDrawerComponent {
   @Output() insertFunction = new EventEmitter<string>();

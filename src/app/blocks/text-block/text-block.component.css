@@ -1,11 +1,36 @@
-@use '../../shared/styles/document-links' as links;
+:host ::ng-deep .tiptap-surface a[href] {
+  color: #1d4ed8 !important;
+  text-decoration: underline;
+  text-decoration-thickness: 1.25px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  border-radius: 2px;
 
-:host ::ng-deep .tiptap-surface {
-  @include links.document-links;
+  span, strong, em, b, i, u, s, code { color: inherit !important; }
+
+  &:hover {
+    color: #1e40af !important;
+    background-color: #eff6ff;
+    text-decoration-thickness: 2px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 3px;
+  }
 }
 
-:host-context(.dark) ::ng-deep .tiptap-surface {
-  @include links.document-links(#93c5fd, #bfdbfe, #1e3a8a);
+:host-context(.dark) ::ng-deep .tiptap-surface a[href] {
+  color: #93c5fd !important;
+
+  &:hover {
+    color: #bfdbfe !important;
+    background-color: #1e3a8a;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #93c5fd;
+  }
 }
 
 .text-block-root {

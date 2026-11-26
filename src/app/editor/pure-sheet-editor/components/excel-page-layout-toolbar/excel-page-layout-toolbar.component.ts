@@ -1,36 +1,11 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  PageLayoutConfig,
-  PageMarginsId,
-  PageOrientation,
-  PageSizeId,
-  PageThemeId,
-} from '../../models/excel.model';
+  PageLayoutConfig, PageMarginsId, PageOrientation, PageSizeId, PageThemeId, } from '../../models/excel.model';
 import { ThemeService } from '../../../../core/services/theme.service';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucidePalette,
-  LucideType,
-  LucideSparkles,
-  LucideLayout,
-  LucideFileText,
-  LucideMaximize2,
-  LucidePrinter,
-  LucideScissors,
-  LucideImage,
-  LucideTable,
-  LucideChevronDown,
-  LucideChevronUp,
-  LucideLayers,
-  LucideMousePointer,
-  LucideAlignLeft,
-  LucideGroup,
-  LucideRotateCw,
-  LucideArrowUpRight,
-} from '@lucide/angular';
+import { lucidePalette, lucideType, lucideSparkles, lucideLayout, lucideFileText, lucideMaximize2, lucidePrinter, lucideScissors, lucideImage, lucideTable, lucideChevronDown, lucideChevronUp, lucideLayers, lucideMousePointer, lucideAlignLeft, lucideGroup, lucideRotateCw, lucideArrowUpRight } from '@ng-icons/lucide';
 
 export interface ThemePreset {
   id: PageThemeId;
@@ -54,29 +29,27 @@ export const THEME_PRESETS: ThemePreset[] = [
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucidePalette,
-      LucideType,
-      LucideSparkles,
-      LucideLayout,
-      LucideFileText,
-      LucideMaximize2,
-      LucidePrinter,
-      LucideScissors,
-      LucideImage,
-      LucideTable,
-      LucideChevronDown,
-      LucideChevronUp,
-      LucideLayers,
-      LucideMousePointer,
-      LucideAlignLeft,
-      LucideGroup,
-      LucideRotateCw,
-      LucideArrowUpRight
-    ),
+    provideLucideIcons({ lucidePalette,
+      lucideType,
+      lucideSparkles,
+      lucideLayout,
+      lucideFileText,
+      lucideMaximize2,
+      lucidePrinter,
+      lucideScissors,
+      lucideImage,
+      lucideTable,
+      lucideChevronDown,
+      lucideChevronUp,
+      lucideLayers,
+      lucideMousePointer,
+      lucideAlignLeft,
+      lucideGroup,
+      lucideRotateCw,
+      lucideArrowUpRight }),
   ],
   templateUrl: './excel-page-layout-toolbar.component.html',
-  styleUrls: ['./excel-page-layout-toolbar.component.scss'],
+  styleUrls: ['./excel-page-layout-toolbar.component.css'],
 })
 export class ExcelPageLayoutToolbarComponent {
   @Input() config: PageLayoutConfig = {

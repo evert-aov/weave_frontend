@@ -1,15 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  LucideDynamicIcon, provideLucideIcons, LucideBold, LucideItalic, LucideUnderline,
-  LucideStrikethrough, LucideSubscript, LucideSuperscript, LucideEraser, LucidePaintbrush,
-  LucideAlignLeft, LucideAlignCenter, LucideAlignRight, LucideAlignJustify,
-  LucideList, LucideListOrdered, LucideListTree, LucideIndentIncrease, LucideIndentDecrease,
-  LucideArrowUpDown, LucidePaintBucket, LucideFrame, LucideSearch, LucideReplace,
-  LucideChevronDown, LucideUndo2, LucideRedo2, LucideType, LucidePilcrow,
-  LucideCaseSensitive, LucideArrowDownAZ, LucideMousePointer, LucideCheck,
-} from '@lucide/angular';
+import { lucideBold, lucideItalic, lucideUnderline, lucideStrikethrough, lucideSubscript, lucideSuperscript, lucideEraser, lucidePaintbrush, lucideAlignLeft, lucideAlignCenter, lucideAlignRight, lucideAlignJustify, lucideList, lucideListOrdered, lucideListTree, lucideIndentIncrease, lucideIndentDecrease, lucideArrowUpDown, lucidePaintBucket, lucideFrame, lucideSearch, lucideReplace, lucideChevronDown, lucideUndo2, lucideRedo2, lucideType, lucidePilcrow, lucideCaseSensitive, lucideArrowDownAZ, lucideMousePointer, lucideCheck } from '@ng-icons/lucide';
 import { EditorActiveFormats, ElementStyleRule, StyleTargetTag, StyleTemplate } from '../../models/word-document.model';
 import { FONT_FAMILIES, TEXT_COLORS, HIGHLIGHT_COLORS } from '../../constants/word-document.constants';
 import { I18nService } from '../../../../core/services/i18n.service';
@@ -18,15 +11,15 @@ import { I18nService } from '../../../../core/services/i18n.service';
   selector: 'app-word-home-toolbar', standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
-  providers: [provideLucideIcons(LucideBold, LucideItalic, LucideUnderline, LucideStrikethrough,
-    LucideSubscript, LucideSuperscript, LucideEraser, LucidePaintbrush, LucideAlignLeft,
-    LucideAlignCenter, LucideAlignRight, LucideAlignJustify, LucideList, LucideListOrdered,
-    LucideListTree, LucideIndentIncrease, LucideIndentDecrease, LucideArrowUpDown,
-    LucidePaintBucket, LucideFrame, LucideSearch, LucideReplace, LucideChevronDown,
-    LucideUndo2, LucideRedo2, LucideType, LucidePilcrow, LucideCaseSensitive,
-    LucideArrowDownAZ, LucideMousePointer, LucideCheck)],
+  providers: [provideLucideIcons({ lucideBold, lucideItalic, lucideUnderline, lucideStrikethrough,
+    lucideSubscript, lucideSuperscript, lucideEraser, lucidePaintbrush, lucideAlignLeft,
+    lucideAlignCenter, lucideAlignRight, lucideAlignJustify, lucideList, lucideListOrdered,
+    lucideListTree, lucideIndentIncrease, lucideIndentDecrease, lucideArrowUpDown,
+    lucidePaintBucket, lucideFrame, lucideSearch, lucideReplace, lucideChevronDown,
+    lucideUndo2, lucideRedo2, lucideType, lucidePilcrow, lucideCaseSensitive,
+    lucideArrowDownAZ, lucideMousePointer, lucideCheck })],
   templateUrl: './word-home-toolbar.component.html',
-  styleUrl: './word-home-toolbar.component.scss',
+  styleUrl: './word-home-toolbar.component.css',
 })
 export class WordHomeToolbarComponent {
   private readonly host = inject(ElementRef<HTMLElement>);

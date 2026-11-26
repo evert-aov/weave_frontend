@@ -1,16 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import {
-  LucideDynamicIcon,
-  LucideFileCheck2,
-  LucideHeading,
-  LucideImage,
-  LucideLayers,
-  LucideListTree,
-  LucideType,
-  LucideX,
-  provideLucideIcons,
-} from '@lucide/angular';
+import { lucideFileCheck2, lucideHeading, lucideImage, lucideLayers, lucideListTree, lucideType, lucideX } from '@ng-icons/lucide';
 import { DocxDocumentProperties } from '../../models/word-document.model';
 
 @Component({
@@ -18,18 +9,16 @@ import { DocxDocumentProperties } from '../../models/word-document.model';
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideFileCheck2,
-      LucideType,
-      LucideLayers,
-      LucideHeading,
-      LucideImage,
-      LucideListTree,
-      LucideX
-    ),
+    provideLucideIcons({ lucideFileCheck2,
+      lucideType,
+      lucideLayers,
+      lucideHeading,
+      lucideImage,
+      lucideListTree,
+      lucideX }),
   ],
   templateUrl: './word-docx-banner.component.html',
-  styleUrls: ['./word-docx-banner.component.scss'],
+  styleUrls: ['./word-docx-banner.component.css'],
 })
 export class WordDocxBannerComponent {
   @Input() properties: DocxDocumentProperties | null = null;

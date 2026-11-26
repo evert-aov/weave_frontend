@@ -13,7 +13,7 @@ import { DialogService } from '../../../core/services/dialog.service';
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent],
   templateUrl: './export-modal.component.html',
-  styleUrl: './export-modal.component.scss',
+  styleUrl: './export-modal.component.css',
 })
 export class ExportModalComponent {
   @Input({ required: true }) note!: Note;

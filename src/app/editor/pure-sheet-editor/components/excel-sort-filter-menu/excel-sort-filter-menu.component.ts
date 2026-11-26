@@ -1,14 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideX,
-  LucideArrowUp,
-  LucideArrowDown,
-  LucideFilter,
-  LucideFilterX,
-} from '@lucide/angular';
+import { lucideX, lucideArrowUp, lucideArrowDown, lucideFilter, lucideFilterX } from '@ng-icons/lucide';
 import { ThemeService } from '../../../../core/services/theme.service';
 import { I18nService } from '../../../../core/services/i18n.service';
 
@@ -17,16 +10,14 @@ import { I18nService } from '../../../../core/services/i18n.service';
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideX,
-      LucideArrowUp,
-      LucideArrowDown,
-      LucideFilter,
-      LucideFilterX,
-    ),
+    provideLucideIcons({ lucideX,
+      lucideArrowUp,
+      lucideArrowDown,
+      lucideFilter,
+      lucideFilterX, }),
   ],
   templateUrl: './excel-sort-filter-menu.component.html',
-  styleUrls: ['./excel-sort-filter-menu.component.scss'],
+  styleUrls: ['./excel-sort-filter-menu.component.css'],
 })
 export class ExcelSortFilterMenuComponent {
   @Input() filterActive = false;

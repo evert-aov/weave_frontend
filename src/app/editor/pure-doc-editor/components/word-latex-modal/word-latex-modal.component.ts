@@ -1,24 +1,8 @@
-import {
-  Component,
-  EventEmitter,
-  Input,
-  OnChanges,
-  Output,
-  SimpleChanges,
-  ViewChild,
-  ElementRef,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild, ElementRef, computed, inject, signal, } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import {
-  LucideDynamicIcon,
-  LucideTrash2,
-  LucideX,
-  provideLucideIcons,
-} from '@lucide/angular';
+import { lucideTrash2, lucideX } from '@ng-icons/lucide';
 import { LatexRendererService } from '../../services/latex-renderer.service';
 import { I18nService } from '../../../../core/services/i18n.service';
 import { VisualSlotEditorComponent } from './visual-slot-editor.component';
@@ -400,9 +384,9 @@ const QUICK_MATH_SYMBOLS: { symbol: string; latex: string; label: string }[] = [
   selector: 'app-word-latex-modal',
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon, VisualSlotEditorComponent],
-  providers: [provideLucideIcons(LucideX, LucideTrash2)],
+  providers: [provideLucideIcons({ lucideX, lucideTrash2 })],
   templateUrl: './word-latex-modal.component.html',
-  styleUrls: ['./word-latex-modal.component.scss'],
+  styleUrls: ['./word-latex-modal.component.css'],
 })
 export class WordLatexModalComponent implements OnChanges {
   @Input() isOpen = false;

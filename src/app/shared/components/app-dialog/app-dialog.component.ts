@@ -7,7 +7,7 @@ import { IconComponent } from '../icon/icon.component';
 
 @Component({
   selector: 'app-dialog', standalone: true, imports: [FormsModule, IconComponent],
-  templateUrl: './app-dialog.component.html', styleUrl: './app-dialog.component.scss',
+  templateUrl: './app-dialog.component.html', styleUrl: './app-dialog.component.css',
 })
 export class AppDialogComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) request!: DialogRequest;

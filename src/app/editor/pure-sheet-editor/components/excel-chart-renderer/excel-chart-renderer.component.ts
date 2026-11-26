@@ -50,7 +50,7 @@ export {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './excel-chart-renderer.component.html',
-  styleUrls: ['./excel-chart-renderer.component.scss'],
+  styleUrls: ['./excel-chart-renderer.component.css'],
 })
 export class ExcelChartRendererComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy {
   @Input({ required: true }) grid: SheetGrid = {};

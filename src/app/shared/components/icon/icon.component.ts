@@ -69,7 +69,7 @@ export type IconName =
   standalone: true,
   imports: [CommonModule],
   templateUrl: './icon.component.html',
-  styleUrls: ['./icon.component.scss'],
+  styleUrls: ['./icon.component.css'],
 })
 export class IconComponent {
   @Input() name: IconName = 'file';

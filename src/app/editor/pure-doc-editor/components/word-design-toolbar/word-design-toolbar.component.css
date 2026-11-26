@@ -96,7 +96,7 @@
   user-select: none;
 }
 
-// ==================== DOCUMENT STYLES GALLERY (Matching Image 0) ====================
+/* ==================== DOCUMENT STYLES GALLERY (Matching Image 0) ==================== */
 .doc-styles-gallery {
   display: flex;
   align-items: center;
@@ -200,7 +200,7 @@
     font-size: 8px;
     color: #64748b;
     margin-top: 1px;
-    display: none; // Minimalist like Image 0
+    display: none; /* Minimalist like Image 0 */
   }
 }
 
@@ -212,7 +212,7 @@
   margin: 0 2px;
 }
 
-// Icons & Graphics
+/* Icons & Graphics */
 .colors-preview-icon {
   width: 20px;
   height: 20px;
@@ -280,7 +280,7 @@
 
 .icon-blue { color: #2563eb; }
 
-// Dropdowns
+/* Dropdowns */
 .design-dropdown-menu {
   position: absolute;
   top: 100%;
@@ -497,7 +497,7 @@
   }
 }
 
-// ==================== DARK MODE ENHANCEMENTS ====================
+/* ==================== DARK MODE ENHANCEMENTS ==================== */
 .design-ribbon.dark-mode {
   color: #e4e4e7;
 

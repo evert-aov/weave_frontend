@@ -1,29 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, OnInit, AfterViewInit, OnDestroy, ElementRef, ViewChild, inject } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideBarChart2,
-  LucideTrendingUp,
-  LucidePieChart,
-  LucideAlignLeft,
-  LucideActivity,
-  LucideChartScatter,
-  LucideGlobe,
-  LucideCandlestickChart,
-  LucideLayers,
-  LucideHexagon,
-  LucideLayoutGrid,
-  LucideSun,
-  LucideSliders,
-  LucideArrowDownUp,
-  LucideFilter,
-  LucideCombine,
-  LucideX,
-  LucideCheck,
-  LucideRotateCcw,
-  LucideFolder,
-} from '@lucide/angular';
+import { lucideBarChart2, lucideTrendingUp, lucidePieChart, lucideAlignLeft, lucideActivity, lucideChartScatter, lucideGlobe, lucideCandlestickChart, lucideLayers, lucideHexagon, lucideLayoutGrid, lucideSun, lucideSliders, lucideArrowDownUp, lucideFilter, lucideCombine, lucideX, lucideCheck, lucideRotateCcw, lucideFolder } from '@ng-icons/lucide';
 import { ChartAppearance, ChartDataConfig, ChartCategory, ChartSubType, SelectionRange, SheetGrid } from '../../models/excel.model';
 import { ExcelChartRendererComponent } from '../excel-chart-renderer/excel-chart-renderer.component';
 import { ThemeService } from '../../../../core/services/theme.service';
@@ -239,29 +217,27 @@ export const CHART_CATEGORIES_DEF: ChartCategoryDef[] = [
   standalone: true,
   imports: [CommonModule, LucideDynamicIcon, ExcelChartRendererComponent],
   providers: [
-    provideLucideIcons(
-      LucideBarChart2,
-      LucideTrendingUp,
-      LucidePieChart,
-      LucideAlignLeft,
-      LucideActivity,
-      LucideChartScatter,
-      LucideGlobe,
-      LucideCandlestickChart,
-      LucideLayers,
-      LucideHexagon,
-      LucideLayoutGrid,
-      LucideSun,
-      LucideSliders,
-      LucideArrowDownUp,
-      LucideFilter,
-      LucideCombine,
-      LucideX,
-      LucideCheck, LucideRotateCcw, LucideFolder
-    ),
+    provideLucideIcons({ lucideBarChart2,
+      lucideTrendingUp,
+      lucidePieChart,
+      lucideAlignLeft,
+      lucideActivity,
+      lucideChartScatter,
+      lucideGlobe,
+      lucideCandlestickChart,
+      lucideLayers,
+      lucideHexagon,
+      lucideLayoutGrid,
+      lucideSun,
+      lucideSliders,
+      lucideArrowDownUp,
+      lucideFilter,
+      lucideCombine,
+      lucideX,
+      lucideCheck, lucideRotateCcw, lucideFolder }),
   ],
   templateUrl: './excel-chart-modal.component.html',
-  styleUrls: ['./excel-chart-modal.component.scss'],
+  styleUrls: ['./excel-chart-modal.component.css'],
 })
 export class ExcelChartModalComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('dialog') private dialog!: ElementRef<HTMLElement>;

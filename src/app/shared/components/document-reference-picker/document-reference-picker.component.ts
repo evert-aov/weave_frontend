@@ -8,7 +8,7 @@ import { IconComponent } from '../icon/icon.component';
 
 @Component({
   selector: 'app-document-reference-picker', standalone: true, imports: [FormsModule, IconComponent],
-  templateUrl: './document-reference-picker.component.html', styleUrl: './document-reference-picker.component.scss',
+  templateUrl: './document-reference-picker.component.html', styleUrl: './document-reference-picker.component.css',
 })
 export class DocumentReferencePickerComponent implements AfterViewInit, OnDestroy {
   readonly references = inject(DocumentReferenceService);

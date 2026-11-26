@@ -16,7 +16,7 @@ let nextMenuId = 0;
   standalone: true,
   imports: [IconComponent],
   templateUrl: './item-actions.component.html',
-  styleUrl: './item-actions.component.scss',
+  styleUrl: './item-actions.component.css',
   host: { '(window:resize)': 'close(false)' },
 })
 export class SidebarItemActionsComponent {

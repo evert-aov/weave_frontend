@@ -46,7 +46,7 @@ export interface MovingTarget {
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent, ResizePanelDirective, SidebarItemActionsComponent],
   templateUrl: './sidebar.component.html',
-  styleUrl: './sidebar.component.scss',
+  styleUrl: './sidebar.component.css',
 })
 export class SidebarComponent implements OnInit {
   readonly notesService = inject(NotesService);

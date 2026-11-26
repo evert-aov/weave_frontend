@@ -188,7 +188,7 @@ button.designer-link { align-self: center; padding: 2px 6px; } .editing-group { 
 .select-menu { left: auto; right: 0; }
 @media (max-width: 700px) { .styles-group { order: 5; flex-basis: 100%; border: 0; } .home-group { padding: 0 6px; } .font-group { border-right: 0; } }
 
-// ==================== DARK MODE ENHANCEMENTS ====================
+/* ==================== DARK MODE ENHANCEMENTS ==================== */
 .home-ribbon.dark-mode {
   color: #e4e4e7;
 

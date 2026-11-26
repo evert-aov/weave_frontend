@@ -10,7 +10,7 @@
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
-          "style": "scss"
+          "style": "css"
         }
       },
       "root": "",
@@ -22,7 +22,7 @@
           "options": {
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
-            "inlineStyleLanguage": "scss",
+            "inlineStyleLanguage": "css",
             "assets": [
               {
                 "glob": "**/*",
@@ -35,25 +35,10 @@
               }
             ],
             "styles": [
-              "src/styles.scss",
-              {
-                "input": "src/styles/canvas-vendor.scss",
-                "bundleName": "canvas-vendor",
-                "inject": false
-              },
-              {
-                "input": "src/styles/sheet-vendor.scss",
-                "bundleName": "sheet-vendor",
-                "inject": false
-              }
+              "src/styles.css"
             ],
             "allowedCommonJsDependencies": [
-              "@excalidraw/excalidraw",
-              "@excalidraw/markdown-to-text",
               "mermaid",
-              "react",
-              "react-dom",
-              "react-dom/client",
               "async-lock",
               "ot-json1",
               "fast-diff",
@@ -104,7 +89,11 @@
             "development": {
               "optimization": false,
               "extractLicenses": false,
-              "sourceMap": true,
+              "sourceMap": {
+                "scripts": true,
+                "styles": false,
+                "vendor": false
+              },
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

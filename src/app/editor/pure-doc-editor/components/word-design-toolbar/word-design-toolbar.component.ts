@@ -1,23 +1,7 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucidePalette,
-  LucideType,
-  LucideArrowUpDown,
-  LucideSparkles,
-  LucideCheckCircle2,
-  LucideFileText,
-  LucidePaintbrush,
-  LucideFrame,
-  LucideChevronDown,
-  LucideSliders,
-  LucideCheck,
-  LucideLayers,
-  LucideLayoutTemplate,
-  LucidePaintBucket,
-} from '@lucide/angular';
+import { lucidePalette, lucideType, lucideArrowUpDown, lucideSparkles, lucideCheckCircle2, lucideFileText, lucidePaintbrush, lucideFrame, lucideChevronDown, lucideSliders, lucideCheck, lucideLayers, lucideLayoutTemplate, lucidePaintBucket } from '@ng-icons/lucide';
 import {
   DocumentLayoutConfig,
   ElementStyleRule,
@@ -40,25 +24,23 @@ export interface ThemePreset {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucidePalette,
-      LucideType,
-      LucideArrowUpDown,
-      LucideSparkles,
-      LucideCheckCircle2,
-      LucideFileText,
-      LucidePaintbrush,
-      LucideFrame,
-      LucideChevronDown,
-      LucideSliders,
-      LucideCheck,
-      LucideLayers,
-      LucideLayoutTemplate,
-      LucidePaintBucket
-    ),
+    provideLucideIcons({ lucidePalette,
+      lucideType,
+      lucideArrowUpDown,
+      lucideSparkles,
+      lucideCheckCircle2,
+      lucideFileText,
+      lucidePaintbrush,
+      lucideFrame,
+      lucideChevronDown,
+      lucideSliders,
+      lucideCheck,
+      lucideLayers,
+      lucideLayoutTemplate,
+      lucidePaintBucket }),
   ],
   templateUrl: './word-design-toolbar.component.html',
-  styleUrl: './word-design-toolbar.component.scss',
+  styleUrl: './word-design-toolbar.component.css',
 })
 export class WordDesignToolbarComponent {
   private readonly host = inject(ElementRef<HTMLElement>);

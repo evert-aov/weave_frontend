@@ -1,17 +1,8 @@
+import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/components/ng-lucide-icon.directive';
 import { Component, EventEmitter, Input, Output, ElementRef, ViewChild, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  LucideDynamicIcon,
-  provideLucideIcons,
-  LucideChevronRight,
-  LucideEraser,
-  LucidePalette,
-  LucidePencil,
-  LucideGrid,
-  LucideX,
-  LucideCheck,
-} from '@lucide/angular';
+import { lucideChevronRight, lucideEraser, lucidePalette, lucidePencil, lucideGrid, lucideX, lucideCheck } from '@ng-icons/lucide';
 import {
   BorderEdge,
   BorderLineStyle,
@@ -135,18 +126,16 @@ export const STANDARD_COLORS = [
   standalone: true,
   imports: [CommonModule, FormsModule, LucideDynamicIcon],
   providers: [
-    provideLucideIcons(
-      LucideChevronRight,
-      LucideEraser,
-      LucidePalette,
-      LucidePencil,
-      LucideGrid,
-      LucideX,
-      LucideCheck,
-    ),
+    provideLucideIcons({ lucideChevronRight,
+      lucideEraser,
+      lucidePalette,
+      lucidePencil,
+      lucideGrid,
+      lucideX,
+      lucideCheck, }),
   ],
   templateUrl: './excel-borders-menu.component.html',
-  styleUrls: ['./excel-borders-menu.component.scss'],
+  styleUrls: ['./excel-borders-menu.component.css'],
 })
 export class ExcelBordersMenuComponent {
   @Input() isOpen = false;
