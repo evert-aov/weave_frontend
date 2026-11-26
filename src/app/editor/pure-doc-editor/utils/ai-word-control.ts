@@ -10,9 +10,11 @@ import type {
   PaperFormatId,
   StyleTargetTag,
   StyleTemplate,
+  TableStyleRule,
 } from '../models/word-document.model';
 import { MARGIN_PRESETS, PAPER_FORMAT_PRESETS } from '../constants/word-document.constants';
 import { richTextHtml } from '../../../core/utils/ai-edit-text';
+import { DEFAULT_TABLE_STYLE, normalizeTableStyle, styleModelTable } from './table-styling';
 
 export const WORD_CONTROL_TARGET = 'word:control';
 
@@ -266,6 +268,7 @@ export function wordControlField(input: WordControlSummaryInput, prefix = ''): {
       'manageImage(nodeId,action:align|resize|alt|delete,align?,widthPx?,heightPx?,alt?)',
       'insertImage(src,alt?,caption?,widthPx?,align?,afterNodeId?)',
       'toggleTableRowTopBorder(tableNodeId?,rowIndex,enabled?)',
+      'styleTable(tableNodeId?,allTables?,style:{borders?:grid|horizontal|none,borderColor?,borderWidthPt?,cellPaddingPt?,fontFamily?,fontSizePt?,lineHeight?,align?:left|center|right|justify,color?,backgroundColor?,header?,headerBold?,headerAlign?,headerColor?,headerBackgroundColor?,bandedRows?,bandColor?,repeatHeader?},binding?:fixed|template,preserveExplicitCellFormatting?)',
       'tableAction(tableNodeId,action:addRow|addCol|delRow|delCol|delTable,rowIndex?,colIndex?)',
       'updateToc(insertIfMissing?)',
       'academic(action:addSource|removeSource|insertCitation|insertBibliography|updateAcademic|applyCaption|insertSection|addNote,...)',
@@ -525,12 +528,13 @@ function mutateTableInRoots(
   roots: readonly DocumentNode[],
   tableNodeId: string | undefined,
   transformTable: (table: Extract<DocumentNode, { kind: 'element' }>) => DocumentNode | null,
+  allTables = false,
 ): { roots: readonly DocumentNode[]; touched: boolean } {
   let touched = false;
   const walk = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => {
     const out: DocumentNode[] = [];
     for (const node of nodes) {
-      if (node.kind === 'element' && node.tag === 'table' && !touched && (!tableNodeId || node.id === tableNodeId)) {
+      if (node.kind === 'element' && node.tag === 'table' && (allTables || !touched) && (!tableNodeId || node.id === tableNodeId)) {
         touched = true;
         const next = transformTable(node);
         if (next) out.push(next);
@@ -547,6 +551,51 @@ function mutateTableInRoots(
     return touched ? out : nodes;
   };
   return { roots: walk(roots), touched };
+}
+
+const TABLE_STYLE_KEYS: readonly (keyof TableStyleRule)[] = [
+  'mode', 'fontFamily', 'fontSizePt', 'lineHeight', 'align', 'color', 'backgroundColor',
+  'borders', 'borderColor', 'borderWidthPt', 'cellPaddingPt',
+  'header', 'headerBold', 'headerAlign', 'headerColor', 'headerBackgroundColor',
+  'bandedRows', 'bandColor', 'repeatHeader',
+];
+
+function applyStyleTableOp(
+  table: Extract<DocumentNode, { kind: 'element' }>,
+  op: Record<string, any>,
+): DocumentNode {
+  let existingRule: Partial<TableStyleRule> = {};
+  const rawExisting = table.attributes['data-word-table-rule'];
+  if (rawExisting) {
+    try {
+      const parsed = JSON.parse(rawExisting);
+      if (parsed && typeof parsed === 'object') existingRule = parsed;
+    } catch {
+      // Ignore malformed stored table rule and fall back to defaults.
+    }
+  }
+
+  const patch: Partial<TableStyleRule> = {};
+  const sources = [op, op['style'] && typeof op['style'] === 'object' ? op['style'] : null];
+  for (const src of sources) {
+    if (!src) continue;
+    for (const key of TABLE_STYLE_KEYS) {
+      if (src[key] !== undefined) {
+        (patch as Record<string, unknown>)[key] = src[key];
+      }
+    }
+  }
+
+  const rule = normalizeTableStyle({
+    ...DEFAULT_TABLE_STYLE,
+    ...existingRule,
+    ...patch,
+    mode: patch.mode ?? 'custom',
+  });
+  const binding: 'template' | 'fixed' = op['binding'] === 'template' ? 'template' : 'fixed';
+  return styleModelTable(table, rule, binding, {
+    preserveExplicitCellFormatting: Boolean(op['preserveExplicitCellFormatting']),
+  });
 }
 
 function applyToggleRowTopBorder(
@@ -944,6 +993,25 @@ export function applyPureWordModelOperations(
           working[i].roots = res.roots;
           dirty.add(i);
           break;
+        }
+      }
+      continue;
+    }
+
+    if (type === 'styleTable') {
+      const tableNodeId = typeof op['tableNodeId'] === 'string' ? op['tableNodeId'] : undefined;
+      const allTables = Boolean(op['allTables']) && !tableNodeId;
+      for (let i = 0; i < working.length; i++) {
+        const res = mutateTableInRoots(
+          working[i].roots,
+          tableNodeId,
+          table => applyStyleTableOp(table, op),
+          allTables,
+        );
+        if (res.touched) {
+          working[i].roots = res.roots;
+          dirty.add(i);
+          if (!allTables) break;
         }
       }
       continue;

@@ -201,6 +201,60 @@ describe('ai-word-control', () => {
     expect(host.updateAcademic).toHaveBeenCalled();
   });
 
+  it('styles a specific table and preserves previous style properties on partial updates', () => {
+    const sections = [makeSection([makeTable('tbl-1'), makeTable('tbl-2')])];
+
+    const first = applyPureWordModelOperations(sections, [
+      {
+        type: 'styleTable',
+        tableNodeId: 'tbl-1',
+        style: {
+          borders: 'horizontal',
+          borderColor: '#1e3a8a',
+          borderWidthPt: 1,
+          headerBackgroundColor: '#1e3a8a',
+          headerColor: '#ffffff',
+          bandedRows: true,
+          bandColor: '#f1f5f9',
+          fontFamily: 'Georgia',
+          fontSizePt: 10,
+        },
+      },
+    ]);
+
+    const roots1 = first.updatedBySection.get(0)!;
+    const styledTbl1 = roots1[0] as any;
+    const untouchedTbl2 = roots1[1] as any;
+    expect(styledTbl1.attributes['data-word-table-style']).toBe('custom');
+    expect(styledTbl1.attributes['data-word-table-binding']).toBe('fixed');
+    expect(styledTbl1.attributes['style']).toContain('Georgia');
+    expect(untouchedTbl2.attributes['data-word-table-style']).toBeUndefined();
+
+    const headerCellStyle = styledTbl1.children[0].children[0].children[0].attributes['style'];
+    expect(headerCellStyle).toContain('background-color: #1e3a8a');
+    expect(headerCellStyle).toContain('color: #ffffff');
+
+    // Partial follow-up update only changes borderColor while preserving previous rule fields
+    const second = applyPureWordModelOperations(
+      [makeSection(roots1 as any[])],
+      [{ type: 'styleTable', tableNodeId: 'tbl-1', style: { borderColor: '#dc2626' } }],
+    );
+    const updatedTbl1 = second.updatedBySection.get(0)![0] as any;
+    const savedRule = JSON.parse(updatedTbl1.attributes['data-word-table-rule']);
+    expect(savedRule.borderColor).toBe('#dc2626');
+    expect(savedRule.headerBackgroundColor).toBe('#1e3a8a');
+    expect(savedRule.bandedRows).toBe(true);
+    expect(savedRule.fontFamily).toBe('Georgia');
+
+    // allTables: true styles every table across sections
+    const allRes = applyPureWordModelOperations(sections, [
+      { type: 'styleTable', allTables: true, style: { borders: 'none', backgroundColor: '#fafafa' } },
+    ]);
+    const allRoots = allRes.updatedBySection.get(0)! as any[];
+    expect(allRoots[0].attributes['data-word-table-style']).toBe('custom');
+    expect(allRoots[1].attributes['data-word-table-style']).toBe('custom');
+  });
+
   it('rejects empty or unknown control operations', () => {
     const host = createHostSpy();
     expect(() => applyWordControlPayload(JSON.stringify({ operations: [] }), [], vi.fn(), host)).toThrow();
