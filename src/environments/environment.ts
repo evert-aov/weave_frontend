@@ -3,6 +3,6 @@
  */
 export const environment = {
   production: true,
-  serverBaseUrl: '',
-  apiUrl: '/api',
+  serverBaseUrl: 'https://weavebackend-production-9161f381.up.railway.app',
+  apiUrl: 'https://weavebackend-production-9161f381.up.railway.app/api',
 };
