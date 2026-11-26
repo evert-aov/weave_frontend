@@ -111,11 +111,11 @@ function findEnclosingBlock(
 ): { block: Extract<DocumentNode, { kind: 'element' }>; parentId: string | null } | null {
   for (const node of nodes) {
     if (node.kind !== 'element' || !getSubtreeIds(node).has(targetId)) continue;
+    const nested = findEnclosingBlock(node.children, targetId, node.id);
+    if (nested) return nested;
     if (MERGEABLE_BLOCKS.has(node.tag)) {
       return { block: node, parentId };
     }
-    const nested = findEnclosingBlock(node.children, targetId, node.id);
-    if (nested) return nested;
   }
   return null;
 }

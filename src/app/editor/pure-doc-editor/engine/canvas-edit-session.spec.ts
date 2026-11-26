@@ -1954,4 +1954,45 @@ describe('persistent Canvas editing',()=>{
   expect(s.pages[0].html).toContain('const x = 1;');
  });
 
+ it('preserves ordered list numbering (a -> bullet -> b, decimal, roman, greek) in document and inside tables',()=>{
+  const markersFor = (session: CanvasEditSession): string[] =>
+    session.displayLists[0].commands
+      .filter((c): c is Extract<typeof c, { kind: 'text' }> => c.kind === 'text' && !c.source)
+      .map(c => c.text.trim())
+      .filter(Boolean);
+
+  for (const [styleType, first, second] of [
+    ['lower-alpha', 'a.', 'b.'],
+    ['decimal', '1.', '2.'],
+    ['upper-roman', 'I.', 'II.'],
+    ['lower-greek', 'α.', 'β.'],
+  ] as const) {
+    const s = new CanvasEditSession(geometry);
+    s.load([{ id: 'p1', html: `<ol style="list-style-type: ${styleType}"><li>Primero</li><li>Sub</li></ol>` }]);
+    const leaves = textNodes(s.engine.getSections()[0].model.state.roots);
+    const subLeaf = leaves.find(l => l.text === 'Sub')!;
+    s.setSelection(0, { anchor: { nodeId: subLeaf.id, offset: subLeaf.text.length }, focus: { nodeId: subLeaf.id, offset: subLeaf.text.length } });
+
+    // Convert second item into nested bullet <ul> -> Enter twice -> promotes back to <ol> as second ordinal (b., 2., II., β.)
+    expect(s.toggleList('ul')).toBe(true);
+    expect(s.enter()).toBe(true);
+    expect(s.enter()).toBe(true);
+    expect(s.insert('Segundo')).toBe(true);
+
+    expect(markersFor(s)).toEqual([first, '◦', second]);
+  }
+
+  // Inside a table cell: a) -> bullet -> b)
+  const ts = new CanvasEditSession(geometry);
+  ts.load([{ id: 'p1', html: '<table><tbody><tr><td><ol style="list-style-type: lower-alpha"><li>Primero</li><li>Sub</li></ol></td></tr></tbody></table>' }]);
+  const tLeaves = textNodes(ts.engine.getSections()[0].model.state.roots);
+  const tSub = tLeaves.find(l => l.text === 'Sub')!;
+  ts.setSelection(0, { anchor: { nodeId: tSub.id, offset: tSub.text.length }, focus: { nodeId: tSub.id, offset: tSub.text.length } });
+  expect(ts.toggleList('ul')).toBe(true);
+  expect(ts.enter()).toBe(true);
+  expect(ts.enter()).toBe(true);
+  expect(ts.insert('Segundo')).toBe(true);
+  expect(markersFor(ts)).toEqual(['a.', '◦', 'b.']);
+ });
+
 });

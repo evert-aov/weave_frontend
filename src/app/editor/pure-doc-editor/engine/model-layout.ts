@@ -717,6 +717,11 @@ export function layoutModelDocument(
         while (rem > 0) { rem--; res = String.fromCharCode(97 + (rem % 26)) + res; rem = Math.floor(rem / 26); }
         return res;
       };
+      const formatGreek = (num: number): string => {
+        const letters = 'αβγδεζηθικλμνξοπρστυφχψω';
+        const idx = Math.max(0, Math.floor(num) - 1);
+        return letters[idx % letters.length];
+      };
       const bulletAtLevel = (lvl: number): string => ['•', '◦', '▪'][lvl % 3];
       const ordinalAtLevel = (ord: number, lvl: number): string => {
         const mod = lvl % 3;
@@ -739,6 +744,7 @@ export function layoutModelDocument(
           case 'upper-latin': return `${formatAlpha(ord).toUpperCase()}.`;
           case 'lower-roman': return `${formatRoman(ord)}.`;
           case 'upper-roman': return `${formatRoman(ord).toUpperCase()}.`;
+          case 'lower-greek': return `${formatGreek(ord)}.`;
           default: return isOrdered ? ordinalAtLevel(ord, lvl) : bulletAtLevel(lvl);
         }
       };

@@ -1826,6 +1826,26 @@ export class CanvasEditSession {
     }
     if (!liIds.size) return false;
 
+    if (delta === -1 && liIds.size === 1) {
+      const focusPath = findAncestorPath(roots, this.selection.focus.nodeId);
+      const focusLi = [...focusPath].reverse().find((n): n is Extract<DocumentNode, { kind: 'element' }> => n.kind === 'element' && n.tag === 'li');
+      const listAncestors = focusPath.filter(
+        (n): n is Extract<DocumentNode, { kind: 'element' }> => n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol'),
+      );
+      if (focusLi && listAncestors.length >= 2 && Number(focusLi.attributes['data-list-level'] || 0) === 0) {
+        const innerList = listAncestors[listAncestors.length - 1];
+        const outerList = listAncestors[listAncestors.length - 2];
+        const innerIdx = focusPath.indexOf(innerList);
+        const outerLi = innerIdx > 0 && focusPath[innerIdx - 1].kind === 'element' && (focusPath[innerIdx - 1] as Extract<DocumentNode, { kind: 'element' }>).tag === 'li'
+          ? (focusPath[innerIdx - 1] as Extract<DocumentNode, { kind: 'element' }>)
+          : null;
+        const promoted = this.promoteNestedListItem(roots, outerList.id, outerLi?.id ?? null, innerList.id, focusLi.id, false);
+        if (promoted) {
+          return this.commitCustomState(promoted.nextRoots, this.selection, 'outdent-nested-list');
+        }
+      }
+    }
+
     let changed = false;
     const mapLi = (nodes: readonly DocumentNode[]): readonly DocumentNode[] =>
       nodes.map(node => {
@@ -3450,6 +3470,98 @@ export class CanvasEditSession {
     return { nextRoots, caretNodeId };
   }
 
+  private promoteNestedListItem(
+    roots: readonly DocumentNode[],
+    outerListId: string,
+    outerLiId: string | null,
+    innerListId: string,
+    itemId: string,
+    replaceWithEmpty: boolean,
+  ): { nextRoots: readonly DocumentNode[]; caretNodeId: string } | null {
+    let movedItem: Extract<DocumentNode, { kind: 'element' }> | null = null;
+    let caretNodeId: string | null = null;
+
+    const stripInner = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => {
+      const out: DocumentNode[] = [];
+      for (const n of nodes) {
+        if (n.kind === 'element' && n.id === innerListId && (n.tag === 'ul' || n.tag === 'ol')) {
+          const remaining: DocumentNode[] = [];
+          for (const child of n.children) {
+            if (child.kind === 'element' && child.tag === 'li' && child.id === itemId) {
+              movedItem = child;
+            } else {
+              remaining.push(child);
+            }
+          }
+          if (remaining.some(c => c.kind === 'element' && c.tag === 'li')) {
+            out.push({ ...n, children: remaining });
+          }
+        } else if (n.kind === 'element' && getSubtreeIds(n).has(innerListId)) {
+          out.push({ ...n, children: stripInner(n.children) });
+        } else {
+          out.push(n);
+        }
+      }
+      return out;
+    };
+
+    const insertIntoOuter = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => {
+      return nodes.map(n => {
+        if (n.kind !== 'element') return n;
+        if (n.id === outerListId && (n.tag === 'ul' || n.tag === 'ol')) {
+          let promotedLi: Extract<DocumentNode, { kind: 'element' }>;
+          if (replaceWithEmpty) {
+            const newTxtId = this.uid('txt');
+            caretNodeId = newTxtId;
+            promotedLi = {
+              id: this.uid('li'),
+              kind: 'element',
+              tag: 'li',
+              attributes: {},
+              children: [{ id: newTxtId, kind: 'text', text: '' }],
+            };
+          } else {
+            const cleanedAttrs = { ...(movedItem?.attributes || {}) };
+            delete cleanedAttrs['data-list-level'];
+            promotedLi = {
+              ...(movedItem as Extract<DocumentNode, { kind: 'element' }>),
+              attributes: cleanedAttrs,
+            };
+            const firstTxt = textNodes([promotedLi])[0];
+            caretNodeId = firstTxt?.id ?? null;
+          }
+
+          const nextChildren: DocumentNode[] = [];
+          let inserted = false;
+          for (const child of n.children) {
+            if (outerLiId && child.kind === 'element' && child.id === outerLiId) {
+              const updatedOuterLi = stripInner([child])[0];
+              if (updatedOuterLi) nextChildren.push(updatedOuterLi);
+              nextChildren.push(promotedLi);
+              inserted = true;
+            } else if (!outerLiId && child.kind === 'element' && child.id === innerListId) {
+              const updatedInner = stripInner([child]);
+              nextChildren.push(...updatedInner, promotedLi);
+              inserted = true;
+            } else {
+              nextChildren.push(child);
+            }
+          }
+          if (!inserted) return n;
+          return { ...n, children: nextChildren };
+        }
+        if (getSubtreeIds(n).has(outerListId)) {
+          return { ...n, children: insertIntoOuter(n.children) };
+        }
+        return n;
+      });
+    };
+
+    const nextRoots = insertIntoOuter(roots);
+    if (!movedItem || !caretNodeId) return null;
+    return { nextRoots, caretNodeId };
+  }
+
   private stripExternalFontOverrides(nodes: readonly DocumentNode[]): readonly DocumentNode[] {
     const fontKeys = ['font-family', 'font-size', 'line-height'];
     const walk = (list: readonly DocumentNode[]): readonly DocumentNode[] => {
@@ -3702,14 +3814,21 @@ export class CanvasEditSession {
           if (hasSelectedChild) {
             if (allInTargetList && !listStyleType) {
               let pendingList: DocumentNode[] = [];
+              let ordinal = Number(node.attributes['start'] || 1);
+              if (!Number.isFinite(ordinal)) ordinal = 1;
+              let segmentStart = ordinal;
               const flushPending = () => {
                 if (pendingList.length) {
-                  result.push({ id: this.uid(node.tag), kind: 'element', tag: node.tag, attributes: { ...node.attributes }, children: pendingList });
+                  const attrs = { ...node.attributes };
+                  if (node.tag === 'ol' && segmentStart !== 1) attrs['start'] = String(segmentStart);
+                  result.push({ id: this.uid(node.tag), kind: 'element', tag: node.tag, attributes: attrs, children: pendingList });
                   pendingList = [];
                 }
               };
               for (const child of node.children) {
                 if (blockIds.has(child.id) && child.kind === 'element' && child.tag === 'li') {
+                  const explicitVal = child.attributes['value'] ? Number(child.attributes['value']) : NaN;
+                  if (Number.isFinite(explicitVal)) ordinal = explicitVal;
                   flushPending();
                   const { inlineChildren, nestedLists } = this.splitListItemChildren(child);
                   result.push({
@@ -3722,6 +3841,10 @@ export class CanvasEditSession {
                   if (nestedLists.length) {
                     result.push(...transformNodes(nestedLists));
                   }
+                  if (!('data-word-continuation' in child.attributes)) {
+                    ordinal += 1;
+                  }
+                  segmentStart = ordinal;
                 } else if (child.kind === 'element' && (child.tag === 'ul' || child.tag === 'ol')) {
                   const transformedNested = transformNodes([child]);
                   const hasNonList = transformedNested.some(
@@ -3736,12 +3859,18 @@ export class CanvasEditSession {
                 } else if (child.kind === 'text' && !child.text.trim()) {
                   continue;
                 } else if (child.kind === 'element' && child.tag === 'li') {
+                  const explicitVal = child.attributes['value'] ? Number(child.attributes['value']) : NaN;
+                  if (Number.isFinite(explicitVal)) ordinal = explicitVal;
+                  if (!pendingList.length) segmentStart = ordinal;
                   const transformedItem = transformListItem(child);
                   if (transformedItem.length === 1 && transformedItem[0].kind === 'element' && transformedItem[0].tag === 'li') {
                     pendingList.push(transformedItem[0]);
                   } else {
                     flushPending();
                     result.push(...transformedItem);
+                  }
+                  if (!('data-word-continuation' in child.attributes)) {
+                    ordinal += 1;
                   }
                 } else {
                   pendingList.push(child);
@@ -3769,15 +3898,22 @@ export class CanvasEditSession {
                 let currentAttrs: Record<string, string> = {};
                 let currentItems: DocumentNode[] = [];
                 let currentIsConverted = false;
+                let ordinal = Number(node.attributes['start'] || 1);
+                if (!Number.isFinite(ordinal)) ordinal = 1;
+                let segmentStart = ordinal;
                 const flushSegment = () => {
                   if (!currentTag || !currentItems.length) return;
+                  const attrs = { ...currentAttrs };
+                  if (currentTag === 'ol' && segmentStart !== 1 && !currentIsConverted) {
+                    attrs['start'] = String(segmentStart);
+                  }
                   pushListResult(
                     result,
                     {
                       id: this.uid(currentTag),
                       kind: 'element',
                       tag: currentTag,
-                      attributes: currentAttrs,
+                      attributes: attrs,
                       children: currentItems,
                     },
                     currentIsConverted,
@@ -3793,11 +3929,62 @@ export class CanvasEditSession {
                       currentTag = node.tag as 'ul' | 'ol';
                       currentAttrs = { ...node.attributes };
                       currentIsConverted = false;
+                      segmentStart = ordinal;
                     }
                     currentItems.push(...transformNodes([child]));
                     continue;
                   }
                   const isSel = blockIds.has(child.id);
+                  if (
+                    isSel &&
+                    type !== node.tag &&
+                    currentTag === node.tag &&
+                    child.kind === 'element' &&
+                    child.tag === 'li'
+                  ) {
+                    const lastIdx = [...currentItems].reverse().findIndex(c => c.kind === 'element' && c.tag === 'li');
+                    if (lastIdx >= 0) {
+                      const prevLiIdx = currentItems.length - 1 - lastIdx;
+                      const prevLi = currentItems[prevLiIdx] as Extract<DocumentNode, { kind: 'element' }>;
+                      const cleanedAttrLi: Extract<DocumentNode, { kind: 'element' }> = {
+                        ...child,
+                        attributes: (() => {
+                          const a = { ...child.attributes };
+                          delete a['data-list-level'];
+                          return a;
+                        })(),
+                      };
+                      const transformed = this.stripExternalFontOverrides(transformNodes([cleanedAttrLi]));
+                      const subAttrs = buildListAttrs({}, type, node.tag);
+                      const lastPrevChild = prevLi.children[prevLi.children.length - 1];
+                      let nextPrevChildren: DocumentNode[];
+                      if (
+                        lastPrevChild &&
+                        lastPrevChild.kind === 'element' &&
+                        lastPrevChild.tag === type &&
+                        (parseStyleMap(lastPrevChild.attributes['style'])['list-style-type'] || '') ===
+                          (parseStyleMap(subAttrs['style'])['list-style-type'] || '')
+                      ) {
+                        nextPrevChildren = [
+                          ...prevLi.children.slice(0, -1),
+                          { ...lastPrevChild, children: [...lastPrevChild.children, ...transformed] },
+                        ];
+                      } else {
+                        nextPrevChildren = [
+                          ...prevLi.children,
+                          {
+                            id: this.uid(type),
+                            kind: 'element',
+                            tag: type,
+                            attributes: subAttrs,
+                            children: transformed,
+                          },
+                        ];
+                      }
+                      currentItems[prevLiIdx] = { ...prevLi, children: nextPrevChildren };
+                      continue;
+                    }
+                  }
                   const segTag: 'ul' | 'ol' = isSel ? type : (node.tag as 'ul' | 'ol');
                   const segAttrs = isSel
                     ? buildListAttrs(node.attributes, segTag, node.tag)
@@ -3807,6 +3994,14 @@ export class CanvasEditSession {
                     currentTag = segTag;
                     currentAttrs = segAttrs;
                     currentIsConverted = isSel;
+                    segmentStart = ordinal;
+                  }
+                  if (child.kind === 'element' && child.tag === 'li') {
+                    const explicitVal = child.attributes['value'] ? Number(child.attributes['value']) : NaN;
+                    if (Number.isFinite(explicitVal)) ordinal = explicitVal;
+                    if (!('data-word-continuation' in child.attributes)) {
+                      ordinal += 1;
+                    }
                   }
                   if (child.kind === 'element') {
                     const transformed = transformNodes([child]);
@@ -3916,7 +4111,7 @@ export class CanvasEditSession {
   applyListStyle(listStyleType: string, template?: StyleTemplate): boolean {
     const normalized = (listStyleType || '').trim().toLowerCase();
     if (!normalized) return false;
-    const ordered = ['decimal', 'lower-alpha', 'lower-latin', 'upper-alpha', 'upper-latin', 'lower-roman', 'upper-roman'].includes(normalized);
+    const ordered = ['decimal', 'lower-alpha', 'lower-latin', 'upper-alpha', 'upper-latin', 'lower-roman', 'upper-roman', 'lower-greek'].includes(normalized);
     return this.toggleList(ordered ? 'ol' : 'ul', normalized, template);
   }
 
@@ -5916,8 +6111,23 @@ export class CanvasEditSession {
     }
 
     const li = [...path].reverse().find((n): n is Extract<DocumentNode, { kind: 'element' }> => n.kind === 'element' && n.tag === 'li');
-    const list = li ? [...path].reverse().find((n): n is Extract<DocumentNode, { kind: 'element' }> => n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol')) : null;
+    const listAncestors = path.filter(
+      (n): n is Extract<DocumentNode, { kind: 'element' }> => n.kind === 'element' && (n.tag === 'ul' || n.tag === 'ol'),
+    );
+    const list = li ? listAncestors[listAncestors.length - 1] ?? null : null;
     if (li && list && this.isEditableBlockEmpty(li)) {
+      if (listAncestors.length >= 2) {
+        const outerList = listAncestors[listAncestors.length - 2];
+        const listIdxInPath = path.indexOf(list);
+        const outerLi = listIdxInPath > 0 && path[listIdxInPath - 1].kind === 'element' && (path[listIdxInPath - 1] as Extract<DocumentNode, { kind: 'element' }>).tag === 'li'
+          ? (path[listIdxInPath - 1] as Extract<DocumentNode, { kind: 'element' }>)
+          : null;
+        const promoted = this.promoteNestedListItem(roots, outerList.id, outerLi?.id ?? null, list.id, li.id, true);
+        if (promoted) {
+          const pos = { nodeId: promoted.caretNodeId, offset: 0 };
+          return this.commitCustomState(promoted.nextRoots, { anchor: pos, focus: pos }, 'promote-list-item');
+        }
+      }
       const unwrapped = this.unwrapSingleListItem(roots, list.id, li.id);
       if (unwrapped) {
         const pos = { nodeId: unwrapped.caretNodeId, offset: 0 };
