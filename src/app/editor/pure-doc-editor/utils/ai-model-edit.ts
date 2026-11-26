@@ -7,8 +7,8 @@ import {
 import type { DocumentSectionState } from '../engine/document-engine';
 import { DocumentNode, textNodes } from '../engine/document-model';
 import { htmlToDocumentState } from '../engine/document-model-dom';
-import type { StyleTemplate } from '../models/word-document.model';
-import { styleModelTable } from './table-styling';
+import type { StyleTemplate, TableStyleRule } from '../models/word-document.model';
+import { DEFAULT_TABLE_STYLE, normalizeTableStyle, styleModelTable } from './table-styling';
 
 export const MODEL_TEXT_PREFIX = 'model:';
 export const MODEL_TABLE_PREFIX = 'model-table:';
@@ -218,17 +218,23 @@ export function aiModelTableInsertionFields(sections: readonly DocumentSectionSt
   return out;
 }
 
-function buildTableParagraph(text: string, template?: StyleTemplate, bold = false): Extract<DocumentNode, { kind: 'element' }> {
+function buildTableParagraph(
+  text: string,
+  template?: StyleTemplate,
+  bold = false,
+  opts?: { align?: string; color?: string; italic?: boolean },
+): Extract<DocumentNode, { kind: 'element' }> {
   const rule = template?.rules.P;
   const styleParts = [
     rule ? `font-family:${rule.fontFamily}` : '',
     rule ? `font-size:${rule.fontSizePt}pt` : '',
-    rule?.color ? `color:${rule.color}` : '',
-    'text-align:left',
+    opts?.color ? `color:${opts.color}` : rule?.color ? `color:${rule.color}` : '',
+    `text-align:${opts?.align && ['left', 'center', 'right', 'justify'].includes(opts.align) ? opts.align : 'left'}`,
     'text-indent:0pt',
     'margin-top:0pt',
     'margin-bottom:0pt',
     `font-weight:${bold ? 'bold' : 'normal'}`,
+    opts?.italic ? 'font-style:italic' : '',
   ].filter(Boolean);
   return {
     id: nextAiId('p'),
@@ -237,6 +243,180 @@ function buildTableParagraph(text: string, template?: StyleTemplate, bold = fals
     attributes: { style: styleParts.join('; ') },
     children: text ? [{ id: nextAiId('txt'), kind: 'text', text }] : [],
   };
+}
+
+function buildCellParagraphs(
+  rawText: string,
+  template?: StyleTemplate,
+  bold = false,
+  opts?: { align?: string; color?: string; italic?: boolean },
+): Extract<DocumentNode, { kind: 'element' }>[] {
+  const lines = rawText.split(/\r?\n/);
+  if (lines.length <= 1) {
+    return [buildTableParagraph(rawText, template, bold, opts)];
+  }
+  return lines.map(line => buildTableParagraph(line, template, bold, opts));
+}
+
+function safeHexColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(trimmed) ? trimmed : undefined;
+}
+
+export function buildRichModelTableNodes(spec: any, template?: StyleTemplate): DocumentNode[] {
+  if (!spec || !Array.isArray(spec.rows) || !spec.rows.length || spec.rows.length > 500) {
+    throw Error('Filas de tabla inválidas');
+  }
+  for (const key of ['title', 'note']) {
+    if (spec[key] !== undefined && (typeof spec[key] !== 'string' || spec[key].length > 4000)) {
+      throw Error('Título o nota inválidos');
+    }
+  }
+  if (spec.header !== undefined && typeof spec.header !== 'boolean') throw Error('Cabecera inválida');
+
+  const spanOf = (cell: unknown): number => {
+    if (cell && typeof cell === 'object' && !Array.isArray(cell)) {
+      const cs = Number((cell as Record<string, unknown>)['colSpan'] ?? 1);
+      return Number.isInteger(cs) && cs >= 1 && cs <= 50 ? cs : 1;
+    }
+    return 1;
+  };
+  const gridWidth = Math.max(
+    ...spec.rows.map((row: unknown) =>
+      Array.isArray(row) ? row.reduce((sum: number, c: unknown) => sum + spanOf(c), 0) : 0,
+    ),
+  );
+  if (!Number.isInteger(gridWidth) || gridWidth < 1 || gridWidth > 50) {
+    throw Error('Columnas de tabla inválidas');
+  }
+
+  const rawColWidths: number[] | null =
+    Array.isArray(spec.columnWidths) && spec.columnWidths.length === gridWidth && spec.columnWidths.every((n: unknown) => Number.isFinite(Number(n)) && Number(n) > 0)
+      ? spec.columnWidths.map((n: unknown) => Number(n))
+      : null;
+  const colWidthSum = rawColWidths ? rawColWidths.reduce((a, b) => a + b, 0) : 0;
+  const colWidthsPct = rawColWidths && colWidthSum > 0
+    ? rawColWidths.map(w => (w / colWidthSum) * 100)
+    : Array.from({ length: gridWidth }, () => 100 / gridWidth);
+
+  const nodes: DocumentNode[] = [];
+  if (spec.title) nodes.push(buildTableParagraph(spec.title, template, true));
+
+  const headRows: DocumentNode[] = [];
+  const bodyRows: DocumentNode[] = [];
+  const isApa = template?.academicStyle === 'apa7';
+  const cellBorder = isApa ? 'border:none; padding:4px 8px;' : 'border:1px solid #94a3b8; padding:4px 8px;';
+  const headerRowCount =
+    Number.isInteger(spec.headerRows) && spec.headerRows >= 0
+      ? spec.headerRows
+      : spec.header === false
+        ? 0
+        : 1;
+
+  spec.rows.forEach((row: unknown, rowIndex: number) => {
+    if (!Array.isArray(row) || !row.length) {
+      throw Error('Filas de tabla inválidas');
+    }
+    const isHeaderRow = rowIndex < headerRowCount;
+    let colCursor = 0;
+    const cells: DocumentNode[] = row.map(rawCell => {
+      const isObj = rawCell !== null && typeof rawCell === 'object' && !Array.isArray(rawCell);
+      const cellObj = isObj ? (rawCell as Record<string, unknown>) : null;
+      const value = cellObj ? (cellObj['text'] ?? '') : rawCell;
+      if (typeof value !== 'string' && !(typeof value === 'number' && Number.isFinite(value)) && value !== null) {
+        throw Error('Valor de celda inválido');
+      }
+      const colSpan = cellObj && Number.isInteger(Number(cellObj['colSpan'])) && Number(cellObj['colSpan']) > 1
+        ? Math.min(gridWidth, Number(cellObj['colSpan']))
+        : 1;
+      const rowSpan = cellObj && Number.isInteger(Number(cellObj['rowSpan'])) && Number(cellObj['rowSpan']) > 1
+        ? Math.min(spec.rows.length, Number(cellObj['rowSpan']))
+        : 1;
+      const spanWidthPct = colWidthsPct
+        .slice(colCursor, Math.min(gridWidth, colCursor + colSpan))
+        .reduce((a, b) => a + b, 0) || (100 * colSpan) / gridWidth;
+      colCursor += colSpan;
+
+      const cellIsHeader = cellObj?.['header'] === true || (cellObj?.['header'] !== false && isHeaderRow);
+      const cellTag: 'th' | 'td' = cellIsHeader ? 'th' : 'td';
+      const bg = safeHexColor(cellObj?.['backgroundColor']);
+      const fg = safeHexColor(cellObj?.['color']);
+      const align = typeof cellObj?.['align'] === 'string' && ['left', 'center', 'right', 'justify'].includes(cellObj['align'])
+        ? cellObj['align']
+        : undefined;
+      const vAlign = typeof cellObj?.['verticalAlign'] === 'string' && ['top', 'middle', 'bottom'].includes(cellObj['verticalAlign'])
+        ? cellObj['verticalAlign']
+        : undefined;
+      const bold = cellObj?.['bold'] !== undefined ? Boolean(cellObj['bold']) : cellIsHeader;
+      const italic = Boolean(cellObj?.['italic']);
+
+      const styleParts = [
+        cellBorder,
+        `width:${Number(spanWidthPct.toFixed(2))}%;`,
+        bg ? `background-color:${bg};` : '',
+        fg ? `color:${fg};` : '',
+        align ? `text-align:${align};` : '',
+        vAlign ? `vertical-align:${vAlign};` : '',
+        bold ? 'font-weight:bold;' : '',
+        italic ? 'font-style:italic;' : '',
+      ].filter(Boolean);
+
+      const attrs: Record<string, string> = { style: styleParts.join(' ') };
+      if (colSpan > 1) attrs['colspan'] = String(colSpan);
+      if (rowSpan > 1) attrs['rowspan'] = String(rowSpan);
+
+      return {
+        id: nextAiId(cellTag),
+        kind: 'element',
+        tag: cellTag,
+        attributes: attrs,
+        children: buildCellParagraphs(value === null ? '' : String(value), template, bold, {
+          align,
+          color: fg,
+          italic,
+        }),
+      };
+    });
+
+    const tr: DocumentNode = { id: nextAiId('tr'), kind: 'element', tag: 'tr', attributes: {}, children: cells };
+    (isHeaderRow ? headRows : bodyRows).push(tr);
+  });
+
+  const tableChildren: DocumentNode[] = [];
+  if (headRows.length) {
+    tableChildren.push({ id: nextAiId('thead'), kind: 'element', tag: 'thead', attributes: {}, children: headRows });
+  }
+  tableChildren.push({ id: nextAiId('tbody'), kind: 'element', tag: 'tbody', attributes: {}, children: bodyRows });
+
+  const tableStyle = isApa
+    ? 'width:100%; max-width:100%; border-collapse:collapse; border-top:2px solid #0f172a; border-bottom:2px solid #0f172a;'
+    : 'width:100%; max-width:100%; border-collapse:collapse;';
+  let tableNode: Extract<DocumentNode, { kind: 'element' }> = {
+    id: nextAiId('tbl'),
+    kind: 'element',
+    tag: 'table',
+    attributes: {
+      'data-word-object-id': typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : nextAiId('obj'),
+      style: tableStyle,
+    },
+    children: tableChildren,
+  };
+
+  if (spec.style && typeof spec.style === 'object') {
+    const rule = normalizeTableStyle({
+      ...DEFAULT_TABLE_STYLE,
+      ...(spec.style as Partial<TableStyleRule>),
+      mode: (spec.style as Partial<TableStyleRule>).mode ?? 'custom',
+    });
+    tableNode = styleModelTable(tableNode, rule, 'fixed', { preserveExplicitCellFormatting: true });
+  } else if (template?.tableStyle && template.tableStyle.mode !== 'inherit') {
+    tableNode = styleModelTable(tableNode, template.tableStyle, 'template', { preserveExplicitCellFormatting: true });
+  }
+
+  nodes.push(tableNode);
+  if (spec.note) nodes.push(buildTableParagraph(spec.note, template));
+  return nodes;
 }
 
 function buildModelInsertionNodes(payload: any, template?: StyleTemplate): DocumentNode[] {
@@ -249,67 +429,10 @@ function buildModelInsertionNodes(payload: any, template?: StyleTemplate): Docum
     if (!spec || !Array.isArray(spec.rows) || !spec.rows.length || spec.rows.length > 500) {
       throw Error('Filas de tabla inválidas');
     }
-    const width = spec.rows[0]?.length;
-    if (!Number.isInteger(width) || width < 1 || width > 50) throw Error('Columnas de tabla inválidas');
-    total += spec.rows.length * width;
+    const rowCells = spec.rows.reduce((sum: number, r: unknown) => sum + (Array.isArray(r) ? r.length : 0), 0);
+    total += rowCells;
     if (total > 10000) throw Error('Demasiadas celdas');
-    for (const key of ['title', 'note']) {
-      if (spec[key] !== undefined && (typeof spec[key] !== 'string' || spec[key].length > 4000)) {
-        throw Error('Título o nota inválidos');
-      }
-    }
-    if (spec.header !== undefined && typeof spec.header !== 'boolean') throw Error('Cabecera inválida');
-    if (spec.title) nodes.push(buildTableParagraph(spec.title, template, true));
-
-    const headRows: DocumentNode[] = [];
-    const bodyRows: DocumentNode[] = [];
-    const colWidth = `${100 / width}%`;
-    const isApa = template?.academicStyle === 'apa7';
-    const cellBorder = isApa ? 'border:none; padding:4px 8px;' : 'border:1px solid #94a3b8; padding:4px 8px;';
-
-    spec.rows.forEach((row: unknown, rowIndex: number) => {
-      if (!Array.isArray(row) || row.length !== width) {
-        throw Error('Las filas deben tener el mismo número de columnas');
-      }
-      const isHeaderRow = rowIndex === 0 && spec.header !== false;
-      const cells: DocumentNode[] = row.map(value => {
-        if (typeof value !== 'string' && !(typeof value === 'number' && Number.isFinite(value)) && value !== null) {
-          throw Error('Valor de celda inválido');
-        }
-        const cellTag = isHeaderRow ? 'th' : 'td';
-        return {
-          id: nextAiId(cellTag),
-          kind: 'element',
-          tag: cellTag,
-          attributes: { style: `${cellBorder} width:${colWidth};` },
-          children: [buildTableParagraph(value === null ? '' : String(value), template, isHeaderRow)],
-        };
-      });
-      const tr: DocumentNode = { id: nextAiId('tr'), kind: 'element', tag: 'tr', attributes: {}, children: cells };
-      (isHeaderRow ? headRows : bodyRows).push(tr);
-    });
-
-    const tableChildren: DocumentNode[] = [];
-    if (headRows.length) {
-      tableChildren.push({ id: nextAiId('thead'), kind: 'element', tag: 'thead', attributes: {}, children: headRows });
-    }
-    tableChildren.push({ id: nextAiId('tbody'), kind: 'element', tag: 'tbody', attributes: {}, children: bodyRows });
-
-    const tableStyle = isApa
-      ? 'width:100%; max-width:100%; border-collapse:collapse; border-top:2px solid #0f172a; border-bottom:2px solid #0f172a;'
-      : 'width:100%; max-width:100%; border-collapse:collapse;';
-    const tableNode: Extract<DocumentNode, {kind:'element'}> = {
-      id: nextAiId('tbl'),
-      kind: 'element',
-      tag: 'table',
-      attributes: {
-        'data-word-object-id': typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : nextAiId('obj'),
-        style: tableStyle,
-      },
-      children: tableChildren,
-    };
-    nodes.push(template?.tableStyle && template.tableStyle.mode !== 'inherit' ? styleModelTable(tableNode, template.tableStyle) : tableNode);
-    if (spec.note) nodes.push(buildTableParagraph(spec.note, template));
+    nodes.push(...buildRichModelTableNodes(spec, template));
   }
   return nodes;
 }

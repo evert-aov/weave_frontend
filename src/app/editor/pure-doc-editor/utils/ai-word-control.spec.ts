@@ -255,6 +255,78 @@ describe('ai-word-control', () => {
     expect(allRoots[1].attributes['data-word-table-style']).toBe('custom');
   });
 
+  it('inserts a rich styled table in one shot with colSpan, columnWidths, per-cell colors, and multi-line paragraphs', () => {
+    const sections = [makeSection([makeParagraph('h1-1', '1) Evento Sprint Planning', 'h1')])];
+
+    const res = applyPureWordModelOperations(sections, [
+      {
+        type: 'insertTable',
+        afterNodeId: 'h1-1',
+        headerRows: 2,
+        columnWidths: [12, 88],
+        style: {
+          borders: 'grid',
+          borderColor: '#8DB4E2',
+          borderWidthPt: 0.5,
+          headerBackgroundColor: '#00A0E3',
+          headerColor: '#ffffff',
+          headerBold: true,
+          headerAlign: 'center',
+          bandedRows: true,
+          bandColor: '#DCEBF7',
+        },
+        rows: [
+          [{ text: 'Tareas a realizar durante el Sprint Planning', colSpan: 2, backgroundColor: '#00A0E3', color: '#ffffff', bold: true, align: 'center' }],
+          [{ text: 'Id', align: 'center' }, { text: 'Tarea', align: 'center' }],
+          [{ text: 'a)', align: 'right' }, 'Línea uno\nLínea dos'],
+          [{ text: '', colSpan: 2, backgroundColor: '#00A0E3' }],
+        ],
+      },
+    ]);
+
+    const roots = res.updatedBySection.get(0)!;
+    const table = roots[1] as any;
+    expect(table.tag).toBe('table');
+    expect(table.attributes['data-word-table-style']).toBe('custom');
+    expect(table.attributes['data-word-table-binding']).toBe('fixed');
+
+    const thead = table.children.find((c: any) => c.tag === 'thead');
+    const tbody = table.children.find((c: any) => c.tag === 'tbody');
+    expect(thead.children).toHaveLength(2);
+    expect(thead.children[0].children[0].attributes['colspan']).toBe('2');
+    expect(thead.children[0].children[0].attributes['style']).toContain('background-color: #00A0E3');
+    expect(thead.children[1].children[0].attributes['style']).toContain('width: 12%');
+    expect(thead.children[1].children[1].attributes['style']).toContain('width: 88%');
+
+    const bodyRow0 = tbody.children[0];
+    expect(bodyRow0.children[0].attributes['style']).toContain('text-align: right');
+    expect(bodyRow0.children[1].children).toHaveLength(2);
+
+    const footerBar = tbody.children[1].children[0];
+    expect(footerBar.attributes['colspan']).toBe('2');
+    expect(footerBar.attributes['style']).toContain('background-color: #00A0E3');
+  });
+
+  it('applies columnWidths and per-cell cellStyles via styleTable', () => {
+    const sections = [makeSection([makeTable('tbl-1')])];
+    const res = applyPureWordModelOperations(sections, [
+      {
+        type: 'styleTable',
+        tableNodeId: 'tbl-1',
+        columnWidths: [20, 80],
+        cellStyles: [
+          { row: 2, backgroundColor: '#00A0E3', color: '#ffffff', bold: true, align: 'center' },
+        ],
+      },
+    ]);
+    const tbl = res.updatedBySection.get(0)![0] as any;
+    const rows = tbl.children[0].children;
+    expect(rows[0].children[0].attributes['style']).toContain('width: 20%');
+    expect(rows[0].children[1].attributes['style']).toContain('width: 80%');
+    expect(rows[2].children[0].attributes['style']).toContain('background-color: #00A0E3');
+    expect(rows[2].children[0].attributes['style']).toContain('color: #ffffff');
+  });
+
   it('rejects empty or unknown control operations', () => {
     const host = createHostSpy();
     expect(() => applyWordControlPayload(JSON.stringify({ operations: [] }), [], vi.fn(), host)).toThrow();

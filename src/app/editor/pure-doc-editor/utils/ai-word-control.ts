@@ -15,6 +15,7 @@ import type {
 import { MARGIN_PRESETS, PAPER_FORMAT_PRESETS } from '../constants/word-document.constants';
 import { richTextHtml } from '../../../core/utils/ai-edit-text';
 import { DEFAULT_TABLE_STYLE, normalizeTableStyle, styleModelTable } from './table-styling';
+import { buildRichModelTableNodes } from './ai-model-edit';
 
 export const WORD_CONTROL_TARGET = 'word:control';
 
@@ -268,7 +269,8 @@ export function wordControlField(input: WordControlSummaryInput, prefix = ''): {
       'manageImage(nodeId,action:align|resize|alt|delete,align?,widthPx?,heightPx?,alt?)',
       'insertImage(src,alt?,caption?,widthPx?,align?,afterNodeId?)',
       'toggleTableRowTopBorder(tableNodeId?,rowIndex,enabled?)',
-      'styleTable(tableNodeId?,allTables?,style:{borders?:grid|horizontal|none,borderColor?,borderWidthPt?,cellPaddingPt?,fontFamily?,fontSizePt?,lineHeight?,align?:left|center|right|justify,color?,backgroundColor?,header?,headerBold?,headerAlign?,headerColor?,headerBackgroundColor?,bandedRows?,bandColor?,repeatHeader?},binding?:fixed|template,preserveExplicitCellFormatting?)',
+      'insertTable(rows:[...(string|{text,colSpan?,rowSpan?,header?,backgroundColor?,color?,bold?,italic?,align?,verticalAlign?})[]],columnWidths?:number[],headerRows?,title?,note?,style?:TableStyleRule,afterNodeId?,pageIndex?)',
+      'styleTable(tableNodeId?,allTables?,columnWidths?:number[],style:{borders?:grid|horizontal|none,borderColor?,borderWidthPt?,cellPaddingPt?,fontFamily?,fontSizePt?,lineHeight?,align?:left|center|right|justify,color?,backgroundColor?,header?,headerBold?,headerAlign?,headerColor?,headerBackgroundColor?,bandedRows?,bandColor?,repeatHeader?},cellStyles?:[{row,column?,backgroundColor?,color?,bold?,italic?,align?}],binding?:fixed|template,preserveExplicitCellFormatting?)',
       'tableAction(tableNodeId,action:addRow|addCol|delRow|delCol|delTable,rowIndex?,colIndex?)',
       'updateToc(insertIfMissing?)',
       'academic(action:addSource|removeSource|insertCitation|insertBibliography|updateAcademic|applyCaption|insertSection|addNote,...)',
@@ -593,9 +595,97 @@ function applyStyleTableOp(
     mode: patch.mode ?? 'custom',
   });
   const binding: 'template' | 'fixed' = op['binding'] === 'template' ? 'template' : 'fixed';
-  return styleModelTable(table, rule, binding, {
-    preserveExplicitCellFormatting: Boolean(op['preserveExplicitCellFormatting']),
-  });
+  const hasStylePatch = Object.keys(patch).length > 0;
+  let styled = hasStylePatch
+    ? styleModelTable(table, rule, binding, {
+        preserveExplicitCellFormatting: op['preserveExplicitCellFormatting'] !== false,
+      })
+    : table;
+
+  const rawColWidths = Array.isArray(op['columnWidths']) && op['columnWidths'].every((n: unknown) => Number.isFinite(Number(n)) && Number(n) > 0)
+    ? (op['columnWidths'] as unknown[]).map(Number)
+    : null;
+  const colWidthSum = rawColWidths ? rawColWidths.reduce((a, b) => a + b, 0) : 0;
+  const colWidthsPct = rawColWidths && colWidthSum > 0 ? rawColWidths.map(w => (w / colWidthSum) * 100) : null;
+
+  const cellStyles = Array.isArray(op['cellStyles'])
+    ? (op['cellStyles'] as Record<string, any>[]).filter(item => item && typeof item === 'object' && Number.isInteger(Number(item['row'])))
+    : [];
+
+  if (colWidthsPct || cellStyles.length) {
+    let rowIdx = 0;
+    const patchCellParagraphs = (nodes: readonly DocumentNode[], pPatch: Record<string, string | null>): readonly DocumentNode[] =>
+      nodes.map(n => {
+        if (n.kind !== 'element') return n;
+        if (['p', 'div', 'span'].includes(n.tag)) {
+          return { ...n, attributes: patchNodeStyle(n.attributes, pPatch), children: patchCellParagraphs(n.children, pPatch) };
+        }
+        return { ...n, children: patchCellParagraphs(n.children, pPatch) };
+      });
+
+    const rewrite = (nodes: readonly DocumentNode[]): readonly DocumentNode[] =>
+      nodes.map(n => {
+        if (n.kind !== 'element') return n;
+        if (n.tag === 'tr') {
+          const r = rowIdx++;
+          let colCursor = 0;
+          const matchingRowStyles = cellStyles.filter(cs => Number(cs['row']) === r);
+          return {
+            ...n,
+            children: n.children.map((cell, cIdx) => {
+              if (cell.kind !== 'element' || (cell.tag !== 'td' && cell.tag !== 'th')) return cell;
+              const colSpan = Math.max(1, Number(cell.attributes['colspan'] || 1) || 1);
+              const cellPatch: Record<string, string | null> = {};
+              const paraPatch: Record<string, string | null> = {};
+
+              if (colWidthsPct && colCursor < colWidthsPct.length) {
+                const spanW = colWidthsPct.slice(colCursor, Math.min(colWidthsPct.length, colCursor + colSpan)).reduce((a, b) => a + b, 0);
+                if (spanW > 0) cellPatch['width'] = `${Number(spanW.toFixed(2))}%`;
+              }
+              colCursor += colSpan;
+
+              for (const cs of matchingRowStyles) {
+                if (cs['column'] !== undefined && Number(cs['column']) !== cIdx) continue;
+                if (typeof cs['backgroundColor'] === 'string' && /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(cs['backgroundColor'].trim())) {
+                  cellPatch['background-color'] = cs['backgroundColor'].trim();
+                }
+                if (typeof cs['color'] === 'string' && /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(cs['color'].trim())) {
+                  cellPatch['color'] = cs['color'].trim();
+                  paraPatch['color'] = cs['color'].trim();
+                }
+                if (cs['bold'] !== undefined) {
+                  cellPatch['font-weight'] = cs['bold'] ? 'bold' : 'normal';
+                  paraPatch['font-weight'] = cs['bold'] ? 'bold' : 'normal';
+                }
+                if (cs['italic'] !== undefined) {
+                  cellPatch['font-style'] = cs['italic'] ? 'italic' : 'normal';
+                  paraPatch['font-style'] = cs['italic'] ? 'italic' : 'normal';
+                }
+                if (typeof cs['align'] === 'string' && ['left', 'center', 'right', 'justify'].includes(cs['align'])) {
+                  cellPatch['text-align'] = cs['align'];
+                  paraPatch['text-align'] = cs['align'];
+                }
+              }
+
+              if (!Object.keys(cellPatch).length) return cell;
+              return {
+                ...cell,
+                attributes: patchNodeStyle(cell.attributes, cellPatch),
+                children: Object.keys(paraPatch).length ? patchCellParagraphs(cell.children, paraPatch) : cell.children,
+              };
+            }),
+          };
+        }
+        if (n.tag === 'thead' || n.tag === 'tbody' || n.tag === 'tfoot') {
+          return { ...n, children: rewrite(n.children) };
+        }
+        return n;
+      });
+
+    styled = { ...styled, children: rewrite(styled.children) };
+  }
+
+  return styled;
 }
 
 function applyToggleRowTopBorder(
@@ -994,6 +1084,21 @@ export function applyPureWordModelOperations(
           dirty.add(i);
           break;
         }
+      }
+      continue;
+    }
+
+    if (type === 'insertTable') {
+      const nodes = buildRichModelTableNodes(op);
+      if (nodes.length && working.length) {
+        let targetSecIdx = Math.max(0, Math.min(working.length - 1, Number(op['pageIndex'] ?? working.length - 1)));
+        if (typeof op['afterNodeId'] === 'string') {
+          const foundSec = working.findIndex(w => findNodeById(w.roots, op['afterNodeId']));
+          if (foundSec >= 0) targetSecIdx = foundSec;
+        }
+        const placed = insertNodesAfterTarget(working[targetSecIdx].roots, nodes, op['afterNodeId']);
+        working[targetSecIdx].roots = placed.roots;
+        dirty.add(targetSecIdx);
       }
       continue;
     }
