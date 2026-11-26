@@ -838,4 +838,71 @@ describe('SheetCanvasRenderer', () => {
     });
     expect(rowHit).toEqual({ kind: 'outlineToggle', axis: 'row', groupIndex: 0 });
   });
+
+  it('applies ctx.font on every cell even when consecutive cells share the same bold font across save/restore', () => {
+    const renderer = new SheetCanvasRenderer();
+    const colAxis = new GridAxis(6, 84);
+    const rowAxis = new GridAxis(8, 24);
+    const fontStack: string[] = [];
+    const drawn: Array<{ text: string; font: string }> = [];
+    const ctx = {
+      save: vi.fn(() => {
+        fontStack.push(ctx.font);
+      }),
+      restore: vi.fn(() => {
+        ctx.font = fontStack.pop() ?? '10px sans-serif';
+      }),
+      setTransform: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      stroke: vi.fn(),
+      strokeRect: vi.fn(),
+      setLineDash: vi.fn(),
+      lineDashOffset: 0,
+      fill: vi.fn(),
+      measureText: vi.fn((t: string) => ({ width: t.length * 7 })),
+      fillText: vi.fn((text: string) => {
+        drawn.push({ text, font: ctx.font });
+      }),
+      fillRect: vi.fn(),
+      fillStyle: '#000000',
+      strokeStyle: '#000000',
+      lineWidth: 1,
+      font: '10px sans-serif',
+      textAlign: 'left',
+      textBaseline: 'middle',
+    } as unknown as CanvasRenderingContext2D;
+
+    const boldStyle = { bold: true, fontFamily: 'Segoe UI', fontSize: 8 };
+    const frame = renderer.buildFrame(
+      createBuildInput({
+        colAxis,
+        rowAxis,
+        totalCols: 6,
+        totalRows: 8,
+        grid: {
+          A1: { raw: '500', style: boldStyle },
+          A2: { raw: '1000', style: boldStyle },
+          A3: { raw: '2000', style: boldStyle },
+          A4: { raw: 'SALDO', style: { fontFamily: 'Segoe UI', fontSize: 8 } },
+          B4: { raw: '-350', style: boldStyle },
+          A6: { raw: 'Le quedo debiendo 350 Bs', style: boldStyle },
+        },
+      })
+    );
+
+    renderer.paint(ctx, frame, 1);
+
+    const fontFor = (text: string) => drawn.find(d => d.text === text)?.font;
+    expect(fontFor('500')).toBe('bold 11px Segoe UI');
+    expect(fontFor('1000')).toBe('bold 11px Segoe UI');
+    expect(fontFor('2000')).toBe('bold 11px Segoe UI');
+    expect(fontFor('SALDO')).toBe('11px Segoe UI');
+    expect(fontFor('-350')).toBe('bold 11px Segoe UI');
+    expect(fontFor('Le quedo debiendo 350 Bs')).toBe('bold 11px Segoe UI');
+  });
 });

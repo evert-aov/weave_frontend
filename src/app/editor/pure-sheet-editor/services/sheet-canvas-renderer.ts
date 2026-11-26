@@ -1527,7 +1527,6 @@ export class SheetCanvasRenderer {
     }
 
     // Cell sparklines + checkboxes + icon sets + text + dropdown buttons
-    let lastFont = '';
     for (const cell of cells) {
       if (cell.filteredOut) {
         ctx.save();
@@ -1542,7 +1541,7 @@ export class SheetCanvasRenderer {
           this.paintCellIcon(ctx, cell, cell.iconIndicator);
         }
         if (cell.text) {
-          lastFont = this.paintCellText(ctx, cell, palette.cellText, lastFont);
+          this.paintCellText(ctx, cell, palette.cellText);
         }
       }
       if (cell.filteredOut) {
@@ -2006,9 +2005,8 @@ export class SheetCanvasRenderer {
   private paintCellText(
     ctx: CanvasRenderingContext2D,
     cell: SheetRenderCell,
-    defaultTextColor: string,
-    lastFont: string
-  ): string {
+    defaultTextColor: string
+  ): void {
     const st = cell.style;
     const fontSizePx = st?.fontSize ? Math.round(st.fontSize * (4 / 3)) : 12;
     const fontFamily = st?.fontFamily || 'Inter, system-ui, -apple-system, sans-serif';
@@ -2022,9 +2020,7 @@ export class SheetCanvasRenderer {
     ctx.rect(cell.x + 1, cell.y + 1, Math.max(0, paintW - rightReserve), Math.max(0, cell.height - 2));
     ctx.clip();
 
-    if (font !== lastFont) {
-      ctx.font = font;
-    }
+    ctx.font = font;
     ctx.fillStyle = cell.resolvedTextColor || st?.textColor || defaultTextColor;
 
     const leftIconReserve = cell.iconIndicator ? 16 : 0;
@@ -2063,7 +2059,7 @@ export class SheetCanvasRenderer {
         ctx.stroke();
       }
       ctx.restore();
-      return font;
+      return;
     }
 
     if (st?.wrapText || cell.text.includes('\n')) {
@@ -2125,7 +2121,6 @@ export class SheetCanvasRenderer {
     }
 
     ctx.restore();
-    return font;
   }
 
   private paintCellBorders(ctx: CanvasRenderingContext2D, cell: SheetRenderCell, defaultColor: string): void {
@@ -2520,6 +2515,7 @@ export class SheetCanvasRenderer {
     const cached = this.textMeasureCache.get(key);
     if (cached !== undefined) return cached;
     if (this.textMeasureCache.size > 4000) this.textMeasureCache.clear();
+    ctx.font = font;
     const width = ctx.measureText(text).width;
     this.textMeasureCache.set(key, width);
     return width;

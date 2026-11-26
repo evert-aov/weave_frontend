@@ -10,11 +10,22 @@ interface ParsedSvgElement {
   textContent?: string;
 }
 
+function lucideExportToKebab(name: string): string {
+  return name
+    .replace(/^lucide/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .replace(/([a-zA-Z])([0-9])/g, '$1-$2')
+    .toLowerCase();
+}
+
 const ICON_NODE_MAP = new Map<string, SvgNodeTuple[]>();
-for (const def of WORD_ICON_DEFINITIONS) {
-  const iconMeta = (def as unknown as { icon?: { name?: string; node?: SvgNodeTuple[] } }).icon;
-  if (iconMeta?.name && Array.isArray(iconMeta.node)) {
-    ICON_NODE_MAP.set(iconMeta.name, iconMeta.node);
+for (const [key, rawSvg] of Object.entries(WORD_ICON_DEFINITIONS)) {
+  const inner = rawSvg.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i)?.[1] ?? rawSvg;
+  const nodes: SvgNodeTuple[] = parseSvgMarkup(inner).map((el) => [el.tag, el.attrs]);
+  if (nodes.length) {
+    ICON_NODE_MAP.set(lucideExportToKebab(key), nodes);
+    ICON_NODE_MAP.set(key, nodes);
   }
 }
 
