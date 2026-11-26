@@ -1,4 +1,4 @@
-<div class="insert-ribbon" [class.dark-mode]="darkMode" (mousedown)="keepSelection($event)" (keydown.escape)="openMenu.set(null)">
+<div class="insert-ribbon" [class.dark-mode]="darkMode" (mousedown)="keepSelection($event)" (scroll)="openMenu.set(null)" (keydown.escape)="openMenu.set(null)">
   <!-- 1. PAGES GROUP (sin Cover page) -->
   <section class="insert-group" [attr.aria-label]="t('word.group.pages', 'Páginas')">
     <div class="control-row">
@@ -43,7 +43,7 @@
       <button
         type="button"
         class="btn-vertical"
-        (click)="toggleMenu('tablePicker')"
+        (click)="toggleMenu('tablePicker', $event)"
         [title]="t('word.insert.table', 'Tabla')"
       >
         <svg lucideIcon="table" [size]="20" class="icon-blue"></svg>
@@ -54,11 +54,13 @@
       </button>
 
       @if (openMenu() === 'tablePicker') {
-        <app-word-table-picker
-          [darkMode]="darkMode"
-          (selectTable)="insertTable.emit($event); openMenu.set(null)"
-          (close)="openMenu.set(null)"
-        ></app-word-table-picker>
+        <div class="fixed z-[1000]" [style.top.px]="menuPos().top" [style.left.px]="menuPos().left">
+          <app-word-table-picker
+            [darkMode]="darkMode"
+            (selectTable)="insertTable.emit($event); openMenu.set(null)"
+            (close)="openMenu.set(null)"
+          ></app-word-table-picker>
+        </div>
       }
     </div>
     <span class="group-label">{{ t('word.group.tables', 'Tablas') }}</span>
@@ -83,7 +85,7 @@
         <button
           type="button"
           class="btn-vertical"
-          (click)="toggleMenu('shapes')"
+          (click)="toggleMenu('shapes', $event)"
           [title]="t('word.insert.shapes', 'Formas')"
         >
           <svg lucideIcon="shapes" [size]="20" class="icon-blue"></svg>
@@ -94,7 +96,7 @@
         </button>
 
         @if (openMenu() === 'shapes') {
-          <div class="shapes-dropdown-menu">
+          <div class="shapes-dropdown-menu" [style.top.px]="menuPos().top" [style.left.px]="menuPos().left">
             <div class="shapes-scroll-area">
               @for (cat of shapeCategories; track cat.id) {
                 <div class="shape-category-block">
@@ -256,6 +258,38 @@
         <span class="btn-label">{{ t('word.insert.text_box', 'Cuadro de texto') }}</span>
       </button>
 
+      <!-- Code Block dropdown -->
+      <div class="relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleMenu('code', $event)"
+          [title]="t('word.insert.code_block', 'Insertar bloque de código o diagrama ASCII (atajo: ``` + Enter)')"
+        >
+          <svg lucideIcon="code" [size]="20" class="icon-indigo"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.insert.code', 'Código') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openMenu() === 'code') {
+          <div class="code-dropdown-menu" role="menu" [style.top.px]="menuPos().top" [style.left.px]="menuPos().left">
+            <div class="wordart-title">{{ t('word.insert.code_language', 'Bloque de código') }}</div>
+            @for (lang of codeLanguages; track lang) {
+              <button
+                type="button"
+                class="code-lang-item"
+                role="menuitem"
+                (click)="selectCodeLanguage(lang)"
+              >
+                <span class="font-mono">{{ lang }}</span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
       <button
         type="button"
         class="btn-vertical"
@@ -271,7 +305,7 @@
         <button
           type="button"
           class="btn-vertical"
-          (click)="toggleMenu('wordart')"
+          (click)="toggleMenu('wordart', $event)"
           [title]="t('word.insert.wordart', 'WordArt')"
         >
           <svg lucideIcon="sparkles" [size]="20" class="icon-purple"></svg>
@@ -282,7 +316,7 @@
         </button>
 
         @if (openMenu() === 'wordart') {
-          <div class="wordart-dropdown-menu">
+          <div class="wordart-dropdown-menu" [style.top.px]="menuPos().top" [style.left.px]="menuPos().left">
             <div class="wordart-title">{{ t('word.insert.wordart', 'Estilos WordArt') }}</div>
             <div class="wordart-grid">
               @for (preset of wordArtPresets; track preset.id) {
@@ -352,7 +386,7 @@
         <button
           type="button"
           class="btn-vertical"
-          (click)="toggleMenu('symbols')"
+          (click)="toggleMenu('symbols', $event)"
           [title]="t('word.insert.symbol', 'Símbolo')"
         >
           <span class="font-serif font-bold text-xl text-slate-800 leading-none">Ω</span>
@@ -363,7 +397,7 @@
         </button>
 
         @if (openMenu() === 'symbols') {
-          <div class="symbols-dropdown-menu">
+          <div class="symbols-dropdown-menu" [style.top.px]="menuPos().top" [style.left.px]="menuPos().left">
             <div class="symbols-grid">
               @for (sym of symbols; track sym) {
                 <button type="button" class="symbol-tile" (click)="selectSymbol(sym)">

@@ -2685,4 +2685,21 @@ describe('PureSheetEditorComponent', () => {
     fixture.destroy();
   });
 
+  it('initializes a newly created Excel note with a single empty sheet', () => {
+    const emptyNote: Note = {
+      ...structuredClone(sampleNote),
+      _id: 'sheet-note-empty',
+      docData: undefined,
+    };
+    component.note = emptyNote;
+    component.ngOnInit();
+
+    expect(component.sheets).toHaveLength(1);
+    expect(component.sheets[0].id).toBe('sheet1');
+    expect(component.sheets[0].name).toBe('Sheet1');
+    expect(component.sheets[0].type).toBe('grid');
+    expect(component.sheets[0].data).toEqual({});
+    expect(component.activeSheetId).toBe('sheet1');
+  });
+
 });

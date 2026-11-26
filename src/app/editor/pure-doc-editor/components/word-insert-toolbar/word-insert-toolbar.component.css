@@ -15,18 +15,33 @@
   height: 68px;
   min-height: 68px;
   max-height: 68px;
-  overflow: visible;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
 }
 
 .insert-group {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   justify-content: flex-start;
   position: relative;
   gap: 2px;
   padding: 0 8px;
   border-right: 1px solid #e2e8f0;
-  min-width: 0;
   height: 100%;
   overflow: visible;
 
@@ -126,9 +141,7 @@
 
 /* ==================== SHAPES DROPDOWN (Image 1) ==================== */
 .shapes-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
+  position: fixed;
   z-index: 1000 !important;
   width: 280px;
   max-width: 90vw;
@@ -226,9 +239,7 @@
 
 /* ==================== WORDART DROPDOWN ==================== */
 .wordart-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
+  position: fixed;
   z-index: 1000 !important;
   width: 240px;
   background: #ffffff;
@@ -270,10 +281,8 @@
 
 /* ==================== SYMBOLS DROPDOWN ==================== */
 .symbols-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 100;
+  position: fixed;
+  z-index: 1000;
   width: 220px;
   background: #ffffff;
   border: 1px solid #cbd5e1;
@@ -304,6 +313,43 @@
       background: #eff6ff;
       border-color: #93c5fd;
       color: #1d4ed8;
+    }
+  }
+}
+
+.code-dropdown-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 168px;
+  background: var(--bg, #ffffff);
+  border: 1px solid var(--border-strong, #cbd5e1);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.16);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  .code-lang-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text, #1e293b);
+    font-size: 11.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--soft, #eff6ff);
+      border-color: var(--accent, #3b82f6);
+      color: var(--accent, #1d4ed8);
+      outline: none;
     }
   }
 }
@@ -339,11 +385,22 @@
 
   .shapes-dropdown-menu,
   .wordart-dropdown-menu,
-  .symbols-dropdown-menu {
+  .symbols-dropdown-menu,
+  .code-dropdown-menu {
     background: #18181b;
     border-color: #3f3f46;
     color: #f4f4f5;
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+  }
+
+  .code-lang-item {
+    color: #e4e4e7;
+    &:hover,
+    &:focus-visible {
+      background: #27272a;
+      border-color: #60a5fa;
+      color: #93c5fd;
+    }
   }
 
   .shape-category-title,

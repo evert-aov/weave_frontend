@@ -47,4 +47,27 @@ describe('clipboard-rich-html', () => {
     expect(cleaned).toContain('en la ingeniería de software');
     expect(cleaned).toContain('. Independientemente de la estrategia.');
   });
+
+  it('strips inter-block newlines, default white backgrounds, and Gemini inline chips while wrapping stray inline siblings', () => {
+    const geminiMixedHtml = `
+      <div class="markdown" style="background-color: rgb(255, 255, 255);">
+        <ul>
+          <li><p><strong>Impacto Crítico:</strong> Sistemas críticos<source-inline-chips><div><button>1</button></div></source-inline-chips>.</p></li>
+        </ul>
+        Incidencia en la estimación: Cuanto mayor sea la criticidad.
+        <p style="background-color: #ffffff; text-indent: 0px;">
+          Métodos De Estimaciones
+        </p>
+      </div>
+    `;
+    expect(hasRichClipboardFormatting('<p>Un solo párrafo pegado</p>')).toBe(true);
+    const cleaned = sanitizeClipboardHtml(geminiMixedHtml)!;
+    expect(cleaned).not.toContain('source-inline-chips');
+    expect(cleaned).not.toContain('rgb(255, 255, 255)');
+    expect(cleaned).not.toContain('#ffffff');
+    expect(cleaned).not.toContain('text-indent');
+    expect(cleaned).toContain('<ul><li><strong>Impacto Crítico:</strong> Sistemas críticos.</li></ul>');
+    expect(cleaned).toContain('<p>Incidencia en la estimación: Cuanto mayor sea la criticidad.</p>');
+    expect(cleaned).toContain('<p>Métodos De Estimaciones</p>');
+  });
 });

@@ -291,16 +291,28 @@ export function applyDocumentOperation(state: DocumentState, operation: Document
     const ensuredLeft: readonly DocumentNode[] = textNodes(left).length
       ? left
       : [{ id: `${target.block.id}:left${suffix}`, kind: 'text', text: '' }];
+    const rightHasText = right.some(n => textNodes([n]).some(t => t.text.length > 0));
+    const resetToPlainParagraph =
+      (/^h[1-6]$/.test(target.block.tag) || 'data-apa-run-in' in target.block.attributes) && !rightHasText;
     const newAttrs = { ...target.block.attributes };
     delete newAttrs['id'];
     delete newAttrs['data-word-continuation'];
+    if (resetToPlainParagraph) {
+      delete newAttrs['data-word-chapter'];
+      delete newAttrs['data-apa-run-in'];
+      delete newAttrs['data-apa-heading-level'];
+      delete newAttrs['style'];
+    }
+    const cleanRightChildren: readonly DocumentNode[] = resetToPlainParagraph
+      ? [{ id: textNodes(ensuredRight)[0].id, kind: 'text', text: '' }]
+      : ensuredRight;
     const leftBlock: DocumentNode = { ...target.block, children: ensuredLeft };
     const rightBlock: DocumentNode = {
       id: operation.newBlockId || `${target.block.id}${suffix}`,
       kind: 'element',
-      tag: /^h[1-6]$/.test(target.block.tag) && !right.some(n => textNodes([n]).some(t => t.text.length > 0)) ? 'p' : target.block.tag,
+      tag: resetToPlainParagraph ? 'p' : target.block.tag,
       attributes: newAttrs,
-      children: ensuredRight,
+      children: cleanRightChildren,
     };
     const roots = replaceInContainer(state.roots, target.parentId, null, list => {
       const idx = list.findIndex(n => n.id === target.block.id);

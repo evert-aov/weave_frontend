@@ -1,4 +1,4 @@
-export type RibbonTab = 'file' | 'home' | 'insert' | 'layout' | 'styles' | 'references' | 'review' | 'view';
+export type RibbonTab = 'file' | 'home' | 'insert' | 'table' | 'layout' | 'styles' | 'references' | 'review' | 'view';
 
 export type PaperFormatId =
   | 'a4'

@@ -352,4 +352,87 @@ describe('document model to independent layout',()=>{
   expect(noteGlyph.font).not.toContain('italic');
   expect(noteGlyph.x).toBeGreaterThanOrEqual(noteBar.x + noteBar.width + 6);
  });
+
+ it('renders lists accidentally nested inside <p> or <blockquote> instead of hiding their text',()=>{
+  const html =
+    '<p><ul><li>Incidencia en la estimación: Cuanto mayor sea la criticidad de fallas del sistema.</li></ul></p>' +
+    '<blockquote><ul><li>Cita con viñeta visible</li></ul></blockquote>';
+  const state=htmlToDocumentState(html,1);
+  const styles=resolveDefaultModelStyles(state);
+  const pages=layoutModelDocument(state,{width:600,height:500,top:20,right:20,bottom:20,left:20},t=>({width:[...t].length*7,ascent:11,descent:3}),styles);
+  const rendered=pages[0].commands.filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text').map(t=>t.text).join('');
+  expect(rendered).toContain('Incidencia en la estimación');
+  expect(rendered).toContain('Cita con viñeta visible');
+  expect(pages[0].commands.filter(c=>c.kind==='text'&&c.text==='•').length).toBeGreaterThanOrEqual(2);
+ });
+
+ it('preserves strictly increasing indentation across all list levels (0..3) for both data-list-level and nested lists even with wide template base indents',()=>{
+  const html =
+    '<ul style="margin-left: 36pt; padding-left: 18pt;">' +
+      '<li>Nivel 1</li>' +
+      '<li data-list-level="1">Nivel 2 flat</li>' +
+      '<li data-list-level="2">Nivel 3 flat</li>' +
+      '<li data-list-level="3">Nivel 4 flat</li>' +
+      '<li>Padre<ul><li>Hijo anidado<ul><li>Nieto anidado</li></ul></li></ul></li>' +
+    '</ul>';
+  const state=htmlToDocumentState(html,1);
+  const styles=resolveDefaultModelStyles(state);
+  const pages=layoutModelDocument(state,{width:600,height:600,top:20,right:20,bottom:20,left:20},t=>({width:[...t].length*7,ascent:11,descent:3}),styles);
+  const texts=pages[0].commands.filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text'&&!!c.text);
+
+  const xOfFirstChar=(prefix:string)=>{
+    // Find the first text command whose surrounding line starts with prefix
+    const byY=new Map<number,typeof texts>();
+    for(const t of texts){const arr=byY.get(t.y)||[];arr.push(t);byY.set(t.y,arr);}
+    for(const line of byY.values()){
+      line.sort((a,b)=>a.x-b.x);
+      const joined=line.map(t=>t.text).join('');
+      if(joined.includes(prefix)){
+        const firstLetter=line.find(t=>t.text===prefix[0]);
+        if(firstLetter)return firstLetter.x;
+      }
+    }
+    return -1;
+  };
+
+  const xL1=xOfFirstChar('Nivel 1');
+  const xL2=xOfFirstChar('Nivel 2 flat');
+  const xL3=xOfFirstChar('Nivel 3 flat');
+  const xL4=xOfFirstChar('Nivel 4 flat');
+  expect(xL1).toBeGreaterThan(20);
+  expect(xL2).toBeGreaterThanOrEqual(xL1 + 19);
+  expect(xL3).toBeGreaterThanOrEqual(xL2 + 19);
+  expect(xL4).toBeGreaterThanOrEqual(xL3 + 19);
+
+  const xPadre=xOfFirstChar('Padre');
+  const xHijo=xOfFirstChar('Hijo anidado');
+  const xNieto=xOfFirstChar('Nieto anidado');
+  expect(xHijo).toBeGreaterThanOrEqual(xPadre + 19);
+  expect(xNieto).toBeGreaterThanOrEqual(xHijo + 19);
+ });
+
+ it('preserves leading and internal spaces in <pre> code blocks so ASCII diagrams align column-for-column',()=>{
+  const ascii =
+    '     [ Personal ]  <--------->  [ Producto ]\n' +
+    '          ^                          ^\n' +
+    '          |                          |\n' +
+    '          v                          v\n' +
+    '     [ Proceso  ]  <--------->  [ Proyecto ]';
+  const html=`<pre><code>${ascii}</code></pre>`;
+  const state=htmlToDocumentState(html,1);
+  const styles=resolveDefaultModelStyles(state);
+  const pages=layoutModelDocument(state,{width:600,height:400,top:20,right:20,bottom:20,left:20},t=>({width:[...t].length*7,ascent:10,descent:3}),styles);
+  const texts=pages[0].commands.filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text');
+  const rects=pages[0].commands.filter((c):c is Extract<typeof c,{kind:'rect'}>=>c.kind==='rect');
+
+  // Renders soft shaded background box for <pre>
+  expect(rects.some(r=>r.color==='#f1f5f9')).toBe(true);
+  // Leading 5 spaces on "[ Personal ]" and 10 spaces on "^" are preserved (so "^" sits strictly 5*7=35px to the right of "[")
+  const firstBracket=texts.find(t=>t.text==='[')!;
+  const firstCaret=texts.find(t=>t.text==='^')!;
+  expect(firstBracket).toBeTruthy();
+  expect(firstCaret).toBeTruthy();
+  expect(firstCaret.x - firstBracket.x).toBeCloseTo(5 * 7, 1);
+  expect(firstBracket.font).toContain('JetBrains Mono');
+ });
 });

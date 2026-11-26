@@ -139,13 +139,13 @@ export class SheetWorkbookController {
       this.editor.sheets = [{ id: 'sheet1', name: 'Sheet1', type: 'grid', data: doc.data }];
       this.editor.activeSheetId = 'sheet1';
     } else {
-      // Initial default sheets with sample business data
+      // Initial empty sheet for a new workbook
       this.editor.sheets = [
         {
           id: 'sheet1',
           name: 'Sheet1',
           type: 'grid',
-          data: { ...SAMPLE_BUSINESS_DATA },
+          data: {},
           pageLayout: {
             theme: 'office',
             margins: 'normal',
@@ -157,12 +157,6 @@ export class SheetWorkbookController {
             gridlinesPrint: true,
             headingsPrint: true,
           },
-        },
-        {
-          id: 'chart1',
-          name: 'Chart1',
-          type: 'chart',
-          data: {},
         },
       ];
       this.editor.activeSheetId = 'sheet1';

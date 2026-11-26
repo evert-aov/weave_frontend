@@ -102,8 +102,22 @@ export class WordInsertController {
   }
 
   handleInsertCodeBlock(lang: string): void {
-    const codeHtml = `<pre><code data-lang="${lang}">// Código ${lang}\nfunction ejemplo() {\n  return "Hola Mundo";\n}</code></pre><p><br/></p>`;
-    this.editor.executeCommand('insertHTML', codeHtml);
+    const cleanLang = (lang || '').trim();
+    const isPlain = !cleanLang || cleanLang.toLowerCase() === 'none' || cleanLang.toLowerCase() === 'texto' || cleanLang.toLowerCase() === 'texto / ascii';
+    const label = isPlain ? 'Texto' : cleanLang;
+    const selectedText = this.hooks.selectedText?.() || window.getSelection()?.toString() || '';
+    const defaultBody = isPlain
+      ? '[ Bloque A ]  <----->  [ Bloque B ]'
+      : `// Código ${label}\nfunction ejemplo() {\n  return "Hola Mundo";\n}`;
+    const body = (selectedText || defaultBody).replace(/\r\n?/g, '\n').replace(/\t/g, '  ');
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const codeHtml =
+      `<div class="word-code-block" data-lang="${esc(label)}" style="background-color: #f1f5f9; border: 1px solid #e2e8f0; padding: 10px 14px; margin: 10px 0;">` +
+        `<p class="word-code-lang" style="font-family: 'DM Sans', sans-serif; font-size: 9pt; color: #64748b; margin: 0 0 6px 0; line-height: 1.2;">${esc(label)}</p>` +
+        `<pre style="font-family: 'JetBrains Mono', monospace; font-size: 10pt; line-height: 1.45; color: #1e293b; margin: 0; padding: 0; border: none; background-color: transparent;"><code data-lang="${esc(label)}">${esc(body)}</code></pre>` +
+      `</div><p><br/></p>`;
+    this.insertHtmlAtCursorOrActivePage(codeHtml);
+    this.hooks.showToast(`Bloque de código (${label}) insertado`);
   }
 
   handleInsertCalloutBox(): void {

@@ -1,0 +1,535 @@
+<div class="table-ribbon" [class.dark-mode]="darkMode" (keydown.escape)="closeDropdown()">
+  @if (!hasActiveTable) {
+    <!-- Empty state when no table is currently selected -->
+    <section class="table-group empty-state-group" [attr.aria-label]="t('word.table.no_selection', 'Ninguna tabla seleccionada')">
+      <div class="control-row items-center gap-3">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleDropdown('insert')"
+          [title]="t('word.table.insert_table', 'Insertar tabla')"
+        >
+          <svg lucideIcon="table" [size]="20" class="text-blue-600"></svg>
+          <span class="btn-label font-medium">{{ t('word.table.insert_table', 'Insertar tabla') }}</span>
+        </button>
+
+        <div class="empty-state-info flex flex-col justify-center text-xs opacity-75 leading-tight">
+          <span class="font-medium text-slate-700 dark:text-slate-300">{{ t('word.table.no_selection', 'Ninguna tabla seleccionada') }}</span>
+          <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ t('word.table.no_selection_hint', 'Haz clic en una celda para personalizar estilos, filas y bordes') }}</span>
+        </div>
+
+        @if (openDropdown() === 'insert') {
+          <div class="table-dropdown-menu insert-menu" (click)="$event.stopPropagation()">
+            <div class="dropdown-header">{{ t('word.table.quick_insert', 'Insertar tabla rápida') }}</div>
+            <div class="p-2 space-y-2">
+              <div class="flex items-center gap-2">
+                <label class="text-[11px] font-medium text-slate-600 dark:text-slate-400 w-14">{{ t('word.table.rows_label', 'Filas:') }}</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="30"
+                  class="control-input"
+                  [(ngModel)]="insertRows"
+                />
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-[11px] font-medium text-slate-600 dark:text-slate-400 w-14">{{ t('word.table.cols_label', 'Cols:') }}</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  class="control-input"
+                  [(ngModel)]="insertCols"
+                />
+              </div>
+              <button
+                type="button"
+                class="btn-primary w-full py-1 text-xs rounded mt-2"
+                (click)="onInsertTableQuick()"
+              >
+                {{ t('word.table.insert_btn', 'Insertar') }} {{ insertRows }}x{{ insertCols }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+      <span class="group-label">{{ t('word.tab.table', 'Tabla') }}</span>
+    </section>
+  } @else {
+    <!-- 1. TABLE STYLE OPTIONS GROUP -->
+    <section class="table-group style-options-group" [attr.aria-label]="t('word.table.style_options', 'Opciones de estilo')">
+      <div class="control-row options-grid">
+        <label class="option-check">
+          <input
+            type="checkbox"
+            [checked]="currentRule().header"
+            (change)="toggleOption('header')"
+          />
+          <span>{{ t('word.table.header_row', 'Fila encabezado') }}</span>
+        </label>
+        <label class="option-check">
+          <input
+            type="checkbox"
+            [checked]="currentRule().bandedRows"
+            (change)="toggleOption('bandedRows')"
+          />
+          <span>{{ t('word.table.banded_rows', 'Filas alternas') }}</span>
+        </label>
+        <label class="option-check">
+          <input
+            type="checkbox"
+            [checked]="currentRule().headerBold"
+            (change)="toggleOption('headerBold')"
+          />
+          <span>{{ t('word.table.header_bold', 'Encab. negrita') }}</span>
+        </label>
+        <label class="option-check">
+          <input
+            type="checkbox"
+            [checked]="repeatHeader"
+            (change)="toggleRepeatHeader.emit()"
+          />
+          <span>{{ t('word.table.repeat_header', 'Repetir pág.') }}</span>
+        </label>
+      </div>
+      <span class="group-label">{{ t('word.table.style_options', 'Opciones de estilo') }}</span>
+    </section>
+
+    <!-- 2. TABLE STYLES & PRESETS GALLERY -->
+    <section class="table-group presets-group" [attr.aria-label]="t('word.table.styles', 'Estilos de tabla')">
+      <div class="control-row items-center gap-1 relative">
+        <div class="presets-gallery">
+          @for (preset of presets.slice(0, 3); track preset.id) {
+            <button
+              type="button"
+              class="preset-card-btn"
+              (click)="selectPreset(preset)"
+              [title]="t(preset.nameKey, preset.fallbackName)"
+            >
+              <div class="mini-table-preview" [ngClass]="preset.previewClass">
+                <div class="mini-th"></div>
+                <div class="mini-tr"></div>
+                <div class="mini-tr"></div>
+              </div>
+              <span class="preset-name">{{ t(preset.nameKey, preset.fallbackName) }}</span>
+            </button>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="btn-vertical btn-more-presets"
+          (click)="toggleDropdown('presets')"
+          [title]="t('word.table.styles_menu_header', 'Estilos de tabla predefinidos')"
+        >
+          <svg lucideIcon="palette" [size]="17" class="text-indigo-600"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.table.styles_btn', 'Estilos') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openDropdown() === 'presets') {
+          <div class="table-dropdown-menu presets-menu" (click)="$event.stopPropagation()">
+            <div class="dropdown-header">{{ t('word.table.styles_menu_header', 'Estilos de tabla predefinidos') }}</div>
+            <div class="presets-grid p-2">
+              @for (preset of presets; track preset.id) {
+                <button
+                  type="button"
+                  class="preset-item-btn"
+                  (click)="selectPreset(preset)"
+                >
+                  <div class="mini-table-preview full" [ngClass]="preset.previewClass">
+                    <div class="mini-th"></div>
+                    <div class="mini-tr"></div>
+                    <div class="mini-tr"></div>
+                  </div>
+                  <span class="font-medium text-xs">{{ t(preset.nameKey, preset.fallbackName) }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      <span class="group-label">{{ t('word.table.styles', 'Estilos de tabla') }}</span>
+    </section>
+
+    <!-- 3. SHADING & CELL BACKGROUND -->
+    <section class="table-group shading-group" [attr.aria-label]="t('word.table.shading', 'Sombreado')">
+      <div class="control-row relative">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleDropdown('shading')"
+          [title]="t('word.table.shading_menu_header', 'Color de fondo / Sombreado')"
+        >
+          <div class="flex items-center justify-center">
+            <svg lucideIcon="paint-bucket" [size]="17" class="text-amber-500"></svg>
+          </div>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.table.shading', 'Sombreado') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        @if (openDropdown() === 'shading') {
+          <div class="table-dropdown-menu shading-menu" (click)="$event.stopPropagation()">
+            <div class="dropdown-header">{{ t('word.table.shading_menu_header', 'Color de fondo / Sombreado') }}</div>
+            <div class="p-2 space-y-2">
+              <button
+                type="button"
+                class="w-full text-left text-xs px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2"
+                (click)="onSelectShading(null)"
+              >
+                <span class="w-4 h-4 rounded border border-slate-300 relative inline-block">
+                  <span class="absolute inset-0 border-t border-red-500 rotate-45 origin-center"></span>
+                </span>
+                <span>{{ t('word.table.no_color', 'Sin color (Transparente)') }}</span>
+              </button>
+
+              <div class="shading-palette">
+                @for (swatch of shadingSwatches; track swatch) {
+                  @if (swatch !== 'transparent') {
+                    <button
+                      type="button"
+                      class="color-swatch-btn"
+                      [style.backgroundColor]="swatch"
+                      (click)="onSelectShading(swatch)"
+                      [title]="swatch"
+                    ></button>
+                  }
+                }
+              </div>
+
+              <div class="pt-1.5 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between text-xs">
+                <span>{{ t('word.table.custom_color', 'Color personalizado:') }}</span>
+                <input
+                  type="color"
+                  class="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                  (input)="onSelectCustomColor($event)"
+                />
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+      <span class="group-label">{{ t('word.table.shading', 'Sombreado') }}</span>
+    </section>
+
+    <!-- 4. BORDERS GROUP -->
+    <section class="table-group borders-group" [attr.aria-label]="t('word.table.borders', 'Bordes')">
+      <div class="control-row relative items-center gap-1">
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleDropdown('borders')"
+          [title]="t('word.table.borders_menu_header', 'Configuración de Bordes')"
+        >
+          <svg lucideIcon="grid" [size]="17" class="text-blue-500"></svg>
+          <span class="btn-label flex items-center gap-0.5">
+            {{ t('word.table.borders', 'Bordes') }}
+            <svg lucideIcon="chevron-down" [size]="10"></svg>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="toggleRowTopBorder.emit()"
+          [class.active]="rowTopBorder"
+          [title]="t('word.table.top_border', 'Borde sup.')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-600 dark:text-slate-300">
+            <line x1="3" y1="5" x2="21" y2="5" stroke-width="2.6"/>
+            <rect x="4" y="9" width="16" height="11" rx="1" stroke-dasharray="2 2" opacity="0.65"/>
+          </svg>
+          <span class="btn-label">{{ t('word.table.top_border', 'Borde sup.') }}</span>
+        </button>
+
+        @if (openDropdown() === 'borders') {
+          <div class="table-dropdown-menu borders-menu" (click)="$event.stopPropagation()">
+            <div class="dropdown-header">{{ t('word.table.borders_menu_header', 'Configuración de Bordes') }}</div>
+            <div class="p-2 space-y-1.5 text-xs">
+              <button
+                type="button"
+                class="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-between"
+                (click)="setBordersType('grid')"
+              >
+                <span>{{ t('word.table.borders_all', 'Todos los bordes (Cuadrícula)') }}</span>
+                @if (currentRule().borders === 'grid') { <svg lucideIcon="check" [size]="14" class="text-blue-600"></svg> }
+              </button>
+              <button
+                type="button"
+                class="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-between"
+                (click)="setBordersType('horizontal')"
+              >
+                <span>{{ t('word.table.borders_horizontal', 'Solo líneas horizontales (APA)') }}</span>
+                @if (currentRule().borders === 'horizontal') { <svg lucideIcon="check" [size]="14" class="text-blue-600"></svg> }
+              </button>
+              <button
+                type="button"
+                class="w-full text-left px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-between"
+                (click)="setBordersType('none')"
+              >
+                <span>{{ t('word.table.borders_none', 'Sin bordes') }}</span>
+                @if (currentRule().borders === 'none') { <svg lucideIcon="check" [size]="14" class="text-blue-600"></svg> }
+              </button>
+
+              <div class="pt-2 border-t border-slate-200 dark:border-zinc-800 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span>{{ t('word.table.border_width', 'Grosor del borde:') }}</span>
+                  <select
+                    class="control-select"
+                    [value]="currentRule().borderWidthPt"
+                    (change)="setBorderWidth(+$any($event.target).value)"
+                  >
+                    @for (bw of borderWidths; track bw.pt) {
+                      <option [value]="bw.pt">{{ bw.label }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span>{{ t('word.table.border_color', 'Color de bordes:') }}</span>
+                  <input
+                    type="color"
+                    class="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                    [value]="currentRule().borderColor"
+                    (input)="onSelectBorderColor($event)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+      <span class="group-label">{{ t('word.table.borders', 'Bordes') }}</span>
+    </section>
+
+    <!-- 5. ROWS & COLUMNS GROUP -->
+    <section class="table-group rows-cols-group" [attr.aria-label]="t('word.table.rows_cols', 'Filas y columnas')">
+      <div class="control-row items-center gap-1">
+        <div class="btn-stack">
+          <button
+            type="button"
+            class="stack-btn"
+            (click)="modifyTable.emit('addRowAbove')"
+            [title]="t('word.table.add_row_above', 'Fila arriba')"
+          >
+            <svg lucideIcon="arrow-up" [size]="11" class="text-blue-600"></svg>
+            <span>{{ t('word.table.add_row_above', 'Fila arriba') }}</span>
+          </button>
+          <button
+            type="button"
+            class="stack-btn"
+            (click)="modifyTable.emit('addRowBelow')"
+            [title]="t('word.table.add_row_below', 'Fila abajo')"
+          >
+            <svg lucideIcon="arrow-down" [size]="11" class="text-blue-600"></svg>
+            <span>{{ t('word.table.add_row_below', 'Fila abajo') }}</span>
+          </button>
+        </div>
+
+        <div class="btn-stack">
+          <button
+            type="button"
+            class="stack-btn"
+            (click)="modifyTable.emit('addColLeft')"
+            [title]="t('word.table.add_col_left', 'Col. izquierda')"
+          >
+            <svg lucideIcon="arrow-left" [size]="11" class="text-blue-600"></svg>
+            <span>{{ t('word.table.add_col_left', 'Col. izq.') }}</span>
+          </button>
+          <button
+            type="button"
+            class="stack-btn"
+            (click)="modifyTable.emit('addColRight')"
+            [title]="t('word.table.add_col_right', 'Col. derecha')"
+          >
+            <svg lucideIcon="arrow-right" [size]="11" class="text-blue-600"></svg>
+            <span>{{ t('word.table.add_col_right', 'Col. der.') }}</span>
+          </button>
+        </div>
+
+        <div class="btn-stack delete-stack">
+          <button
+            type="button"
+            class="stack-btn text-rose-600 hover:text-rose-700"
+            (click)="modifyTable.emit('delRow')"
+            [title]="t('word.table.del_row', 'Eliminar fila')"
+          >
+            <svg lucideIcon="minus" [size]="11"></svg>
+            <span>{{ t('word.table.del_row', 'Eliminar fila') }}</span>
+          </button>
+          <button
+            type="button"
+            class="stack-btn text-rose-600 hover:text-rose-700"
+            (click)="modifyTable.emit('delCol')"
+            [title]="t('word.table.del_col', 'Eliminar col.')"
+          >
+            <svg lucideIcon="minus" [size]="11"></svg>
+            <span>{{ t('word.table.del_col', 'Eliminar col.') }}</span>
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="btn-vertical text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+          (click)="modifyTable.emit('delTable')"
+          [title]="t('word.table.del_table', 'Borrar tabla')"
+        >
+          <svg lucideIcon="trash-2" [size]="17" class="text-rose-600"></svg>
+          <span class="btn-label text-rose-600 font-medium">{{ t('word.table.del_table', 'Borrar tabla') }}</span>
+        </button>
+      </div>
+      <span class="group-label">{{ t('word.table.rows_cols', 'Filas y columnas') }}</span>
+    </section>
+
+    <!-- 6. MERGE & SPLIT GROUP -->
+    <section class="table-group merge-group" [attr.aria-label]="t('word.table.merge_split', 'Combinar')">
+      <div class="control-row items-center gap-1">
+        <button
+          type="button"
+          class="btn-vertical"
+          [disabled]="!canMerge"
+          (click)="combineCells.emit()"
+          [title]="t('word.table.merge_hint', 'Selecciona celdas adyacentes arrastrando o con Shift + clic y combínalas')"
+        >
+          <svg lucideIcon="combine" [size]="17" [ngClass]="canMerge ? 'text-blue-600' : 'text-slate-400'"></svg>
+          <span class="btn-label font-medium" [class.opacity-50]="!canMerge">{{ t('word.table.combine', 'Combinar') }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="btn-vertical"
+          (click)="modifyTable.emit('splitCell')"
+          [title]="t('word.table.split_cell', 'Dividir celda')"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600">
+            <rect x="3" y="4" width="18" height="16" rx="1"/>
+            <line x1="12" y1="4" x2="12" y2="20"/>
+          </svg>
+          <span class="btn-label">{{ t('word.table.split_cell', 'Dividir celda') }}</span>
+        </button>
+      </div>
+      <span class="group-label">{{ t('word.table.merge_split', 'Combinar') }}</span>
+    </section>
+
+    <!-- 7. ALIGNMENT & DIMENSIONS GROUP -->
+    <section class="table-group align-group" [attr.aria-label]="t('word.table.align_margin', 'Alineación y margen')">
+      <div class="control-row items-center gap-1.5">
+        <div class="btn-stack" [title]="t('word.table.vertical', 'Vertical')">
+          <div class="inline-flex items-center gap-0.5">
+            <button
+              type="button"
+              class="mini-icon-btn"
+              [class.active]="verticalAlign === 'top'"
+              (click)="setVerticalAlign.emit('top')"
+              [title]="t('word.table.align_top', 'Alinear arriba')"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="4" x2="20" y2="4"/><rect x="7" y="7" width="10" height="6"/></svg>
+            </button>
+            <button
+              type="button"
+              class="mini-icon-btn"
+              [class.active]="verticalAlign === 'middle'"
+              (click)="setVerticalAlign.emit('middle')"
+              [title]="t('word.table.align_middle', 'Centrar verticalmente')"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="12" x2="20" y2="12"/><rect x="7" y="9" width="10" height="6"/></svg>
+            </button>
+            <button
+              type="button"
+              class="mini-icon-btn"
+              [class.active]="verticalAlign === 'bottom'"
+              (click)="setVerticalAlign.emit('bottom')"
+              [title]="t('word.table.align_bottom', 'Alinear abajo')"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="20" x2="20" y2="20"/><rect x="7" y="11" width="10" height="6"/></svg>
+            </button>
+          </div>
+          <span class="text-[9.5px] opacity-60 text-center">{{ t('word.table.vertical', 'Vertical') }}</span>
+        </div>
+
+        <div class="btn-stack" [title]="t('word.table.horizontal', 'Horizontal')">
+          <div class="inline-flex items-center gap-0.5">
+            <button
+              type="button"
+              class="mini-icon-btn"
+              (click)="setHorizontalAlign.emit('left')"
+              [title]="t('word.table.align_left', 'Alinear a la izquierda')"
+            >
+              <svg lucideIcon="align-left" [size]="12"></svg>
+            </button>
+            <button
+              type="button"
+              class="mini-icon-btn"
+              (click)="setHorizontalAlign.emit('center')"
+              [title]="t('word.table.align_center', 'Centrar texto')"
+            >
+              <svg lucideIcon="align-center" [size]="12"></svg>
+            </button>
+            <button
+              type="button"
+              class="mini-icon-btn"
+              (click)="setHorizontalAlign.emit('right')"
+              [title]="t('word.table.align_right', 'Alinear a la derecha')"
+            >
+              <svg lucideIcon="align-right" [size]="12"></svg>
+            </button>
+            <button
+              type="button"
+              class="mini-icon-btn"
+              (click)="setHorizontalAlign.emit('justify')"
+              [title]="t('word.table.align_justify', 'Justificar texto')"
+            >
+              <svg lucideIcon="align-justify" [size]="12"></svg>
+            </button>
+          </div>
+          <span class="text-[9.5px] opacity-60 text-center">{{ t('word.table.horizontal', 'Horizontal') }}</span>
+        </div>
+
+        <div class="btn-stack relative">
+          <button
+            type="button"
+            class="stack-btn"
+            (click)="toggleDropdown('padding')"
+            [title]="t('word.table.padding_menu_header', 'Relleno interior de celdas')"
+          >
+            <svg lucideIcon="frame" [size]="11" class="text-slate-600 dark:text-slate-300"></svg>
+            <span>{{ t('word.table.cell_padding', 'Margen celda') }}</span>
+          </button>
+          <button
+            type="button"
+            class="stack-btn"
+            (click)="distributeColumns.emit()"
+            [title]="t('word.table.distribute_cols', 'Distribuir cols')"
+          >
+            <svg lucideIcon="columns" [size]="11" class="text-slate-600 dark:text-slate-300"></svg>
+            <span>{{ t('word.table.distribute_cols', 'Distribuir cols') }}</span>
+          </button>
+
+          @if (openDropdown() === 'padding') {
+            <div class="table-dropdown-menu padding-menu" (click)="$event.stopPropagation()">
+              <div class="dropdown-header">{{ t('word.table.padding_menu_header', 'Relleno interior de celdas') }}</div>
+              <div class="p-2 space-y-1">
+                @for (opt of paddingOptions; track opt.pt) {
+                  <button
+                    type="button"
+                    class="w-full text-left text-xs px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-between"
+                    (click)="applyCellPadding(opt.pt)"
+                  >
+                    <span>{{ t(opt.labelKey, opt.fallback) }}</span>
+                    @if (currentRule().cellPaddingPt === opt.pt) {
+                      <svg lucideIcon="check" [size]="14" class="text-blue-600"></svg>
+                    }
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+      <span class="group-label">{{ t('word.table.align_margin', 'Alineación y margen') }}</span>
+    </section>
+  }
+</div>

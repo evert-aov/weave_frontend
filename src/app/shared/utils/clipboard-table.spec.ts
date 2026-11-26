@@ -68,4 +68,35 @@ describe('clipboard tables', () => {
   it('does not interpret HTML code examples as spreadsheet or Markdown tables', () => {
     expect(clipboardTableHtml('<pre>a\tb</pre>', 'a\tb')).toBeNull();
   });
+
+  it('preserves colgroup widths, colspan/rowspan, borders, alignments, highlights, and Weave table metadata', () => {
+    const html = `
+      <table data-word-table-style="preserve" style="border-collapse: collapse;">
+        <colgroup><col style="width: 28%"><col style="width: 14%"><col style="width: 44%"><col style="width: 14%"></colgroup>
+        <thead>
+          <tr bgcolor="#dbe5f1">
+            <th rowspan="2" style="border: 1px solid #1e293b; text-align: center;">Tipo de objeto</th>
+            <th style="border: 1px solid #1e293b; text-align: center;">Cantidad</th>
+            <th colspan="2" style="border: 1px solid #1e293b; text-align: center;">Factor de peso</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border: 1px solid #1e293b;"></td>
+            <td style="border: 1px solid #1e293b; background: #ffff00; text-align: center;">2</td>
+            <td align="right" style="border: 1px solid #1e293b;">48</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const result = fragment(clipboardTableHtml(html, ''));
+    expect(result.querySelector('table')?.getAttribute('data-word-table-style')).toBe('preserve');
+    expect(result.querySelectorAll('col')[0]?.style.width).toBe('28%');
+    expect(result.querySelector('th')?.rowSpan).toBe(2);
+    expect(result.querySelectorAll('th')[2]?.colSpan).toBe(2);
+    const yellowTd = result.querySelectorAll('td')[1]!;
+    expect(yellowTd.style.backgroundColor).toBeTruthy();
+    expect(yellowTd.style.border).toContain('1px solid');
+    expect(result.querySelectorAll('td')[2]?.style.textAlign).toBe('right');
+  });
 });

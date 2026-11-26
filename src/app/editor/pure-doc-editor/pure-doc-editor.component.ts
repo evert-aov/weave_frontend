@@ -7,6 +7,7 @@ import type { CanvasHistoryMeta } from './engine/canvas-edit-session';
 import type { DocumentSelection } from './engine/document-model';
 import { HybridPageDirective } from './engine/hybrid-page.directive';
 import { styleTableElement } from './utils/table-styling-dom';
+import { DEFAULT_TABLE_STYLE, normalizeTableStyle } from './utils/table-styling';
 import { ProofreadingDirective } from '../../shared/directives/proofreading.directive';
 import { ProofreadingControlComponent } from '../../shared/components/proofreading-control/proofreading-control.component';
 import { WordTocController } from './controllers/word-toc.controller';
@@ -187,6 +188,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   readonly docxProperties = signal<DocxDocumentProperties | null>(null);
   readonly importedTocEntries = signal<HeadingItem[]>([]);
   readonly activeTab = signal<RibbonTab>('home');
+  private previousTabBeforeTable: RibbonTab = 'home';
   readonly pdfExporting = signal(false);
   readonly pdfExportMessage = signal('');
   readonly pdfExportFailed = signal(false);
@@ -249,6 +251,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   readonly activeTableRowTopBorder = signal<boolean>(false);
   readonly activeTableVerticalAlign = signal<'top' | 'middle' | 'bottom'>('top');
   readonly activeTableRepeatHeader = signal<boolean>(true);
+  readonly activeTableRule = signal<TableStyleRule | null>(null);
   readonly tableContextMenu = signal<{ x: number; y: number } | null>(null);
   readonly tableShadingSwatches = ['transparent', '#f8fafc', '#f1f5f9', '#dbeafe', '#fef3c7', '#dcfce7', '#fee2e2'];
   readonly latexModalOpen = signal<boolean>(false);
@@ -893,6 +896,35 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
       this.viewMode();
       this.scheduleDocumentFlow();
     });
+    effect(() => {
+      const cell = this.activeTableCell();
+      untracked(() => {
+        if (cell !== null && !this.isReadMode()) {
+          if (!this.canvasEnabled()) {
+            const table = cell.closest('table');
+            const rawRule = table?.getAttribute('data-word-table-rule');
+            if (rawRule) {
+              try {
+                this.activeTableRule.set(normalizeTableStyle(JSON.parse(rawRule)));
+              } catch {
+                this.activeTableRule.set(null);
+              }
+            } else {
+              this.activeTableRule.set(null);
+            }
+          }
+          if (this.activeTab() !== 'table') {
+            this.previousTabBeforeTable = this.activeTab();
+            this.activeTab.set('table');
+          }
+        } else {
+          this.activeTableRule.set(null);
+          if (this.activeTab() === 'table') {
+            this.activeTab.set(this.previousTabBeforeTable || 'home');
+          }
+        }
+      });
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1230,6 +1262,8 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
         this.activeTableRowTopBorder.set(Boolean(ctx.table.rowHasTopBorder));
         this.activeTableVerticalAlign.set(ctx.table.verticalAlign || 'top');
         this.activeTableRepeatHeader.set(ctx.table.repeatHeader !== false);
+        const design = this.canvasEditor.session.getSelectedTableDesign?.();
+        this.activeTableRule.set(design?.rule ?? null);
       } else {
         if (this.activeTableCell() !== null) {
           this.activeTableCell.set(null);
@@ -1237,6 +1271,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
         this.activeTableRowTopBorder.set(false);
         this.activeTableVerticalAlign.set('top');
         this.activeTableRepeatHeader.set(true);
+        this.activeTableRule.set(null);
       }
       return;
     }
@@ -1493,6 +1528,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     if (!table) return;
     this.pushUndoSnapshot();
     styleTableElement(table, change.rule, change.fixed ? 'fixed' : 'template');
+    this.activeTableRule.set(normalizeTableStyle(change.rule));
     this.commitPageDomToState(this.activePageIndex());
     this.checkAndPaginateOverflow(this.activePageIndex());
   }
@@ -2022,6 +2058,50 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     }
     const enabled = this.tablesController.toggleRowTopBorder();
     this.activeTableRowTopBorder.set(enabled);
+  }
+
+  handleSetTableCellPadding(paddingPt: number): void {
+    if (!this.documentReady() || this.isReadMode()) return;
+    if (this.canvasEnabled() && this.canvasEditor?.session) {
+      const currentDesign = this.canvasEditor.session.getSelectedTableDesign?.();
+      const template = this.styleTemplates().find((t) => t.id === this.activeTemplateId()) || this.styleTemplates()[0];
+      const baseRule = currentDesign?.rule || this.activeTableRule() || template?.tableStyle || DEFAULT_TABLE_STYLE;
+      if (this.canvasEditor.session.applyTableStyle({ ...baseRule, mode: 'custom', cellPaddingPt: paddingPt }, true)) {
+        this.canvasEditor.publishNow();
+        this.updateSelectionFormats();
+        this.showToast('Margen de celda actualizado');
+      }
+      return;
+    }
+    const table = this.activeTableCell()?.closest('table');
+    if (!table) return;
+    this.pushUndoSnapshot();
+    Array.from(table.querySelectorAll<HTMLTableCellElement>('td, th')).forEach((cell) => {
+      cell.style.padding = `${paddingPt}pt`;
+    });
+    this.commitPageDomToState(this.activePageIndex());
+    this.checkAndPaginateOverflow(this.activePageIndex());
+    this.showToast('Margen de celda actualizado');
+  }
+
+  handleDistributeColumns(): void {
+    if (!this.documentReady() || this.isReadMode()) return;
+    const table = this.activeTableCell()?.closest('table');
+    if (!table) return;
+    this.pushUndoSnapshot();
+    const rows = Array.from(table.rows);
+    const maxCols = Math.max(...rows.map((r) => r.cells.length), 0);
+    if (maxCols > 0) {
+      const pct = `${(100 / maxCols).toFixed(2)}%`;
+      for (const row of rows) {
+        for (const cell of Array.from(row.cells)) {
+          cell.style.width = pct;
+        }
+      }
+    }
+    this.commitPageDomToState(this.activePageIndex());
+    this.checkAndPaginateOverflow(this.activePageIndex());
+    this.showToast('Columnas distribuidas uniformemente');
   }
 
   handleFileImport(e: Event): Promise<void> { return this.filesController.handleFileImport(e); }

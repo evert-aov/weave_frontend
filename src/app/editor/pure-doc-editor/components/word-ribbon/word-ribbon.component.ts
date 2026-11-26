@@ -19,6 +19,7 @@ import {
   SectionPageConfig,
   StyleTargetTag,
   StyleTemplate,
+  TableStyleRule,
 } from '../../models/word-document.model';
 import type { ResolvedPageSectionInfo } from '../../utils/page-section-layout';
 import {
@@ -34,6 +35,7 @@ import { WordHomeToolbarComponent } from '../word-home-toolbar/word-home-toolbar
 import { WordInsertToolbarComponent } from '../word-insert-toolbar/word-insert-toolbar.component';
 import { WordDesignToolbarComponent } from '../word-design-toolbar/word-design-toolbar.component';
 import { WordLayoutToolbarComponent } from '../word-layout-toolbar/word-layout-toolbar.component';
+import { WordTableToolbarComponent } from '../word-table-toolbar/word-table-toolbar.component';
 import { WordArtPreset } from '../../models/word-insert.model';
 import { I18nService } from '../../../../core/services/i18n.service';
 
@@ -69,6 +71,7 @@ const BORDER_STYLES_LIST: { id: PageBorderStyle; label: string; preview: string 
     WordInsertToolbarComponent,
     WordDesignToolbarComponent,
     WordLayoutToolbarComponent,
+    WordTableToolbarComponent,
   ],
   providers: [
     provideLucideIcons({ lucideUndo2,
@@ -164,6 +167,12 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Input() pdfExporting = false;
   @Input() totalPages = 1;
   @Input() activeSectionInfo: ResolvedPageSectionInfo | null = null;
+  @Input() hasActiveTable = false;
+  @Input() canMergeTableCells = false;
+  @Input() activeTableRowTopBorder = false;
+  @Input() activeTableVerticalAlign: 'top' | 'middle' | 'bottom' = 'top';
+  @Input() activeTableRepeatHeader = true;
+  @Input() tableStyleRule: TableStyleRule | null = null;
 
   @Output() setActiveTab = new EventEmitter<RibbonTab>();
   @Output() updateLayout = new EventEmitter<(prev: DocumentLayoutConfig) => DocumentLayoutConfig>();
@@ -247,6 +256,17 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() toggleTrackChanges = new EventEmitter<void>();
   @Output() acceptAllRevisions = new EventEmitter<void>();
   @Output() rejectAllRevisions = new EventEmitter<void>();
+  @Output() modifyTable = new EventEmitter<
+    'addRow' | 'addRowAbove' | 'addRowBelow' | 'addCol' | 'addColLeft' | 'addColRight' | 'delRow' | 'delCol' | 'delTable' | 'splitCell'
+  >();
+  @Output() combineCells = new EventEmitter<void>();
+  @Output() setTableCellBackground = new EventEmitter<string | null>();
+  @Output() setTableCellVerticalAlign = new EventEmitter<'top' | 'middle' | 'bottom'>();
+  @Output() toggleTableRowTopBorder = new EventEmitter<void>();
+  @Output() toggleTableHeaderRepeat = new EventEmitter<void>();
+  @Output() applyTableStyle = new EventEmitter<{ rule: TableStyleRule; fixed: boolean }>();
+  @Output() setTableCellPadding = new EventEmitter<number>();
+  @Output() distributeColumns = new EventEmitter<void>();
 
   @ViewChild('toolbarRef') toolbarRef?: ElementRef<HTMLDivElement>;
 
@@ -267,6 +287,7 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
     { id: 'file', labelKey: 'word.tab.file' },
     { id: 'home', labelKey: 'word.tab.home' },
     { id: 'insert', labelKey: 'word.tab.insert' },
+    { id: 'table', labelKey: 'word.tab.table' },
     { id: 'styles', labelKey: 'word.tab.styles' },
     { id: 'layout', labelKey: 'word.tab.layout' },
     { id: 'references', labelKey: 'word.academic.tab' },

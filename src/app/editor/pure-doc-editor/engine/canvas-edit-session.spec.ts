@@ -232,7 +232,7 @@ describe('persistent Canvas editing',()=>{
   expect(s.engine.getSourcePages()[0].html).toContain('Arial');
  });
  it('merges consecutive manual-break TOC pages into a single continuous TOC section so entries never get stranded alone on a page when font size changes',()=>{
-  const g={width:500,height:130,top:15,right:20,bottom:15,left:20};
+  const g={width:500,height:145,top:15,right:20,bottom:15,left:20};
   const s=new CanvasEditSession(g,{font:'14.67px "Arial"',lineHeight:29.34},measure);
   const makeEntry=(id:string,title:string,p:number)=>
    `<div class="word-toc-entry" data-toc-target-id="${id}" data-toc-page="${p}" style="line-height: 2; font-size: 11pt;"><span class="word-toc-title">${title}</span><span class="word-toc-dots"></span><span class="word-toc-page">${p+1}</span></div>`;
@@ -855,7 +855,7 @@ describe('persistent Canvas editing',()=>{
 
  it('performs citations, bibliography, notes, captions, academic sections, and TOC rebuild purely on the model', () => {
   const apaTemplate = APA_STYLE_TEMPLATES[0];
-  const s = new CanvasEditSession(geometry, { font: '10px serif', lineHeight: 12 }, measure);
+  const s = new CanvasEditSession({ ...geometry, height: 110 }, { font: '10px serif', lineHeight: 12 }, measure);
   s.load([
    { id: 'body-sec', html: '<h1>Introduccion</h1><p>Texto principal.</p>' },
    { id: 'fig-sec', html: '<table><tbody><tr><td>A</td><td>B</td></tr></tbody></table>', breakBefore: 'manual' },
@@ -1703,6 +1703,255 @@ describe('persistent Canvas editing',()=>{
   expect(s.pages[0].html).toContain('<b>El problema común:</b>');
   expect(s.pages[0].html.match(/<li\b/g)?.length).toBe(2);
   expect(s.getSelectionContext()?.formats.fontName).toBe('Times New Roman');
+ });
+
+ it('converts Gemini-pasted paragraphs (even nested in <p> or <blockquote>) to lists without disappearing, unwraps <li> to H1-H5, and merges across pasted blocks cleanly',()=>{
+  const s=new CanvasEditSession({width:500,height:600,top:20,right:20,bottom:20,left:20},{apaBorders:true});
+  const apaTpl=BUILTIN_STYLE_TEMPLATES.find(t=>t.academicStyle==='apa7')||BUILTIN_STYLE_TEMPLATES[0];
+
+  // 1) Pre-existing or pasted <p><p>Incidencia...</p></p> toggled into <ul> never vanishes
+  s.load([{
+    id:'sw1',
+    html:
+      '<ul>\n  <li><b>Impacto Crítico:</b> Sistemas donde un fallo pone en peligro la vida.</li>\n</ul>\n' +
+      '<p><p>Incidencia en la estimación: Cuanto mayor sea la criticidad de fallas del sistema, mayores serán el esfuerzo, el tiempo y el costo del proyecto.</p></p>\n' +
+      '<h4>Métodos De Estimaciones</h4>',
+  }]);
+  let leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  const incLeaf=leaves.find(l=>l.text.includes('Incidencia en la estimación'))!;
+  s.setSelection(0,{anchor:{nodeId:incLeaf.id,offset:0},focus:{nodeId:incLeaf.id,offset:0}});
+  expect(s.toggleList('ul',undefined,apaTpl)).toBe(true);
+  expect(s.getReadableText()).toContain('Incidencia en la estimación: Cuanto mayor sea la criticidad');
+  expect(s.pages[0].html).not.toMatch(/<p[^>]*>\s*<ul/i);
+
+  // 2) Applying H2 / H4 (APA run-in) on a pasted list item or leaf <div> unwraps it into a real heading
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  const incInList=leaves.find(l=>l.text.includes('Incidencia en la estimación'))!;
+  s.setSelection(0,{anchor:{nodeId:incInList.id,offset:5},focus:{nodeId:incInList.id,offset:5}});
+  expect(s.applyBlockRule(apaTpl.rules.H2,apaTpl)).toBe(true);
+  expect(s.getSelectionContext()?.formats.heading).toBe('H2');
+  expect(s.getSelectionContext()?.formats.insertUnorderedList).toBe(false);
+  expect(s.pages[0].html).toContain('<h2');
+
+  if(apaTpl.academicStyle==='apa7'&&apaTpl.rules.H4){
+    expect(s.applyBlockRule(apaTpl.rules.H4,apaTpl)).toBe(true);
+    expect(s.getSelectionContext()?.formats.heading).toBe('H4');
+    expect(s.pages[0].html).toContain('data-apa-run-in="4"');
+  }
+
+  // 3) Delete at end of paragraph above (even across an empty <p><br></p> and multi-run <b> spans) pulls pasted text up without losing text or jumping caret to start
+  s.load([{
+    id:'mrg1',
+    html:'<p>Párrafo superior antes del salto</p>\n<p><br></p>\n<p><b>Texto pegado:</b> traído desde abajo</p>',
+  }]);
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  const topLeaf=leaves.find(l=>l.text==='Párrafo superior antes del salto')!;
+  s.setSelection(0,{anchor:{nodeId:topLeaf.id,offset:topLeaf.text.length},focus:{nodeId:topLeaf.id,offset:topLeaf.text.length}});
+  // First forward Delete removes the empty <p><br></p> and keeps caret at the end of topLeaf
+  expect(s.delete(false)).toBe(true);
+  expect(s.selection?.focus).toEqual({nodeId:topLeaf.id,offset:topLeaf.text.length});
+  // Second forward Delete pulls "Texto pegado: traído desde abajo" onto the same paragraph cleanly
+  expect(s.delete(false)).toBe(true);
+  expect(s.getReadableText()).toContain('Párrafo superior antes del saltoTexto pegado: traído desde abajo');
+
+  // 4) Backspace right after a bold run inside the same paragraph deletes ':', NOT unwrapping or merging blocks prematurely
+  leaves=textNodes(s.engine.getSections()[0].model.state.roots);
+  const afterBold=leaves.find(l=>l.text===' traído desde abajo')!;
+  s.setSelection(0,{anchor:{nodeId:afterBold.id,offset:0},focus:{nodeId:afterBold.id,offset:0}});
+  expect(s.delete(true)).toBe(true);
+  expect(s.getReadableText().replace(/\s+/g,' ')).toContain('Texto pegado traído desde abajo');
+  expect(s.pages[0].html).toContain('<b>Texto pegado</b> traído desde abajo');
+ });
+
+ it('copies and pastes tables with merged cells (colspan/rowspan), empty header cells, column widths, highlights, and right/center alignments across Weave sessions',()=>{
+  const tableGeom={width:700,height:800,top:30,right:30,bottom:30,left:30};
+  const cocomoSourceHtml=`
+    <table style="width: 100%; table-layout: fixed; border-collapse: collapse;">
+      <colgroup>
+        <col style="width: 28%"><col style="width: 14%"><col style="width: 14%"><col style="width: 14%"><col style="width: 15%"><col style="width: 15%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1; text-align: center;"><p style="text-align: center; font-weight: bold;">Tipo de objeto</p></th>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1; text-align: center;"><p style="text-align: center; font-weight: bold;">Cantidad</p></th>
+          <th colspan="3" style="border: 1px solid #1e293b; background-color: #dbe5f1; text-align: center;"><p style="text-align: center; font-weight: bold;">Factor de peso</p></th>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1; text-align: center;"><p style="text-align: center; font-weight: bold;">Total</p></th>
+        </tr>
+        <tr>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1;"><p></p></th>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1;"><p></p></th>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1; text-align: center;"><p style="text-align: center; font-weight: bold;">Simple</p></th>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1; text-align: center;"><p style="text-align: center; font-weight: bold;">Medio</p></th>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1; text-align: center;"><p style="text-align: center; font-weight: bold;">Avanzado</p></th>
+          <th style="border: 1px solid #1e293b; background-color: #dbe5f1;"><p></p></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border: 1px solid #1e293b;"><p style="font-weight: bold;">Pantallas</p></td>
+          <td style="border: 1px solid #1e293b; text-align: center;"><p style="text-align: center; font-weight: bold;">24</p></td>
+          <td style="border: 1px solid #1e293b; text-align: center;"><p style="text-align: center; font-weight: bold;">1</p></td>
+          <td style="border: 1px solid #1e293b; background-color: #ffff00; text-align: center;"><p style="text-align: center; font-weight: bold;">2</p></td>
+          <td style="border: 1px solid #1e293b; text-align: center;"><p style="text-align: center; font-weight: bold;">3</p></td>
+          <td style="border: 1px solid #1e293b; text-align: center;"><p style="text-align: center; font-weight: bold;">48</p></td>
+        </tr>
+        <tr>
+          <td colspan="5" style="border: 1px solid #1e293b; text-align: right;"><p style="text-align: right; font-weight: bold;">Puntos objeto (PO)</p></td>
+          <td style="border: 1px solid #1e293b; text-align: center;"><p style="text-align: center; font-weight: bold;">208</p></td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  // 1) Copy from Doc #1 and paste into Doc #2 (which has a custom default table template)
+  const doc1=new CanvasEditSession(tableGeom);
+  doc1.load([{id:'d1',html:cocomoSourceHtml}]);
+  doc1.selectAll();
+  const copiedHtml=doc1.selectedHtml();
+  const copiedText=doc1.selectedText();
+  expect(copiedText).toContain('Tipo de objeto\tCantidad\tFactor de peso\tTotal');
+
+  const doc2=new CanvasEditSession(tableGeom);
+  doc2.load([{id:'d2',html:'<p><i><b>COCOMO II</b></i></p><p></p>'}]);
+  const destLeaves=textNodes(doc2.engine.getSections()[0].model.state.roots);
+  const emptyDest=destLeaves[destLeaves.length-1];
+  doc2.setSelection(0,{anchor:{nodeId:emptyDest.id,offset:0},focus:{nodeId:emptyDest.id,offset:0}});
+  const defaultCustomRule=BUILTIN_STYLE_TEMPLATES[0].tableStyle;
+  expect(doc2.pasteTable(copiedHtml,false,0,defaultCustomRule)).toBe(true);
+
+  const pastedHtml=doc2.pages[0].html;
+  const dom=new DOMParser().parseFromString(pastedHtml,'text/html');
+  const rows=Array.from(dom.querySelectorAll('table tr'));
+  expect(rows).toHaveLength(4);
+  // Row 1 MUST still have all 6 cells so "Simple | Medio | Avanzado" sit in columns 2, 3, 4 under "Factor de peso"
+  const row1Cells=Array.from(rows[1].querySelectorAll('th, td'));
+  expect(row1Cells).toHaveLength(6);
+  expect(row1Cells[0].textContent?.trim()).toBe('');
+  expect(row1Cells[1].textContent?.trim()).toBe('');
+  expect(row1Cells[2].textContent?.trim()).toBe('Simple');
+  expect(row1Cells[3].textContent?.trim()).toBe('Medio');
+  expect(row1Cells[4].textContent?.trim()).toBe('Avanzado');
+  expect(row1Cells[5].textContent?.trim()).toBe('');
+
+  // Verify yellow highlight (#ffff00) and right alignment on "Puntos objeto (PO)" (colspan="5") survived!
+  expect(pastedHtml.toLowerCase()).toContain('#ffff00');
+  const poCell=rows[3].querySelector('td[colspan="5"]') as HTMLElement;
+  expect(poCell).toBeTruthy();
+  expect(poCell.getAttribute('style')||'').toContain('text-align: right');
+
+  // Verify Canvas X coordinate of "Simple" sits strictly under "Factor de peso" (to the right of "Cantidad"), never under column 0!
+  const cmds=doc2.displayLists[0].commands.filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text'&&!!c.text);
+  const cantidadCmd=cmds.find(c=>c.text==='C'&&c.y<120)!;
+  const simpleCmd=cmds.find(c=>c.text==='S')!;
+  expect(simpleCmd.x).toBeGreaterThan(cantidadCmd.x + 40);
+
+  // 2) Also verify rowspan="2" merged header tables copy & paste with exact column positions
+  const rowspanTableHtml=
+    '<table><thead>' +
+    '<tr><th rowspan="2">Tipo</th><th rowspan="2">Cant</th><th colspan="2">Peso</th></tr>' +
+    '<tr><th>Simple</th><th>Medio</th></tr>' +
+    '</thead><tbody><tr><td>Pantallas</td><td>24</td><td>1</td><td>2</td></tr></tbody></table>';
+  const doc3=new CanvasEditSession(tableGeom);
+  doc3.load([{id:'d3',html:rowspanTableHtml}]);
+  doc3.selectAll();
+  const copiedRowspanHtml=doc3.selectedHtml();
+  const doc4=new CanvasEditSession(tableGeom);
+  doc4.load([{id:'d4',html:'<p></p>'}]);
+  expect(doc4.pasteTable(copiedRowspanHtml,false,0,defaultCustomRule)).toBe(true);
+  const dom4=new DOMParser().parseFromString(doc4.pages[0].html,'text/html');
+  expect(dom4.querySelector('th[rowspan="2"]')?.textContent?.trim()).toBe('Tipo');
+  expect(dom4.querySelector('th[colspan="2"]')?.textContent?.trim()).toBe('Peso');
+  expect(dom4.querySelectorAll('table tr')[1].querySelectorAll('th, td')).toHaveLength(2);
+ });
+
+ it('keeps progressive multilevel list indentation intact across all levels after changing document template or page margins',()=>{
+  const g1={width:600,height:700,top:40,right:40,bottom:40,left:40};
+  const g2={width:600,height:700,top:40,right:40,bottom:40,left:72};
+  const s=new CanvasEditSession(g1,{font:'16px "Times New Roman"',lineHeight:32},measure);
+  s.load([{
+    id:'ml1',
+    html:
+      '<ul>' +
+        '<li><b>Estudio de campo:</b> Observación real.</li>' +
+        '<li><b>Modelo del Dominio:</b>' +
+          '<ul>' +
+            '<li>Representa el alcance conceptual.</li>' +
+            '<li>Aclaración crítica.<ul><li>Subnivel 3 anidado.</li></ul></li>' +
+          '</ul>' +
+        '</li>' +
+        '<li data-list-level="1">Subnivel 2 por atributo.</li>' +
+        '<li data-list-level="2">Subnivel 3 por atributo.</li>' +
+      '</ul>',
+  }]);
+
+  const apaTimes=BUILTIN_STYLE_TEMPLATES.find(t=>t.id==='apa-times-12')!;
+  expect(s.applyTemplateToDocument(apaTimes,g2,{font:'16px "Times New Roman"',lineHeight:32,apaBorders:true})).toBe(true);
+
+  const texts=s.displayLists[0].commands.filter((c):c is Extract<typeof c,{kind:'text'}>=>c.kind==='text'&&!!c.text);
+  const lineStartX=(needle:string)=>{
+    const byY=new Map<number,typeof texts>();
+    for(const t of texts){const arr=byY.get(t.y)||[];arr.push(t);byY.set(t.y,arr);}
+    for(const line of byY.values()){
+      line.sort((a,b)=>a.x-b.x);
+      if(line.map(t=>t.text).join('').includes(needle)){
+        const markerOrFirst=line.find(t=>t.text===needle[0]);
+        if(markerOrFirst)return markerOrFirst.x;
+      }
+    }
+    return -1;
+  };
+
+  const x1=lineStartX('Estudio');
+  const x2Nested=lineStartX('Representa');
+  const x3Nested=lineStartX('Subnivel 3 anidado');
+  const x2Attr=lineStartX('Subnivel 2 por atributo');
+  const x3Attr=lineStartX('Subnivel 3 por atributo');
+
+  expect(x1).toBeGreaterThan(g2.left);
+  expect(x2Nested).toBeGreaterThanOrEqual(x1 + 19);
+  expect(x3Nested).toBeGreaterThanOrEqual(x2Nested + 19);
+  expect(x2Attr).toBeGreaterThanOrEqual(x1 + 19);
+  expect(x3Attr).toBeGreaterThanOrEqual(x2Attr + 19);
+ });
+
+ it('supports code block creation via ``` + Enter, newline Enter, Tab/Shift+Tab indentation, fenced paste, exit, and template preservation',()=>{
+  const s=new CanvasEditSession({width:600,height:700,top:20,right:20,bottom:20,left:20});
+  s.load([{id:'cb1',html:'<p>```python</p>'}]);
+  const leaf=textNodes(s.engine.getSections()[0].model.state.roots)[0];
+  s.setSelection(0,{anchor:{nodeId:leaf.id,offset:leaf.text.length},focus:{nodeId:leaf.id,offset:leaf.text.length}});
+
+  // 1) ```python + Enter converts paragraph into a code block and focuses inside <code>
+  expect(s.enter()).toBe(true);
+  expect(s.isInsideCodeBlock()).toBe(true);
+  expect(s.pages[0].html).toContain('word-code-block');
+  expect(s.pages[0].html).toContain('python');
+
+  // 2) Typing, Enter (inserts \n), Tab (2 spaces), and Shift+Tab (outdent 2 spaces) inside <pre>
+  expect(s.insert('def hola():')).toBe(true);
+  expect(s.enter()).toBe(true);
+  expect(s.indentCodeBlock(1)).toBe(true);
+  expect(s.insert('return 1')).toBe(true);
+  expect(s.pages[0].html).toContain('def hola():\n  return 1');
+  expect(s.indentCodeBlock(-1)).toBe(true);
+  expect(s.pages[0].html).toContain('def hola():\nreturn 1');
+
+  // 3) Pasting raw multi-line ASCII diagram inside <pre> preserves spaces and newlines verbatim
+  expect(s.pastePlainText('\n   [ A ] <---> [ B ]')).toBe(true);
+  expect(s.pages[0].html).toContain('   [ A ] &lt;---&gt; [ B ]');
+
+  // 4) Exiting code block via enter(true) moves caret into a new <p> outside <pre>
+  expect(s.enter(true)).toBe(true);
+  expect(s.isInsideCodeBlock()).toBe(false);
+
+  // 5) Applying APA template preserves the code block's monospace font and structure
+  const apaTimes=BUILTIN_STYLE_TEMPLATES.find(t=>t.id==='apa-times-12')!;
+  expect(s.applyTemplateToDocument(apaTimes,{width:600,height:700,top:20,right:20,bottom:20,left:20},{font:'16px "Times New Roman"',lineHeight:32})).toBe(true);
+  expect(s.pages[0].html).toContain('JetBrains Mono');
+  expect(s.pages[0].html).toContain('word-code-block');
+
+  // 6) Pasting a Markdown fenced code block outside <pre> creates a code block automatically
+  expect(s.pastePlainText('```ts\nconst x = 1;\n```')).toBe(true);
+  expect(s.pages[0].html).toContain('const x = 1;');
  });
 
 });

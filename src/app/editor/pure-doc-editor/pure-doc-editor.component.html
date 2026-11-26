@@ -138,6 +138,21 @@
       [zoom]="zoom()"
       (setZoom)="setDocumentZoom($event)"
       [pdfExporting]="pdfExporting()"
+      [hasActiveTable]="activeTableCell() !== null"
+      [canMergeTableCells]="canMergeTableCells()"
+      [activeTableRowTopBorder]="activeTableRowTopBorder()"
+      [activeTableVerticalAlign]="activeTableVerticalAlign()"
+      [activeTableRepeatHeader]="activeTableRepeatHeader()"
+      [tableStyleRule]="activeTableRule()"
+      (modifyTable)="modifyActiveTable($event)"
+      (combineCells)="combineTableCells()"
+      (setTableCellBackground)="setTableCellBackground($event)"
+      (setTableCellVerticalAlign)="setTableCellVerticalAlign($event)"
+      (toggleTableRowTopBorder)="toggleTableRowTopBorder()"
+      (toggleTableHeaderRepeat)="toggleTableHeaderRepeat()"
+      (applyTableStyle)="handleApplyTableStyleToSelection($event)"
+      (setTableCellPadding)="handleSetTableCellPadding($event)"
+      (distributeColumns)="handleDistributeColumns()"
     ></app-word-ribbon>
   }
 
@@ -148,94 +163,6 @@
       (jumpToTocPage)="jumpToPage($event)"
       (close)="docxProperties.set(null)"
     ></app-word-docx-banner>
-  }
-
-  <!-- Contextual Table Floating Bar -->
-  @if (activeTableCell() !== null && !isReadMode()) {
-    <div
-      class="border-b px-4 py-1.5 flex items-center justify-center gap-2 text-xs shrink-0 no-print transition-colors"
-      [ngClass]="darkMode() ? 'bg-[#18181b]/95 border-[#27272a] text-[#f4f4f5]' : 'bg-blue-50/90 border-blue-200 text-blue-900'"
-    >
-      <span class="font-semibold mr-2">{{ i18n.t('word.table.tools') }} ({{ i18n.t('word.status.page') }} {{ activePageIndex() + 1 }}):</span>
-      <span class="text-[10px] opacity-70">Arrastra los bordes de las celdas para cambiar filas y columnas</span>
-      <button type="button" (mousedown)="$event.preventDefault()" (click)="combineTableCells()"
-              [disabled]="!canMergeTableCells()" [title]="i18n.t('word.table.merge_hint')"
-              class="px-2.5 py-1 rounded border border-blue-300 bg-blue-600 text-white disabled:opacity-40 disabled:cursor-default">
-        {{ i18n.t('word.table.merge_cells') }}
-      </button>
-      <button type="button" (mousedown)="$event.preventDefault()" (click)="modifyActiveTable('splitCell')"
-              title="Dividir la celda actual"
-              [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900'"
-              class="px-2.5 py-1 rounded border transition-colors">
-        Dividir celda
-      </button>
-      <button
-        type="button"
-        (mousedown)="$event.preventDefault()"
-        (click)="modifyActiveTable('addRow')"
-        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900'"
-        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
-      >
-        <svg lucideIcon="rows" [size]="14" class="w-3.5 h-3.5"></svg>
-        <svg lucideIcon="plus" [size]="12" class="w-3 h-3"></svg>
-        <span>{{ i18n.t('word.table.add_row') }}</span>
-      </button>
-      <button
-        type="button"
-        (mousedown)="$event.preventDefault()"
-        (click)="modifyActiveTable('addCol')"
-        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900'"
-        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
-      >
-        <svg lucideIcon="columns" [size]="14" class="w-3.5 h-3.5"></svg>
-        <svg lucideIcon="plus" [size]="12" class="w-3 h-3"></svg>
-        <span>{{ i18n.t('word.table.add_col') }}</span>
-      </button>
-      <button
-        type="button"
-        (mousedown)="$event.preventDefault()"
-        (click)="toggleTableRowTopBorder()"
-        [title]="'Agregar o quitar borde superior en la fila actual (ej. fila Total en APA)'"
-        [ngClass]="activeTableRowTopBorder()
-          ? (darkMode() ? 'bg-blue-900/60 border-blue-500 text-blue-200' : 'bg-blue-600 border-blue-600 text-white')
-          : (darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-[#e4e4e7] hover:bg-[#323238]' : 'bg-white border-blue-200 hover:bg-blue-100 text-blue-900')"
-        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5" aria-hidden="true">
-          <line x1="3" y1="5" x2="21" y2="5" stroke-width="2.6"/>
-          <rect x="4" y="9" width="16" height="11" rx="1" stroke-dasharray="2 2" opacity="0.65"/>
-        </svg>
-        <span>Borde sup.</span>
-      </button>
-      <button
-        type="button"
-        (mousedown)="$event.preventDefault()"
-        (click)="modifyActiveTable('delRow')"
-        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-slate-300 hover:bg-red-950/40 hover:text-red-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600'"
-        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
-      >
-        <span>{{ i18n.t('word.table.del_row') }}</span>
-      </button>
-      <button
-        type="button"
-        (mousedown)="$event.preventDefault()"
-        (click)="modifyActiveTable('delCol')"
-        [ngClass]="darkMode() ? 'bg-[#27272a] border-[#3f3f46] text-slate-300 hover:bg-red-950/40 hover:text-red-400' : 'bg-white border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-600'"
-        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
-      >
-        <span>{{ i18n.t('word.table.del_col') }}</span>
-      </button>
-      <button
-        type="button"
-        (mousedown)="$event.preventDefault()"
-        (click)="modifyActiveTable('delTable')"
-        [ngClass]="darkMode() ? 'bg-red-950/40 border-red-800 text-red-400 hover:bg-red-900/60' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'"
-        class="flex items-center gap-1 px-2.5 py-1 rounded border transition-colors"
-      >
-        <svg lucideIcon="trash-2" [size]="14" class="w-3.5 h-3.5"></svg>
-        <span>{{ i18n.t('word.table.del_table') }}</span>
-      </button>
-    </div>
   }
 
   @if (searchMode(); as mode) {

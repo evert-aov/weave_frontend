@@ -2,8 +2,9 @@ import { LucideDynamicIcon, provideLucideIcons } from '../../../../shared/compon
 import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, inject, Input, Output, signal, } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { lucideFilePlus2, lucideScissors, lucideTrash2, lucideTable, lucideImage, lucideShapes, lucideSmile, lucideBox, lucideBarChart3, lucideCamera, lucideLink, lucideMessageSquare, lucidePanelTop, lucidePanelBottom, lucideHash, lucideType, lucideStickyNote, lucideSparkles, lucideCalendar, lucidePenTool, lucideSigma, lucideChevronDown, lucidePlus } from '@ng-icons/lucide';
+import { lucideFilePlus2, lucideScissors, lucideTrash2, lucideTable, lucideImage, lucideShapes, lucideSmile, lucideBox, lucideBarChart3, lucideCamera, lucideLink, lucideMessageSquare, lucidePanelTop, lucidePanelBottom, lucideHash, lucideType, lucideStickyNote, lucideSparkles, lucideCalendar, lucidePenTool, lucideSigma, lucideChevronDown, lucidePlus, lucideCode } from '@ng-icons/lucide';
 import { SHAPE_ITEMS, SYMBOL_ITEMS, WORDART_PRESETS } from '../../constants/word-insert.constants';
+import { CODE_LANGUAGES } from '../../constants/word-document.constants';
 import { ShapeCategory, ShapeDefinition, WordArtPreset } from '../../models/word-insert.model';
 import { WordTablePickerComponent } from '../word-table-picker/word-table-picker.component';
 import { I18nService } from '../../../../core/services/i18n.service';
@@ -36,7 +37,8 @@ import { I18nService } from '../../../../core/services/i18n.service';
       lucidePenTool,
       lucideSigma,
       lucideChevronDown,
-      lucidePlus, }),
+      lucidePlus,
+      lucideCode, }),
   ],
   templateUrl: './word-insert-toolbar.component.html',
   styleUrl: './word-insert-toolbar.component.css',
@@ -72,6 +74,7 @@ export class WordInsertToolbarComponent {
   @Output() focusFooterArea = new EventEmitter<void>();
   @Output() insertPageNumber = new EventEmitter<void>();
   @Output() insertTextBox = new EventEmitter<void>();
+  @Output() insertCodeBlock = new EventEmitter<string>();
   @Output() insertNote = new EventEmitter<void>();
   @Output() insertWordArt = new EventEmitter<WordArtPreset>();
   @Output() insertDropCap = new EventEmitter<void>();
@@ -81,7 +84,9 @@ export class WordInsertToolbarComponent {
   @Output() insertSymbol = new EventEmitter<string>();
   @Output() insertDrawingCanvas = new EventEmitter<void>();
 
-  readonly openMenu = signal<'shapes' | 'tablePicker' | 'symbols' | 'wordart' | null>(null);
+  readonly openMenu = signal<'shapes' | 'tablePicker' | 'symbols' | 'wordart' | 'code' | null>(null);
+  readonly menuPos = signal<{ top: number; left: number }>({ top: 0, left: 0 });
+  readonly codeLanguages = ['Texto / ASCII', ...CODE_LANGUAGES];
 
   readonly shapeCategories: { id: ShapeCategory; labelKey: string; fallback: string }[] = [
     { id: 'recent', labelKey: 'word.shapes.recently_used', fallback: 'Formas usadas recientemente' },
@@ -110,9 +115,34 @@ export class WordInsertToolbarComponent {
     return this.allShapes.filter(s => s.category === catId);
   }
 
-  toggleMenu(name: 'shapes' | 'tablePicker' | 'symbols' | 'wordart'): void {
+  toggleMenu(name: 'shapes' | 'tablePicker' | 'symbols' | 'wordart' | 'code', event?: MouseEvent): void {
     this.captureSelection.emit();
-    this.openMenu.update(current => (current === name ? null : name));
+    if (this.openMenu() === name) {
+      this.openMenu.set(null);
+      return;
+    }
+    const trigger = event?.currentTarget as HTMLElement | null;
+    if (trigger) {
+      const rect = trigger.getBoundingClientRect();
+      const menuWidths: Record<'shapes' | 'tablePicker' | 'symbols' | 'wordart' | 'code', number> = {
+        shapes: 280,
+        tablePicker: 256,
+        symbols: 220,
+        wordart: 240,
+        code: 168,
+      };
+      const maxLeft = typeof window !== 'undefined' ? window.innerWidth - menuWidths[name] - 8 : rect.left;
+      this.menuPos.set({
+        top: rect.bottom + 4,
+        left: Math.max(8, Math.min(rect.left, maxLeft)),
+      });
+    }
+    this.openMenu.set(name);
+  }
+
+  selectCodeLanguage(lang: string): void {
+    this.openMenu.set(null);
+    this.insertCodeBlock.emit(lang);
   }
 
   selectShape(shape: ShapeDefinition): void {

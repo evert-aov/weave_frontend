@@ -37,11 +37,62 @@ const css = (style = ''): Record<string, string> => Object.fromEntries(style.spl
 }));
 const serialize = (style: Record<string, string>): string => Object.entries(style).map(([key, value]) => `${key}: ${value}`).join('; ');
 
+const isNeutralCellBg = (raw?: string): boolean => {
+  if (!raw) return true;
+  const v = raw.trim().toLowerCase();
+  return !v || v === 'transparent' || v === 'none' || v === 'rgba(0, 0, 0, 0)' || v === '#ffffff' || v === '#fff' || v === 'rgb(255, 255, 255)';
+};
+
+const isExplicitBold = (raw?: string): boolean => {
+  if (!raw) return false;
+  const v = raw.trim().toLowerCase();
+  return v === 'bold' || v === 'bolder' || Number(v) >= 600;
+};
+
 /** Pure model transform: table IDs, text, spans, column widths and objects survive styling. */
-export function styleModelTable(table: ElementNode, input: TableStyleRule, binding: 'template' | 'fixed' = 'template'): ElementNode {
+export function styleModelTable(
+  table: ElementNode,
+  input: TableStyleRule,
+  binding: 'template' | 'fixed' = 'template',
+  options?: { preserveExplicitCellFormatting?: boolean },
+): ElementNode {
   const rule = normalizeTableStyle(input);
   if (rule.mode === 'inherit') return table;
   if (rule.mode === 'preserve') return { ...table, attributes: { ...table.attributes, 'data-word-table-style': table.attributes['data-word-table-style'] || 'preserve' } };
+  const preserveCellFmt = Boolean(options?.preserveExplicitCellFormatting);
+
+  const allTrs: { tr: ElementNode; inThead: boolean }[] = [];
+  for (const child of table.children) {
+    if (child.kind !== 'element') continue;
+    if (child.tag === 'tr') allTrs.push({ tr: child, inThead: false });
+    else if (['thead', 'tbody', 'tfoot'].includes(child.tag)) {
+      for (const sub of child.children) {
+        if (sub.kind === 'element' && sub.tag === 'tr') allTrs.push({ tr: sub, inThead: child.tag === 'thead' });
+      }
+    }
+  }
+  let detectedHeaderRows = 1;
+  if (allTrs.length > 0) {
+    let theadCount = 0;
+    while (theadCount < allTrs.length && allTrs[theadCount].inThead) theadCount++;
+    const firstCells = allTrs[0].tr.children.filter(
+      (c): c is ElementNode => c.kind === 'element' && (c.tag === 'td' || c.tag === 'th'),
+    );
+    const firstRowMaxSpan = firstCells.reduce((m, c) => Math.max(m, Number(c.attributes['rowspan'] || 1)), 1);
+    let leadingThRows = 0;
+    if (preserveCellFmt) {
+      while (leadingThRows < allTrs.length) {
+        const cells = allTrs[leadingThRows].tr.children.filter(
+          (c): c is ElementNode => c.kind === 'element' && (c.tag === 'td' || c.tag === 'th'),
+        );
+        if (cells.length > 0 && cells.every(c => c.tag === 'th')) leadingThRows++;
+        else break;
+      }
+    }
+    detectedHeaderRows = Math.min(allTrs.length, Math.max(1, theadCount, firstRowMaxSpan, leadingThRows));
+  }
+  const effectiveHeaderRows = rule.header ? detectedHeaderRows : 0;
+
   const border = rule.borderWidthPt > 0 ? `${rule.borderWidthPt}pt solid ${rule.borderColor}` : 'none';
   const tableCss = css(table.attributes['style']);
   for (const key of Object.keys(tableCss)) if (key.startsWith('border') || key === 'background') delete tableCss[key];
@@ -50,44 +101,59 @@ export function styleModelTable(table: ElementNode, input: TableStyleRule, bindi
   const attributes = { ...table.attributes, style: serialize(tableCss), 'data-word-table-style': 'custom',
     'data-word-table-binding': binding, 'data-word-table-rule': JSON.stringify(rule),
     'data-word-table-padding': String(rule.cellPaddingPt * 96 / 72),
-    'data-word-table-header-rows': rule.header ? '1' : '0', 'data-repeat-header': String(rule.header && rule.repeatHeader) };
+    'data-word-table-header-rows': String(effectiveHeaderRows), 'data-repeat-header': String(effectiveHeaderRows > 0 && rule.repeatHeader) };
   delete (attributes as Record<string, string>)['data-apa-table'];
   let row = 0;
-  const contents = (nodes: readonly DocumentNode[], header: boolean): readonly DocumentNode[] => nodes.map(node => {
+  const contents = (nodes: readonly DocumentNode[], header: boolean, inheritedAlign?: string): readonly DocumentNode[] => nodes.map(node => {
     if (node.kind === 'text' || ['img', 'svg', 'table'].includes(node.tag) || (node.attributes['class'] || '').includes('word-latex')) return node;
     const style = css(node.attributes['style']);
+    const prevAlign = preserveCellFmt ? (style['text-align'] || node.attributes['align']?.toLowerCase() || inheritedAlign) : undefined;
+    const prevBold = preserveCellFmt && isExplicitBold(style['font-weight']);
     for (const key of ['font-family', 'font-size', 'line-height', 'color', 'background', 'background-color']) delete style[key];
     const attrs = { ...node.attributes };
     if (node.tag === 'font') { delete attrs['face']; delete attrs['size']; delete attrs['color']; }
     if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'].includes(node.tag)) Object.assign(style, {
       'font-family': rule.fontFamily, 'font-size': `${rule.fontSizePt}pt`, 'line-height': String(rule.lineHeight),
-      'text-align': header ? rule.headerAlign : rule.align, color: header ? rule.headerColor : rule.color,
+      'text-align': prevAlign && ['left', 'center', 'right', 'justify'].includes(prevAlign) ? prevAlign : (header ? rule.headerAlign : rule.align),
+      color: header ? rule.headerColor : rule.color,
       'margin-top': '0pt', 'margin-bottom': '0pt', 'text-indent': '0pt',
-      'font-weight': header && rule.headerBold ? 'bold' : 'normal',
+      'font-weight': (header && rule.headerBold) || prevBold ? 'bold' : 'normal',
     });
     if ('data-word-line-spacing' in attrs) attrs['data-word-line-spacing'] = String(rule.lineHeight);
     attrs['style'] = serialize(style);
-    return { ...node, attributes: attrs, children: contents(node.children, header) };
+    return { ...node, attributes: attrs, children: contents(node.children, header, prevAlign) };
   });
   const visit = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => nodes.map(node => {
     if (node.kind === 'text' || node.tag === 'table') return node;
     if (node.tag === 'tr') {
       const current = row++;
-      const header = rule.header && current === 0;
-      const band = rule.bandedRows && (current - (rule.header ? 1 : 0)) % 2 === 1;
+      const header = current < effectiveHeaderRows;
+      const band = rule.bandedRows && !header && (current - effectiveHeaderRows) % 2 === 1;
+      const trCss = css(node.attributes['style']);
+      const trBg = preserveCellFmt ? (trCss['background-color'] || trCss['background']) : undefined;
       const children = node.children.map(cell => {
         if (cell.kind !== 'element' || !['td', 'th'].includes(cell.tag)) return cell;
         const style = css(cell.attributes['style']);
+        const prevCellBg = preserveCellFmt ? (style['background-color'] || style['background'] || trBg) : undefined;
+        const prevCellAlign = preserveCellFmt ? (style['text-align'] || cell.attributes['align']?.toLowerCase()) : undefined;
+        const prevCellBold = preserveCellFmt && (isExplicitBold(style['font-weight']) || cell.tag === 'th');
         for (const key of Object.keys(style)) if (key.startsWith('border') || key.startsWith('padding') || key === 'background') delete style[key];
+        const resolvedAlign = prevCellAlign && ['left', 'center', 'right', 'justify'].includes(prevCellAlign)
+          ? prevCellAlign
+          : (header ? rule.headerAlign : rule.align);
+        const resolvedBg = prevCellBg && !isNeutralCellBg(prevCellBg)
+          ? prevCellBg
+          : (header ? rule.headerBackgroundColor : band ? rule.bandColor : rule.backgroundColor);
         Object.assign(style, { border: rule.borders === 'grid' ? border : 'none',
           'border-top': rule.borders === 'horizontal' && current === 0 ? border : rule.borders === 'grid' ? border : 'none',
           'border-bottom': rule.borders === 'none' ? 'none' : border,
           padding: `${rule.cellPaddingPt}pt`, 'font-family': rule.fontFamily, 'font-size': `${rule.fontSizePt}pt`,
-          'line-height': String(rule.lineHeight), 'text-align': header ? rule.headerAlign : rule.align,
-          color: header ? rule.headerColor : rule.color, 'font-weight': header && rule.headerBold ? 'bold' : 'normal',
-          'background-color': header ? rule.headerBackgroundColor : band ? rule.bandColor : rule.backgroundColor });
+          'line-height': String(rule.lineHeight), 'text-align': resolvedAlign,
+          color: header ? rule.headerColor : rule.color,
+          'font-weight': (header && rule.headerBold) || prevCellBold ? 'bold' : 'normal',
+          'background-color': resolvedBg });
         const attrs: Record<string, string> = { ...cell.attributes, style: serialize(style) }; delete attrs['data-word-top-border'];
-        return { ...cell, attributes: attrs, children: contents(cell.children, header) };
+        return { ...cell, attributes: attrs, children: contents(cell.children, header, prevCellAlign) };
       });
       const style = css(node.attributes['style']);
       for (const key of Object.keys(style)) if (key.startsWith('border') || key.startsWith('background')) delete style[key];

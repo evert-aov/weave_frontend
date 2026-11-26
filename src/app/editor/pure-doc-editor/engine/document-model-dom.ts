@@ -26,24 +26,55 @@ export function documentStateToHtml(state: DocumentState): string {
   return serializeDocumentNodes(state.roots) || '<p><br></p>';
 }
 
+const STRUCTURAL_PARENT_TAGS = new Set(['ul', 'ol', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup']);
+const BLOCK_LIKE_TAGS = new Set([
+  'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup',
+  'blockquote', 'pre', 'hr', 'div', 'section', 'article', 'figure', 'svg',
+]);
+
 export function htmlToDocumentState(html: string, revision = 0, namespace = `doc-${++adapterSequence}`): DocumentState {
   const container = document.createElement('div');
   container.innerHTML = html;
   let seq = 0;
-  const read = (node: Node): DocumentNode[] => {
-    if (!(node instanceof Text) && !(node instanceof Element)) return [];
-    const id = `${namespace}:node-${++seq}`;
-    if (node instanceof Text) return [{ id, kind: 'text', text: node.data }];
-    const element = node as Element;
-    return [{
-      id,
-      kind: 'element',
-      tag: element.tagName.toLowerCase(),
-      attributes: Object.fromEntries(Array.from(element.attributes).map(a => [a.name, a.value])),
-      children: Array.from(element.childNodes).flatMap(read),
-    }];
+  const readChildren = (childNodes: NodeListOf<ChildNode>, parentTag: string | null): DocumentNode[] => {
+    const arr = Array.from(childNodes);
+    const out: DocumentNode[] = [];
+    for (let i = 0; i < arr.length; i++) {
+      const node = arr[i];
+      if (!(node instanceof Text) && !(node instanceof Element)) continue;
+      if (node instanceof Text && /^[ \t\r\n]+$/.test(node.data)) {
+        if (parentTag !== null && STRUCTURAL_PARENT_TAGS.has(parentTag)) {
+          continue;
+        }
+        if (parentTag === null || parentTag === 'div' || parentTag === 'section' || parentTag === 'article') {
+          const prev = arr[i - 1];
+          const next = arr[i + 1];
+          const prevIsBlock = prev instanceof Element && BLOCK_LIKE_TAGS.has(prev.tagName.toLowerCase());
+          const nextIsBlock = next instanceof Element && BLOCK_LIKE_TAGS.has(next.tagName.toLowerCase());
+          if (/[\r\n]/.test(node.data) || prevIsBlock || nextIsBlock || (!prev && !next)) {
+            continue;
+          }
+        }
+      }
+      const id = `${namespace}:node-${++seq}`;
+      if (node instanceof Text) {
+        out.push({ id, kind: 'text', text: node.data });
+        continue;
+      }
+      const element = node as Element;
+      const tag = element.tagName.toLowerCase();
+      out.push({
+        id,
+        kind: 'element',
+        tag,
+        attributes: Object.fromEntries(Array.from(element.attributes).map(a => [a.name, a.value])),
+        children: readChildren(element.childNodes, tag),
+      });
+    }
+    return out;
   };
-  return { revision, roots: Array.from(container.childNodes).flatMap(read), selection: null };
+  return { revision, roots: readChildren(container.childNodes, null), selection: null };
 }
 
 /** Transitional adapter. All tags/attributes are preserved, including unsupported objects. */

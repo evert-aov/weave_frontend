@@ -285,6 +285,7 @@ export function layoutModelDocument(
       borderRight: style.borderRight,
       borderBottom: style.borderBottom,
       borderLeft: style.borderLeft,
+      ...(node.kind === 'element' && node.tag === 'pre' ? { preserveWhitespace: true } : {}),
       ...(markerText
         ? { marker: { text: markerText, font: style.font, color: style.color, offset: 16 } }
         : {}),
@@ -742,23 +743,32 @@ export function layoutModelDocument(
         }
       };
 
-      const collectListBlocks = (listNode: Extract<DocumentNode, { kind: 'element' }>, baseLevel: number): LayoutBlock[] => {
+      const collectListBlocks = (
+        listNode: Extract<DocumentNode, { kind: 'element' }>,
+        baseLevel: number,
+        inheritedRootIndent?: number,
+      ): LayoutBlock[] => {
         const listStyle = styles.get(listNode.id);
         const listStyleType = parseInlineCss(listNode.attributes['style'])['list-style-type']?.trim();
         const start = Number(listNode.attributes['start'] ?? 1);
         const counters = new Map<number, number>([[baseLevel, Number.isFinite(start) ? start : 1]]);
         let lastLevel = baseLevel;
         const items: LayoutBlock[] = [];
+        const rootIndent =
+          inheritedRootIndent ??
+          (listStyle?.indentLeft && listStyle.indentLeft > 0 ? Math.max(listStyle.indentLeft, 20) : 28);
 
         for (const child of listNode.children) {
           if (child.kind === 'text' && !child.text.trim()) continue;
           if (child.kind === 'element' && (child.tag === 'ul' || child.tag === 'ol')) {
-            items.push(...collectListBlocks(child, baseLevel + 1));
+            items.push(...collectListBlocks(child, baseLevel + 1, rootIndent));
             continue;
           }
           if (child.kind !== 'element' || child.tag !== 'li') {
             if (child.kind === 'element') {
               items.push(...blocksFor(child));
+            } else if (child.kind === 'text' && child.text.trim()) {
+              items.push(toParagraph(child, listStyle || styleFor(listNode)));
             }
             continue;
           }
@@ -787,16 +797,15 @@ export function layoutModelDocument(
           }
           lastLevel = level;
 
-          const defaultIndent = 28 + level * 20;
-          const explicitIndent = itemStyle.indentLeft && itemStyle.indentLeft > 0 ? itemStyle.indentLeft : undefined;
-          const effectiveIndent = explicitIndent !== undefined
-            ? (level > baseLevel && attrLevelRaw !== undefined ? Math.max(explicitIndent, defaultIndent) : Math.max(explicitIndent, 20))
-            : defaultIndent;
+          const LEVEL_STEP_PX = 20;
+          const progressiveIndent = rootIndent + level * LEVEL_STEP_PX;
+          const explicitIndent = itemStyle.indentLeft && itemStyle.indentLeft > 0 ? itemStyle.indentLeft : 0;
+          const effectiveIndent = Math.max(progressiveIndent, explicitIndent, 20);
           items.push(toParagraph(child, { ...itemStyle, indentLeft: effectiveIndent, firstLineIndent: 0 }, marker));
 
           for (const nested of child.children) {
             if (nested.kind === 'element' && (nested.tag === 'ul' || nested.tag === 'ol')) {
-              items.push(...collectListBlocks(nested, level + 1));
+              items.push(...collectListBlocks(nested, level + 1, rootIndent));
             }
           }
         }
@@ -858,7 +867,17 @@ export function layoutModelDocument(
     const style = styleFor(node);
     if (PARAGRAPH_TAGS.has(node.tag) || node.tag === 'li') {
       const isEmbeddedBlockChild = (c: DocumentNode): boolean =>
-        c.kind === 'element' && (c.tag === 'img' || c.tag === 'svg' || isFormulaNode(c) || Boolean(standaloneSvgFor(c)));
+        c.kind === 'element' && (
+          c.tag === 'img' ||
+          c.tag === 'svg' ||
+          c.tag === 'table' ||
+          c.tag === 'hr' ||
+          isFormulaNode(c) ||
+          Boolean(standaloneSvgFor(c)) ||
+          PARAGRAPH_TAGS.has(c.tag) ||
+          (node.tag !== 'li' && (c.tag === 'ul' || c.tag === 'ol')) ||
+          (CONTAINER_TAGS.has(c.tag) && !INLINE_TAGS.has(c.tag))
+        );
       const hasBlockChild = node.children.some(isEmbeddedBlockChild);
       if (hasBlockChild) {
         const result: LayoutBlock[] = [];
@@ -1297,11 +1316,11 @@ export function resolveDefaultModelStyles(
     const inheritedSizePx = parsePx(inherited.font.match(/(\d+(?:\.\d+)?)px/)?.[1], 14.67);
     const fontSizePx = fontSizeAttr
       ? parsePx(fontSizeAttr, inheritedSizePx)
-      : HEADING_SIZES_PX[node.tag] ?? (isTocHeader ? 18.67 : inheritedSizePx);
+      : HEADING_SIZES_PX[node.tag] ?? (isTocHeader ? 18.67 : node.tag === 'pre' ? 13.33 : inheritedSizePx);
     const inheritedFamily = inherited.font.replace(/^.*?\d+(?:\.\d+)?px\s*/, '') || '"Times New Roman", serif';
     const fontFamily = normalizeFontFamily(
       inline['font-family'] || node.attributes['face'],
-      node.tag === 'code' || node.tag === 'pre' ? 'monospace' : inheritedFamily,
+      node.tag === 'code' || node.tag === 'pre' ? '"JetBrains Mono", ui-monospace, Consolas, monospace' : inheritedFamily,
     );
     const font = `${isItalic ? 'italic ' : ''}${isBold ? '700 ' : ''}${Math.round(fontSizePx * 100) / 100}px ${fontFamily}`.trim();
     const colorAttr = cssVal(inline['color']);
@@ -1319,7 +1338,9 @@ export function resolveDefaultModelStyles(
     const lineHeightRaw = cssVal(inline['line-height']);
     const lineHeight = insideCell && !styledTable
       ? Math.round(fontSizePx * 1.1 * WORD_AUTO_LINE_FACTOR * 100) / 100
-      : Number.isFinite(wordSpacingMult) && wordSpacingMult > 0 && wordSpacingMult <= 10
+      : node.tag === 'pre' && !lineHeightRaw && !Number.isFinite(wordSpacingMult)
+        ? Math.round(fontSizePx * 1.45 * 100) / 100
+        : Number.isFinite(wordSpacingMult) && wordSpacingMult > 0 && wordSpacingMult <= 10
         ? Math.max(fontSizePx, Math.round(fontSizePx * wordSpacingMult * WORD_AUTO_LINE_FACTOR * 100) / 100)
         : lineHeightRaw
           ? (lineHeightRaw.endsWith('px') || lineHeightRaw.endsWith('pt')
@@ -1331,7 +1352,7 @@ export function resolveDefaultModelStyles(
     const textDecoration = cssVal(inline['text-decoration'] || inline['text-decoration-line']) || '';
     const underline = inherited.underline || node.tag === 'u' || node.tag === 'ins' || node.tag === 'a' || textDecoration.includes('underline');
     const strike = inherited.strike || ['s', 'strike', 'del'].includes(node.tag) || textDecoration.includes('line-through');
-    const bgRaw = cssVal(inline['background-color'] || inline['background']);
+    const bgRaw = cssVal(inline['background-color'] || inline['background'] || node.attributes['bgcolor']);
     const validBg = bgRaw && !TRANSPARENT_KEYWORDS.has(bgRaw.toLowerCase()) ? bgRaw : undefined;
     const defaultCommentBg = ('data-word-comment-id' in node.attributes || hasClass(node, 'word-comment-anchor'))
       ? '#fef3c7'
@@ -1420,13 +1441,23 @@ export function resolveDefaultModelStyles(
         borderLeft = val;
         explicitBorderLeft = true;
       }
-      const bTop = parseCssBorder(cssVal(inline['border-top']));
+      const composeSideBorder = (side: 'top' | 'right' | 'bottom' | 'left'): string | undefined => {
+        const direct = cssVal(inline[`border-${side}`]);
+        if (direct !== undefined) return direct;
+        const bw = cssVal(inline[`border-${side}-width`] || inline['border-width']);
+        const bs = cssVal(inline[`border-${side}-style`] || inline['border-style']);
+        const bc = cssVal(inline[`border-${side}-color`] || inline['border-color']);
+        if (!bw && !bs && !bc) return undefined;
+        if (bs === 'none' || bs === 'hidden') return 'none';
+        return [bw || '1px', bs || 'solid', bc || '#94a3b8'].join(' ');
+      };
+      const bTop = parseCssBorder(composeSideBorder('top'));
       if (bTop !== undefined) borderTop = bTop ?? undefined;
-      const bRight = parseCssBorder(cssVal(inline['border-right']));
+      const bRight = parseCssBorder(composeSideBorder('right'));
       if (bRight !== undefined) borderRight = bRight ?? undefined;
-      const bBottom = parseCssBorder(cssVal(inline['border-bottom']));
+      const bBottom = parseCssBorder(composeSideBorder('bottom'));
       if (bBottom !== undefined) borderBottom = bBottom ?? undefined;
-      const bLeft = parseCssBorder(cssVal(inline['border-left']));
+      const bLeft = parseCssBorder(composeSideBorder('left'));
       if (bLeft !== undefined) {
         borderLeft = bLeft ?? undefined;
         explicitBorderLeft = true;
@@ -1457,10 +1488,25 @@ export function resolveDefaultModelStyles(
     };
 
     if (node.tag === 'td' || node.tag === 'th') {
-      const vAlign = cssVal(inline['vertical-align'])?.toLowerCase();
+      const vAlign = (cssVal(inline['vertical-align']) || cssVal(node.attributes['valign']))?.toLowerCase();
       if (vAlign === 'top' || vAlign === 'middle' || vAlign === 'bottom') {
         resolved.verticalAlign = vAlign;
       }
+    }
+    const hasExplicitBg = Boolean(cssVal(inline['background-color'] || inline['background'] || node.attributes['bgcolor']));
+    const hasExplicitBorder = Boolean(
+      cssVal(inline['border']) || cssVal(inline['border-top']) || cssVal(inline['border-right']) || cssVal(inline['border-bottom']) || cssVal(inline['border-left']),
+    );
+    if (node.tag === 'pre' && !hasExplicitBg && !hasExplicitBorder) {
+      resolved.background = '#f1f5f9';
+      resolved.borderTop = { width: 1, color: '#e2e8f0' };
+      resolved.borderRight = { width: 1, color: '#e2e8f0' };
+      resolved.borderBottom = { width: 1, color: '#e2e8f0' };
+      resolved.borderLeft = { width: 1, color: '#e2e8f0' };
+      resolved.indentLeft = Math.max(resolved.indentLeft || 0, 16);
+      resolved.indentRight = Math.max(resolved.indentRight || 0, 16);
+      resolved.before = Math.max(resolved.before || 0, 10);
+      resolved.after = Math.max(resolved.after || 0, 10);
     }
     if (node.tag === 'blockquote' && !explicitBorderLeft) {
       resolved.indentLeft = (resolved.indentLeft || 0) + 16;
@@ -1487,9 +1533,22 @@ export function resolveDefaultModelStyles(
       const rowCells = (tr: Extract<DocumentNode, { kind: 'element' }>) =>
         tr.children.filter((c): c is Extract<DocumentNode, { kind: 'element' }> => c.kind === 'element' && ['td', 'th'].includes(c.tag));
       let colCount = 1;
-      for (const tr of trNodes) {
-        const spanSum = rowCells(tr).reduce((sum, c) => sum + Math.max(1, Number(c.attributes['colspan'] || 1)), 0);
-        if (spanSum > colCount) colCount = spanSum;
+      const occ: boolean[][] = [];
+      for (let r = 0; r < trNodes.length; r++) {
+        occ[r] ||= [];
+        let cIdx = 0;
+        for (const cell of rowCells(trNodes[r])) {
+          while (occ[r][cIdx]) cIdx++;
+          const cs = Math.max(1, Number(cell.attributes['colspan'] || 1));
+          const rs = Math.max(1, Math.min(trNodes.length - r, Number(cell.attributes['rowspan'] || 1)));
+          for (let dr = 0; dr < rs; dr++) {
+            occ[r + dr] ||= [];
+            for (let dc = 0; dc < cs; dc++) occ[r + dr][cIdx + dc] = true;
+          }
+          cIdx += cs;
+        }
+        while (occ[r][cIdx]) cIdx++;
+        if (cIdx > colCount) colCount = cIdx;
       }
       const unmergedRowWithWidths = trNodes.find(tr => {
         const cells = rowCells(tr);
@@ -1571,7 +1630,7 @@ export function resolveDefaultModelStyles(
       ? resolved
       : {
           ...resolved,
-          background: undefined,
+          background: ['tr', 'thead', 'tbody', 'tfoot'].includes(node.tag) ? resolved.background : undefined,
           before: 0,
           after: 0,
           firstLineIndent: 0,

@@ -635,11 +635,17 @@ export class WordCanvasEditorComponent implements AfterViewInit,OnDestroy {
    event.preventDefault();
    const delta:1|-1=event.shiftKey?-1:1;
    this.edit(()=>{
+    if(this.session!.isInsideCodeBlock())return this.session!.indentCodeBlock(delta);
     const ctx=this.session!.getSelectionContext();
     if(ctx?.table)return this.session!.navigateTableCell(delta);
     if(ctx?.formats.insertUnorderedList||ctx?.formats.insertOrderedList)return this.session!.indentListItem(delta);
     return this.session!.adjustBlockIndent(delta*24);
    });
+   return;
+  }
+  if(event.key==='Enter'&&(meta||event.shiftKey)&&!event.altKey&&!this.readOnly()&&this.session.isInsideCodeBlock()){
+   event.preventDefault();
+   this.edit(()=>this.session!.enter(true));
    return;
   }
   if(meta&&!event.altKey&&!event.shiftKey&&(key==='b'||key==='i')){event.preventDefault();if(!this.readOnly()&&!selectedImg)this.edit(()=>this.session!.toggleInlineCommand(key==='b'?'bold':'italic'));return;}
@@ -899,7 +905,20 @@ export class WordCanvasEditorComponent implements AfterViewInit,OnDestroy {
   };
   const html=event.clipboardData.getData('text/html');
   const text=event.clipboardData.getData('text/plain');
-  const hasMixedBlocks=Boolean(html&&/<(?:h[1-6]|ul|ol|blockquote)\b/i.test(html));
+  if(session.isInsideCodeBlock()&&text){
+   this.edit(()=>session.pastePlainText(text));
+   return;
+  }
+  const hasMixedBlocks=Boolean(
+   html&&
+   /<(?:p|div|h[1-6]|ul|ol|blockquote|pre)\b/i.test(html)&&
+   (()=>{
+    const d=new DOMParser().parseFromString(html,'text/html');
+    const clone=d.body.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('table,script,style,meta,title').forEach(el=>el.remove());
+    return (clone.textContent||'').trim().length>0;
+   })(),
+  );
   const tableHtml=hasMixedBlocks?null:clipboardTableHtml(html,text);
   if(tableHtml){
    const isApa7=Boolean(this.effectiveDefaults()?.apaBorders);
@@ -934,7 +953,7 @@ export class WordCanvasEditorComponent implements AfterViewInit,OnDestroy {
     }
    }
   }
-  this.edit(()=>session.insert(text));
+  this.edit(()=>text.includes('\n')?session.pastePlainText(text):session.insert(text));
  }
  private editAndCheck(action:()=>boolean):boolean {
   if(!this.session||this.readOnly())return false;

@@ -1279,4 +1279,19 @@ describe('Word editing across pages', () => {
     expect(session.pages[0].html).toContain('text-indent: -36pt');
     expect(editor.formats().firstLineIndentPt).toBe(-36);
   });
+
+  it('automatically opens table ribbon tab when a table cell is selected and restores prior tab when deselected', () => {
+    editor.activeTab.set('home');
+    const cell = document.createElement('td');
+
+    editor.activeTableCell.set(cell);
+    TestBed.flushEffects();
+
+    expect(editor.activeTab()).toBe('table');
+
+    editor.activeTableCell.set(null);
+    TestBed.flushEffects();
+
+    expect(editor.activeTab()).toBe('home');
+  });
 });

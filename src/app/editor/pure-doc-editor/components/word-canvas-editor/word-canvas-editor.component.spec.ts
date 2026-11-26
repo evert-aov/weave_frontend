@@ -478,4 +478,70 @@ describe('Canvas document viewport',()=>{
   sub.unsubscribe();
  });
 
+ it('preserves surrounding paragraphs and lists when pasting Gemini mixed HTML containing a table, and splits multi-line plain text into paragraphs',async()=>{
+  vi.spyOn(CanvasPageRenderer.prototype,'render').mockImplementation(()=>{});
+  const fixture=TestBed.createComponent(WordCanvasEditorComponent);
+  fixture.componentRef.setInput('pages',[{id:'p',html:'<p>Inicio</p>'}]);
+  fixture.componentRef.setInput('geometry',{width:600,height:800,top:50,right:50,bottom:50,left:50});
+  fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
+  const editor=fixture.componentInstance,session=editor.session!;
+
+  const geminiHtml=`
+    <p>Ejemplo para estimar KLDC:</p>
+    <table><thead><tr><th>Proyecto</th><th>KLDC Esperadas</th></tr></thead><tbody><tr><td>P-A</td><td>65,57</td></tr></tbody></table>
+    <p>Se calcula el KLDC de 3 proyectos:</p>
+    <ul><li>Optimista: El que generó menos KLDC</li></ul>
+  `;
+  const clipboard={items:[],getData:(type:string)=>type==='text/html'?geminiHtml:'Ejemplo'};
+  const event={clipboardData:clipboard,preventDefault:vi.fn()} as unknown as ClipboardEvent;
+  await editor.paste(event);
+  const htmlAfter=session.engine.getSourcePages()[0].html;
+  expect(htmlAfter).toContain('Ejemplo para estimar KLDC:');
+  expect(htmlAfter).toContain('65,57');
+  expect(htmlAfter).toContain('Se calcula el KLDC de 3 proyectos:');
+  expect(htmlAfter).toContain('Optimista: El que generó menos KLDC');
+
+  // Plain-text multi-line paste creates individual <p> paragraphs that can be converted to lists or headings
+  const plainClipboard={items:[],getData:(type:string)=>type==='text/plain'?'Primera línea pegada\nSegunda línea pegada':''};
+  const plainEvent={clipboardData:plainClipboard,preventDefault:vi.fn()} as unknown as ClipboardEvent;
+  await editor.paste(plainEvent);
+  const htmlAfterPlain=session.engine.getSourcePages()[0].html;
+  expect(htmlAfterPlain).toContain('<p>Primera línea pegada</p>');
+  expect(htmlAfterPlain).toContain('<p>Segunda línea pegada</p>');
+ });
+
+ it('round-trips a Weave table with merged cells, empty sub-header cells, highlights, and alignments through copy() and paste()',async()=>{
+  vi.spyOn(CanvasPageRenderer.prototype,'render').mockImplementation(()=>{});
+  const srcFixture=TestBed.createComponent(WordCanvasEditorComponent);
+  srcFixture.componentRef.setInput('pages',[{
+   id:'src',
+   html:'<table style="width:100%;table-layout:fixed;border-collapse:collapse"><colgroup><col style="width:30%"><col style="width:35%"><col style="width:35%"></colgroup><thead><tr><th style="border:1px solid #000;background-color:#dbe5f1">Tipo</th><th colspan="2" style="border:1px solid #000;background-color:#dbe5f1;text-align:center">Factor</th></tr><tr><th style="border:1px solid #000;background-color:#dbe5f1"></th><th style="border:1px solid #000;background-color:#dbe5f1;text-align:center">Simple</th><th style="border:1px solid #000;background-color:#dbe5f1;text-align:center">Medio</th></tr></thead><tbody><tr><td style="border:1px solid #000">Pantallas</td><td style="border:1px solid #000;background-color:#ffff00;text-align:center">2</td><td style="border:1px solid #000;text-align:right">48</td></tr></tbody></table>',
+  }]);
+  srcFixture.componentRef.setInput('geometry',{width:600,height:800,top:50,right:50,bottom:50,left:50});
+  srcFixture.detectChanges();await srcFixture.whenStable();srcFixture.detectChanges();
+
+  const srcEditor=srcFixture.componentInstance;
+  srcEditor.session!.selectAll();
+  const data=new Map<string,string>();
+  const clipboard={items:[],setData:(t:string,v:string)=>data.set(t,v),getData:(t:string)=>data.get(t)||''};
+  const copyEv={clipboardData:clipboard,preventDefault:vi.fn()} as unknown as ClipboardEvent;
+  srcEditor.copy(copyEv,false);
+
+  const dstFixture=TestBed.createComponent(WordCanvasEditorComponent);
+  dstFixture.componentRef.setInput('pages',[{id:'dst',html:'<p></p>'}]);
+  dstFixture.componentRef.setInput('geometry',{width:600,height:800,top:50,right:50,bottom:50,left:50});
+  dstFixture.detectChanges();await dstFixture.whenStable();dstFixture.detectChanges();
+  const dstEditor=dstFixture.componentInstance;
+  await dstEditor.paste({clipboardData:clipboard,preventDefault:vi.fn()} as unknown as ClipboardEvent);
+
+  const outHtml=dstEditor.session!.pages[0].html;
+  const parsed=new DOMParser().parseFromString(outHtml,'text/html');
+  const row1Cells=Array.from(parsed.querySelectorAll('table tr')[1].querySelectorAll('th, td'));
+  expect(row1Cells).toHaveLength(3);
+  expect(row1Cells[0].textContent?.trim()).toBe('');
+  expect(row1Cells[1].textContent?.trim()).toBe('Simple');
+  expect(row1Cells[2].textContent?.trim()).toBe('Medio');
+  expect(outHtml.toLowerCase()).toContain('#ffff00');
+ });
+
 });

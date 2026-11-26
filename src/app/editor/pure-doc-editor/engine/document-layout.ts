@@ -39,6 +39,7 @@ export interface ParagraphBlock {
   borderRight?: { width: number; color: string };
   borderBottom?: { width: number; color: string };
   borderLeft?: { width: number; color: string };
+  preserveWhitespace?: boolean;
 }
 export interface ImageBlock { align?: 'left'|'center'|'right'; kind: 'image'; nodeId?: string; assetId: string; width: number; height: number }
 export interface RuleBlock { kind: 'rule'; nodeId?: string; height: number; thickness?: number; color: string; before?: number; after?: number }
@@ -489,7 +490,7 @@ function paragraphLines(block: ParagraphBlock, width: number, measure: MeasureTe
     const length = token.reduce((sum, g) => sum + g.width, 0);
     const currentLimit = lineLimit(lines.length);
     if (used + length > currentLimit && line.length) flush();
-    if (!line.length && token.every(g => /\s/.test(g.text))) continue;
+    if (!block.preserveWhitespace && !line.length && token.every(g => /\s/.test(g.text))) continue;
     for (const glyph of token) {
       const limit = lineLimit(lines.length);
       if (used + glyph.width > limit && line.length) flush();
@@ -706,14 +707,20 @@ function tableGroups(table: TableBlock, width: number, measure: MeasureText): Bo
     let c = 0;
     for (const cell of row) {
       while (occupied[r][c]) c++;
-      const rows = cell.rowSpan ?? 1, cols = cell.colSpan ?? 1;
-      if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1 || r + rows > table.rows.length || c + cols > columns.length) {
+      if (c >= columns.length) break;
+      const rawRows = cell.rowSpan ?? 1, rawCols = cell.colSpan ?? 1;
+      if (!Number.isInteger(rawRows) || !Number.isInteger(rawCols) || rawRows < 1 || rawCols < 1) {
         throw new Error('Invalid table span');
       }
+      const rows = Math.min(rawRows, table.rows.length - r);
+      let maxAvailCols = 0;
+      while (c + maxAvailCols < columns.length && !occupied[r][c + maxAvailCols] && maxAvailCols < rawCols) {
+        maxAvailCols++;
+      }
+      const cols = Math.max(1, Math.min(rawCols, maxAvailCols || (columns.length - c)));
       for (let y = r; y < r + rows; y++) {
         occupied[y] ||= [];
         for (let x = c; x < c + cols; x++) {
-          if (occupied[y][x]) throw new Error('Overlapping table cells');
           occupied[y][x] = true;
         }
       }
