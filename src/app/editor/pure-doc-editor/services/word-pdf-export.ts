@@ -363,9 +363,24 @@ function parseCanvasPdfFont(font: string): ParsedPdfFont {
   const bold = /\b(bold|[6-9]00)\b/i.test(font);
   const italic = /\b(italic|oblique)\b/i.test(font);
   const style: ParsedPdfFont['style'] = bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal';
+
+  // Extract the primary font family (first token after the size) so fallback chains like
+  // `"Calibri", "Times New Roman", serif` don't misclassify sans-serif headings as Times.
+  const afterSize = font.replace(/^[\s\S]*?\d+(?:\.\d+)?(?:px|pt)(?:\s*\/\s*[\d.]+(?:px|pt|%)?)?\s*/i, '');
+  const primaryFamily = (afterSize.split(',')[0] || font).replace(/["']/g, '').trim().toLowerCase();
+
   let family: ParsedPdfFont['family'] = 'helvetica';
-  if (/\b(courier|consolas|monaco|monospace|menlo)\b/i.test(font)) family = 'courier';
-  else if (!/\bsans-serif\b/i.test(font) && /\b(times|georgia|garamond|palatino|cambria|serif)\b/i.test(font)) family = 'times';
+  if (/\b(courier|consolas|monaco|monospace|menlo|jetbrains|fira\s*code|source\s*code)\b/i.test(primaryFamily)) {
+    family = 'courier';
+  } else if (/\b(calibri|arial|helvetica|inter|roboto|dm\s*sans|segoe|verdana|tahoma|open\s*sans|lato|montserrat|sans-serif)\b/i.test(primaryFamily)) {
+    family = 'helvetica';
+  } else if (/\b(times|georgia|garamond|palatino|cambria|book\s*antiqua|serif)\b/i.test(primaryFamily)) {
+    family = 'times';
+  } else if (/\b(courier|consolas|monaco|monospace|menlo)\b/i.test(font)) {
+    family = 'courier';
+  } else if (!/\bsans-serif\b/i.test(font) && /\b(times|georgia|garamond|palatino|cambria|serif)\b/i.test(font)) {
+    family = 'times';
+  }
   const result: ParsedPdfFont = { family, style, sizePt: Number.isFinite(sizePt) && sizePt > 0 ? Math.max(1, sizePt) : 11 };
   if (parsedFontCache.size < 256) parsedFontCache.set(font, result);
   return result;
