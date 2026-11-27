@@ -8798,6 +8798,8 @@ export class CanvasEditSession {
         const indentLeft = listRule?.indentLeftPt ?? 36;
         const hanging = listRule?.hangingIndentPt ?? 18;
         const lh = String(listRule?.lineHeight ?? pRule.lineHeight);
+        const existingListStyle = parseStyleMap(node.attributes['style']);
+        const preservedListStyleType = existingListStyle['list-style-type']?.trim();
         const styleMap: Record<string, string> = {
           'font-family': fontFamilyCss,
           'font-size': `${pRule.fontSizePt}pt`,
@@ -8810,7 +8812,11 @@ export class CanvasEditSession {
           'margin-left': listDepth === 0 ? `${Math.max(0, indentLeft - hanging)}pt` : '0pt',
           'padding-left': listDepth === 0 ? `${hanging}pt` : '15pt',
           'list-style-position': 'outside',
-          ...(listDepth === 0 ? { 'list-style-type': listRule?.marker ?? (node.tag === 'ol' ? 'decimal' : 'disc') } : {}),
+          ...(listDepth === 0
+            ? { 'list-style-type': preservedListStyleType || listRule?.marker || (node.tag === 'ol' ? 'decimal' : 'disc') }
+            : preservedListStyleType
+              ? { 'list-style-type': preservedListStyleType }
+              : {}),
         };
         const nextListAttrs: Record<string, string> = {
           ...node.attributes,
@@ -8832,6 +8838,11 @@ export class CanvasEditSession {
               return transformNode(child, inCell, false, listDepth + 1);
             }
             if (child.tag !== 'li') return child;
+            const existingLiStyle = parseStyleMap(child.attributes['style']);
+            const existingLiMarginLeft = existingLiStyle['margin-left']?.trim();
+            const preservedLiMarginLeft =
+              existingLiMarginLeft && parseFloat(existingLiMarginLeft) > 0 ? existingLiMarginLeft : '0pt';
+            const preservedLiStyleType = existingLiStyle['list-style-type']?.trim();
             const liStyle: Record<string, string> = {
               'font-family': fontFamilyCss,
               'font-size': `${pRule.fontSizePt}pt`,
@@ -8839,10 +8850,11 @@ export class CanvasEditSession {
               'text-align': 'left',
               'line-height': lh,
               'text-indent': '0pt',
-              'margin-left': '0pt',
+              'margin-left': preservedLiMarginLeft,
               'margin-right': '0pt',
               'margin-top': `${listRule?.spaceBeforePt ?? 0}pt`,
               'margin-bottom': `${listRule?.spaceAfterPt ?? 0}pt`,
+              ...(preservedLiStyleType ? { 'list-style-type': preservedLiStyleType } : {}),
             };
             return {
               ...child,

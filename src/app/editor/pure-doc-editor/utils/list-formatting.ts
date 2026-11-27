@@ -1,7 +1,7 @@
 import type { StyleTemplate } from '../models/word-document.model';
 
 /** Lists keep their semantic structure, numbering starts, inline emphasis and text. */
-export function applyTemplateLists(bodies: HTMLElement[], template: StyleTemplate, preserveMarker = false): void {
+export function applyTemplateLists(bodies: HTMLElement[], template: StyleTemplate, preserveMarker = true): void {
   if (!template.listRules) return;
   const normal = template.rules.P;
   bodies.forEach(body => body.querySelectorAll<HTMLElement>('ol,ul').forEach(list => {
@@ -17,10 +17,13 @@ export function applyTemplateLists(bodies: HTMLElement[], template: StyleTemplat
     list.dataset['wordListHanging'] = String(rule.hangingIndentPt);
     list.querySelectorAll<HTMLElement>(':scope > li').forEach(item => {
       item.dataset['wordLineSpacing']=String(rule.lineHeight);
+      const existingMarginLeft = item.style.marginLeft?.trim();
+      const preservedMarginLeft =
+        existingMarginLeft && parseFloat(existingMarginLeft) > 0 ? existingMarginLeft : '0pt';
       Object.assign(item.style, {
         fontFamily: normal.fontFamily, fontSize: `${normal.fontSizePt}pt`, color: normal.color,
         textAlign: 'left', lineHeight: String(rule.lineHeight), textIndent: '0pt',
-        marginLeft: '0pt', marginRight: '0pt', marginTop: `${rule.spaceBeforePt}pt`, marginBottom: `${rule.spaceAfterPt}pt`,
+        marginLeft: preservedMarginLeft, marginRight: '0pt', marginTop: `${rule.spaceBeforePt}pt`, marginBottom: `${rule.spaceAfterPt}pt`,
       });
       // Imported DOCX can keep the font on every run rather than on the LI/P.
       // Normalize typography, without removing emphasis, citations or characters.

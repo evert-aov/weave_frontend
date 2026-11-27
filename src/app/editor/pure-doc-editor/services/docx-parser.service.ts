@@ -75,11 +75,19 @@ interface NumberingLevelDef {
   pStyle?: string;
 }
 
+interface ListItemNumbering {
+  tag: 'ol' | 'ul';
+  cssListStyleType: string;
+  ordinal: number;
+  ilvl: number;
+}
+
 interface NumberingEngine {
   getListType: (numId: string, ilvl: number) => 'ol' | 'ul';
   isMultiLevelOutline: (numId: string, ilvl: number) => boolean;
   getLinkedHeadingLevelForStyle: (styleId: string) => { numId: string; ilvl: number } | undefined;
   formatNextNumberPrefix: (numId: string, ilvl: number) => string;
+  advanceListItem: (numId: string, ilvl: number) => ListItemNumbering;
 }
 
 
@@ -688,11 +696,41 @@ export class DocxParserService {
         return String(val);
     }
   }
+  private mapNumFmtToCss(numFmt: string, lvlText: string): { tag: 'ol' | 'ul'; cssListStyleType: string } {
+    const fmt = (numFmt || 'decimal').toLowerCase();
+    if (fmt === 'none') {
+      return { tag: 'ul', cssListStyleType: 'none' };
+    }
+    if (fmt === 'bullet') {
+      const txt = (lvlText || '').trim();
+      if (/^[▪■◾▫□◆◇❖\uf0a7\uf06e\uf0a8\uf075\uf076]$/.test(txt)) {
+        return { tag: 'ul', cssListStyleType: 'square' };
+      }
+      if (/^[o◦○\uf0a1\uf06f]$/i.test(txt)) {
+        return { tag: 'ul', cssListStyleType: 'circle' };
+      }
+      return { tag: 'ul', cssListStyleType: 'disc' };
+    }
+    switch (fmt) {
+      case 'lowerletter':
+        return { tag: 'ol', cssListStyleType: 'lower-alpha' };
+      case 'upperletter':
+        return { tag: 'ol', cssListStyleType: 'upper-alpha' };
+      case 'lowerroman':
+        return { tag: 'ol', cssListStyleType: 'lower-roman' };
+      case 'upperroman':
+        return { tag: 'ol', cssListStyleType: 'upper-roman' };
+      default:
+        return { tag: 'ol', cssListStyleType: 'decimal' };
+    }
+  }
   private createNumberingEngine(numberingXmlStr?: string): NumberingEngine {
     const abstractLevelsMap: Record<string, Record<number, NumberingLevelDef>> = {};
     const numIdToAbstractId: Record<string, string> = {};
+    const numIdOverrides: Record<string, Record<number, Partial<NumberingLevelDef>>> = {};
     const styleToNumAndIlvl: Record<string, { numId: string; ilvl: number }> = {};
     const countersByAbstractId: Record<string, number[]> = {};
+    const listCountersByNumId: Record<string, number[]> = {};
 
     if (numberingXmlStr) {
       const parser = new DOMParser();
@@ -734,6 +772,34 @@ export class DocxParserService {
           const absId = this.getAttrByLocalName(absIdEl, 'val');
           if (numId && absId && abstractLevelsMap[absId]) {
             numIdToAbstractId[numId] = absId;
+            const overrides = this.findDirectChildren(num, 'lvlOverride');
+            if (overrides.length > 0) {
+              numIdOverrides[numId] = {};
+              for (const ov of overrides) {
+                const ovIlvl = Number(this.getAttrByLocalName(ov, 'ilvl') || 0);
+                const startOvEl = this.findDirectChild(ov, 'startOverride');
+                const startOvVal = this.getAttrByLocalName(startOvEl, 'val');
+                const lvlEl = this.findDirectChild(ov, 'lvl');
+                const entry: Partial<NumberingLevelDef> = {};
+                if (startOvVal !== null && !isNaN(Number(startOvVal))) {
+                  entry.start = Number(startOvVal);
+                }
+                if (lvlEl) {
+                  const sEl = this.findDirectChild(lvlEl, 'start');
+                  const sVal = this.getAttrByLocalName(sEl, 'val');
+                  if (sVal !== null && !isNaN(Number(sVal)) && entry.start === undefined) {
+                    entry.start = Number(sVal);
+                  }
+                  const fmtEl = this.findDirectChild(lvlEl, 'numFmt');
+                  const fmtVal = this.getAttrByLocalName(fmtEl, 'val');
+                  if (fmtVal) entry.numFmt = fmtVal;
+                  const txtEl = this.findDirectChild(lvlEl, 'lvlText');
+                  const txtVal = this.getAttrByLocalName(txtEl, 'val');
+                  if (txtVal !== null) entry.lvlText = txtVal;
+                }
+                numIdOverrides[numId][ovIlvl] = entry;
+              }
+            }
             const levels = abstractLevelsMap[absId];
             Object.values(levels).forEach((lvlDef) => {
               if (lvlDef.pStyle && !styleToNumAndIlvl[lvlDef.pStyle]) {
@@ -748,7 +814,10 @@ export class DocxParserService {
     const getLevelDef = (numId: string, ilvl: number): NumberingLevelDef | undefined => {
       const absId = numIdToAbstractId[numId];
       if (!absId || !abstractLevelsMap[absId]) return undefined;
-      return abstractLevelsMap[absId][ilvl] || abstractLevelsMap[absId][0];
+      const base = abstractLevelsMap[absId][ilvl] || abstractLevelsMap[absId][0];
+      if (!base) return undefined;
+      const override = numIdOverrides[numId]?.[ilvl];
+      return override ? { ...base, ...override } : base;
     };
 
     return {
@@ -812,6 +881,31 @@ export class DocxParserService {
         }
 
         return formatted.trim();
+      },
+      advanceListItem: (numId: string, ilvl: number): ListItemNumbering => {
+        const clampedIlvl = Math.max(0, Math.min(8, ilvl));
+        const def = getLevelDef(numId, clampedIlvl);
+        if (!listCountersByNumId[numId]) {
+          listCountersByNumId[numId] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+        }
+        const counters = listCountersByNumId[numId];
+        if (counters[clampedIlvl] === 0) {
+          counters[clampedIlvl] = def ? def.start : 1;
+        } else {
+          counters[clampedIlvl]++;
+        }
+        for (let k = clampedIlvl + 1; k < 9; k++) {
+          counters[k] = 0;
+        }
+        const mapped = def
+          ? this.mapNumFmtToCss(def.numFmt, def.lvlText)
+          : { tag: 'ul' as const, cssListStyleType: 'disc' };
+        return {
+          tag: mapped.tag,
+          cssListStyleType: mapped.cssListStyleType,
+          ordinal: counters[clampedIlvl],
+          ilvl: clampedIlvl,
+        };
       },
     };
   }
@@ -1148,6 +1242,15 @@ export class DocxParserService {
     let tableFlowSequence = 0;
     let currentPageHeightPx = 0;
 
+    let lastPageListState: {
+      pageIdx: number;
+      numId: string;
+      ilvl: number;
+      tag: 'ol' | 'ul';
+      cssListStyleType: string;
+      lastOrdinal: number;
+    } | null = null;
+
     const pushExplicitPageBreak = (manual = true) => {
       const currentChunk = pagesHtmlChunks[pagesHtmlChunks.length - 1];
       if (currentChunk.length === 0) {
@@ -1156,18 +1259,56 @@ export class DocxParserService {
       pagesHtmlChunks.push([]);
       if (manual) manualPageStarts.add(pagesHtmlChunks.length - 1);
       currentPageHeightPx = 0;
+      lastPageListState = null;
     };
 
-    const appendBlockToCurrentPage = (html: string, estimatedHeightPx: number) => {
+    const appendBlockToCurrentPage = (
+      html: string,
+      estimatedHeightPx: number,
+      listMeta?: { numId: string; ilvl: number; tag: 'ol' | 'ul'; cssListStyleType: string; ordinal: number; liHtml: string }
+    ) => {
       if (
         currentPageHeightPx + estimatedHeightPx > maxPageContentHeightPx &&
         pagesHtmlChunks[pagesHtmlChunks.length - 1].length > 0
       ) {
         pagesHtmlChunks.push([]);
         currentPageHeightPx = 0;
+        lastPageListState = null;
       }
-      pagesHtmlChunks[pagesHtmlChunks.length - 1].push(html);
+      const pageIdx = pagesHtmlChunks.length - 1;
+      const currentPage = pagesHtmlChunks[pageIdx];
+      if (
+        listMeta &&
+        lastPageListState &&
+        lastPageListState.pageIdx === pageIdx &&
+        lastPageListState.numId === listMeta.numId &&
+        lastPageListState.ilvl === listMeta.ilvl &&
+        lastPageListState.tag === listMeta.tag &&
+        lastPageListState.cssListStyleType === listMeta.cssListStyleType &&
+        (listMeta.tag === 'ul' || listMeta.ordinal === lastPageListState.lastOrdinal + 1) &&
+        currentPage.length > 0
+      ) {
+        const closeTag = `</${listMeta.tag}>`;
+        const prevHtml = currentPage[currentPage.length - 1];
+        if (prevHtml.endsWith(closeTag)) {
+          currentPage[currentPage.length - 1] = prevHtml.slice(0, -closeTag.length) + listMeta.liHtml + closeTag;
+          lastPageListState.lastOrdinal = listMeta.ordinal;
+          currentPageHeightPx += estimatedHeightPx;
+          return;
+        }
+      }
+      currentPage.push(html);
       currentPageHeightPx += estimatedHeightPx;
+      lastPageListState = listMeta
+        ? {
+            pageIdx,
+            numId: listMeta.numId,
+            ilvl: listMeta.ilvl,
+            tag: listMeta.tag,
+            cssListStyleType: listMeta.cssListStyleType,
+            lastOrdinal: listMeta.ordinal,
+          }
+        : null;
     };
 
     const resolveStyleChain = (styleId?: string | null): StyleDefinition | null => {
@@ -1208,7 +1349,11 @@ export class DocxParserService {
       insideTocSdt: boolean = false,
       insideTableCell: boolean = false
     ): {
-      fragmentsWithHeight: { html: string; heightPx: number }[];
+      fragmentsWithHeight: {
+        html: string;
+        heightPx: number;
+        listMeta?: { numId: string; ilvl: number; tag: 'ol' | 'ul'; cssListStyleType: string; ordinal: number; liHtml: string };
+      }[];
       breakBefore: boolean;
       hasSectBreakAfter: boolean;
     } => {
@@ -1617,6 +1762,7 @@ export class DocxParserService {
       let generatedNumberPrefix = '';
       let isStandardBulletOrList = false;
       let listTagType: 'ul' | 'ol' = 'ul';
+      let listItemNumbering: ListItemNumbering | null = null;
 
       if (!insideTableCell && activeNumId && hasTextRuns && !tocLevel && !insideTocSdt) {
         const listKind = numberingEngine.getListType(activeNumId, activeIlvl);
@@ -1639,7 +1785,8 @@ export class DocxParserService {
           }
         } else {
           isStandardBulletOrList = true;
-          listTagType = listKind;
+          listItemNumbering = numberingEngine.advanceListItem(activeNumId, activeIlvl);
+          listTagType = listItemNumbering.tag || listKind;
         }
       }
 
@@ -1792,19 +1939,44 @@ export class DocxParserService {
         const styleAttr = blockStyles.length > 0 ? ` style="${blockStyles.join('; ')}"` : '';
 
         if (isStandardBulletOrList) {
-          return `<${listTagType}><li${styleAttr}>${trimmed}</li></${listTagType}>`;
+          const cssType = listItemNumbering?.cssListStyleType || (listTagType === 'ol' ? 'decimal' : 'disc');
+          const ordinal = listItemNumbering?.ordinal ?? 1;
+          const startAttr = listTagType === 'ol' && ordinal !== 1 ? ` start="${ordinal}"` : '';
+          const liHtml = `<li${styleAttr}>${trimmed}</li>`;
+          return `<${listTagType}${startAttr} style="list-style-type: ${cssType}">${liHtml}</${listTagType}>`;
         }
 
         return `<p${tocImport.target(pEl) ? ` id="${tocImport.target(pEl)}"` : ''}${styleAttr}>${trimmed}</p>`;
       };
 
       const fragmentsWithHeight = runBuckets
-        .map((b) => wrapBucketHtml(b.join('')))
-        .filter(Boolean)
-        .map((html) => ({
-          html,
-          heightPx: estimatedBlockHeightPx,
-        }));
+        .map((b) => {
+          const html = wrapBucketHtml(b.join(''));
+          if (!html) return null;
+          let listMeta:
+            | { numId: string; ilvl: number; tag: 'ol' | 'ul'; cssListStyleType: string; ordinal: number; liHtml: string }
+            | undefined;
+          if (isStandardBulletOrList && activeNumId && listItemNumbering) {
+            const liStart = html.indexOf('<li');
+            const liEnd = html.lastIndexOf('</li>');
+            if (liStart >= 0 && liEnd > liStart) {
+              listMeta = {
+                numId: activeNumId,
+                ilvl: listItemNumbering.ilvl,
+                tag: listItemNumbering.tag,
+                cssListStyleType: listItemNumbering.cssListStyleType,
+                ordinal: listItemNumbering.ordinal,
+                liHtml: html.slice(liStart, liEnd + 5),
+              };
+            }
+          }
+          return {
+            html,
+            heightPx: estimatedBlockHeightPx,
+            ...(listMeta ? { listMeta } : {}),
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
       return {
         fragmentsWithHeight,
@@ -1922,6 +2094,7 @@ export class DocxParserService {
         currentPageHeightPx += currentSliceHeightPx;
         currentSliceRows = [];
         currentSliceHeightPx = 6;
+        lastPageListState = null;
       };
 
       rows.forEach((tr) => {
@@ -2068,7 +2241,7 @@ export class DocxParserService {
               pushExplicitPageBreak();
             }
             if (frag.html) {
-              appendBlockToCurrentPage(frag.html, frag.heightPx);
+              appendBlockToCurrentPage(frag.html, frag.heightPx, frag.listMeta);
             }
           });
 
