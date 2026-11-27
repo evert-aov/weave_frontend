@@ -346,44 +346,229 @@ export function applyCanvasPdfNavigation(
   );
 }
 
-type ParsedPdfFont = {
-  family: 'times' | 'helvetica' | 'courier';
-  style: 'normal' | 'bold' | 'italic' | 'bolditalic';
+export type BuiltinPdfFontFamily = 'times' | 'helvetica' | 'courier';
+export type EmbeddedPdfFontFamily = 'liberation-sans' | 'dejavu-sans' | 'liberation-serif' | 'jetbrains-mono';
+export type PdfFontStyle = 'normal' | 'bold' | 'italic' | 'bolditalic';
+
+export type ParsedPdfFont = {
+  family: BuiltinPdfFontFamily;
+  embeddedFamily: EmbeddedPdfFontFamily;
+  style: PdfFontStyle;
   sizePt: number;
 };
 
 const parsedFontCache = new Map<string, ParsedPdfFont>();
+const browserFontAvailabilityCache = new Map<string, boolean>();
+const pdfFontBase64Cache = new Map<string, Promise<string | null>>();
 
-function parseCanvasPdfFont(font: string): ParsedPdfFont {
-  const cached = parsedFontCache.get(font);
-  if (cached) return cached;
+let fontProbeCtx: CanvasRenderingContext2D | null | undefined;
+
+function getFontProbeCtx(): CanvasRenderingContext2D | null {
+  if (fontProbeCtx !== undefined) return fontProbeCtx;
+  if (typeof document === 'undefined') {
+    fontProbeCtx = null;
+    return null;
+  }
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx || typeof ctx.measureText !== 'function') {
+      fontProbeCtx = null;
+      return null;
+    }
+    ctx.font = '72px monospace';
+    const monoW = ctx.measureText('iiiiiiiiii').width;
+    ctx.font = '72px sans-serif';
+    const sansW = ctx.measureText('iiiiiiiiii').width;
+    fontProbeCtx = monoW > 0 && sansW > 0 && Math.abs(monoW - sansW) > 1 ? ctx : null;
+  } catch {
+    fontProbeCtx = null;
+  }
+  return fontProbeCtx;
+}
+
+/** Detects whether a named CSS font family actually renders in the browser's 2D canvas (not falling back to generic). */
+function isBrowserFontAvailable(
+  familyName: string,
+  probeOverride?: (family: string) => boolean,
+): boolean {
+  if (probeOverride) return probeOverride(familyName);
+  const lower = familyName.toLowerCase();
+  if (['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui'].includes(lower)) return true;
+  const cached = browserFontAvailabilityCache.get(lower);
+  if (cached !== undefined) return cached;
+  const ctx = getFontProbeCtx();
+  if (!ctx) return true;
+  const sample = 'mmmmmmmmmmlli10Ww@MW';
+  let available = false;
+  for (const base of ['monospace', 'serif', 'sans-serif'] as const) {
+    ctx.font = `72px ${base}`;
+    const baseW = ctx.measureText(sample).width;
+    ctx.font = `72px "${familyName.replace(/"/g, '')}", ${base}`;
+    const testW = ctx.measureText(sample).width;
+    if (baseW > 0 && Math.abs(testW - baseW) > 0.05) {
+      available = true;
+      break;
+    }
+  }
+  browserFontAvailabilityCache.set(lower, available);
+  return available;
+}
+
+function classifyFontFamily(
+  name: string,
+): { family: BuiltinPdfFontFamily; embeddedFamily: EmbeddedPdfFontFamily } | null {
+  const lower = name.toLowerCase();
+  if (/\b(courier|consolas|monaco|monospace|menlo|jetbrains|fira\s*code|source\s*code|cascadia|iosevka|adwaita\s*mono|liberation\s*mono|dejavu\s*sans\s*mono)\b/i.test(lower)) {
+    return { family: 'courier', embeddedFamily: 'jetbrains-mono' };
+  }
+  if (/\b(calibri|carlito|aptos|candara|segoe|dm\s*sans|verdana|tahoma|open\s*sans|lato|lucida|dejavu\s*sans|corbel)\b/i.test(lower)) {
+    return { family: 'helvetica', embeddedFamily: 'dejavu-sans' };
+  }
+  if (/\b(arial|helvetica|inter|roboto|montserrat|liberation\s*sans|adwaita\s*sans|sans-serif|system-ui)\b/i.test(lower)) {
+    return { family: 'helvetica', embeddedFamily: 'liberation-sans' };
+  }
+  if (/\b(times|georgia|garamond|palatino|cambria|caladea|merriweather|book\s*antiqua|computer\s*modern|latin\s*modern|caslon|liberation\s*serif|dejavu\s*serif|serif)\b/i.test(lower)) {
+    return { family: 'times', embeddedFamily: 'liberation-serif' };
+  }
+  return null;
+}
+
+export function parseCanvasPdfFont(
+  font: string,
+  probeOverride?: (family: string) => boolean,
+): ParsedPdfFont {
+  if (!probeOverride) {
+    const cached = parsedFontCache.get(font);
+    if (cached) return cached;
+  }
   const pxMatch = /(\d+(?:\.\d+)?)px/i.exec(font);
   const ptMatch = /(\d+(?:\.\d+)?)pt/i.exec(font);
   const sizePt = pxMatch ? Number(pxMatch[1]) * PDF_PT_PER_PX : ptMatch ? Number(ptMatch[1]) : 11;
   const bold = /\b(bold|[6-9]00)\b/i.test(font);
   const italic = /\b(italic|oblique)\b/i.test(font);
-  const style: ParsedPdfFont['style'] = bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal';
+  const style: PdfFontStyle = bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal';
 
-  // Extract the primary font family (first token after the size) so fallback chains like
-  // `"Calibri", "Times New Roman", serif` don't misclassify sans-serif headings as Times.
   const afterSize = font.replace(/^[\s\S]*?\d+(?:\.\d+)?(?:px|pt)(?:\s*\/\s*[\d.]+(?:px|pt|%)?)?\s*/i, '');
-  const primaryFamily = (afterSize.split(',')[0] || font).replace(/["']/g, '').trim().toLowerCase();
+  const stack = afterSize
+    .split(',')
+    .map(part => part.replace(/["']/g, '').trim())
+    .filter(Boolean);
 
-  let family: ParsedPdfFont['family'] = 'helvetica';
-  if (/\b(courier|consolas|monaco|monospace|menlo|jetbrains|fira\s*code|source\s*code)\b/i.test(primaryFamily)) {
-    family = 'courier';
-  } else if (/\b(calibri|arial|helvetica|inter|roboto|dm\s*sans|segoe|verdana|tahoma|open\s*sans|lato|montserrat|sans-serif)\b/i.test(primaryFamily)) {
-    family = 'helvetica';
-  } else if (/\b(times|georgia|garamond|palatino|cambria|book\s*antiqua|serif)\b/i.test(primaryFamily)) {
-    family = 'times';
-  } else if (/\b(courier|consolas|monaco|monospace|menlo)\b/i.test(font)) {
-    family = 'courier';
-  } else if (!/\bsans-serif\b/i.test(font) && /\b(times|georgia|garamond|palatino|cambria|serif)\b/i.test(font)) {
-    family = 'times';
+  // Pick the first font family in the CSS stack that actually renders in the browser canvas
+  // so missing fonts like `"Inter", serif` match what the user sees on screen (serif).
+  let matched: { family: BuiltinPdfFontFamily; embeddedFamily: EmbeddedPdfFontFamily } | null = null;
+  for (const candidate of stack) {
+    if (!isBrowserFontAvailable(candidate, probeOverride)) continue;
+    matched = classifyFontFamily(candidate);
+    if (matched) break;
   }
-  const result: ParsedPdfFont = { family, style, sizePt: Number.isFinite(sizePt) && sizePt > 0 ? Math.max(1, sizePt) : 11 };
-  if (parsedFontCache.size < 256) parsedFontCache.set(font, result);
+  if (!matched) {
+    for (const candidate of stack) {
+      matched = classifyFontFamily(candidate);
+      if (matched) break;
+    }
+  }
+  if (!matched) {
+    matched = classifyFontFamily(font) ?? { family: 'helvetica', embeddedFamily: 'liberation-sans' };
+  }
+
+  const result: ParsedPdfFont = {
+    family: matched.family,
+    embeddedFamily: matched.embeddedFamily,
+    style,
+    sizePt: Number.isFinite(sizePt) && sizePt > 0 ? Math.max(1, sizePt) : 11,
+  };
+  if (!probeOverride && parsedFontCache.size < 256) parsedFontCache.set(font, result);
   return result;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
+  }
+  return btoa(binary);
+}
+
+async function fetchPdfFontBase64(embeddedFamily: EmbeddedPdfFontFamily, style: PdfFontStyle): Promise<string | null> {
+  const key = `${embeddedFamily}-${style}.ttf`;
+  const existing = pdfFontBase64Cache.get(key);
+  if (existing) return existing;
+  if (typeof fetch !== 'function') return null;
+
+  const task = (async (): Promise<string | null> => {
+    try {
+      const url =
+        typeof document !== 'undefined' && document.baseURI && /^https?:/i.test(document.baseURI)
+          ? new URL(`fonts/pdf/${key}`, document.baseURI).href
+          : `/fonts/pdf/${key}`;
+      const response = await pdfDeadline(fetch(url), `carga de fuente ${key}`, 8000);
+      if (!response.ok) return null;
+      const buf = await response.arrayBuffer();
+      if (!buf || buf.byteLength < 1024) return null;
+      return arrayBufferToBase64(buf);
+    } catch {
+      return null;
+    }
+  })();
+  pdfFontBase64Cache.set(key, task);
+  const resolved = await task;
+  if (!resolved) pdfFontBase64Cache.delete(key);
+  return resolved;
+}
+
+async function loadDocumentPdfFonts(
+  pdf: any,
+  displayLists: readonly PageDisplayList[],
+): Promise<Set<string>> {
+  const loaded = new Set<string>();
+  if (typeof pdf.addFileToVFS !== 'function' || typeof pdf.addFont !== 'function') {
+    return loaded;
+  }
+
+  const needed = new Map<string, { embeddedFamily: EmbeddedPdfFontFamily; style: PdfFontStyle }>();
+  const addNeeded = (embeddedFamily: EmbeddedPdfFontFamily, style: PdfFontStyle) => {
+    const key = `${embeddedFamily}:${style}`;
+    if (!needed.has(key)) needed.set(key, { embeddedFamily, style });
+  };
+
+  for (const list of displayLists) {
+    for (const cmd of list.commands) {
+      if (cmd.kind !== 'text' || !cmd.text) continue;
+      const parsed = parseCanvasPdfFont(cmd.font || '');
+      addNeeded(parsed.embeddedFamily, parsed.style);
+    }
+    const d = list.decorations;
+    if (d && !d.suppressHeaderFooter) {
+      if (d.apa) {
+        const apaFont = parseCanvasPdfFont(`${d.apa.fontSizePt}pt "${d.apa.fontFamily || 'Times New Roman'}"`);
+        addNeeded(apaFont.embeddedFamily, 'normal');
+      } else if (d.showHeaderFooter) {
+        addNeeded('liberation-sans', 'normal');
+        addNeeded('jetbrains-mono', 'normal');
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from(needed.entries()).map(async ([key, { embeddedFamily, style }]) => {
+      const base64 = await fetchPdfFontBase64(embeddedFamily, style);
+      if (!base64) return;
+      try {
+        const vfsName = `${embeddedFamily}-${style}.ttf`;
+        pdf.addFileToVFS(vfsName, base64);
+        pdf.addFont(vfsName, embeddedFamily, style);
+        loaded.add(key);
+      } catch {
+        // Fall back gracefully to built-in Type1 font if jsPDF rejects registration
+      }
+    }),
+  );
+
+  return loaded;
 }
 
 interface ParsedRgb {
@@ -498,7 +683,13 @@ async function loadPdfImageAsset(src: string): Promise<{ dataUrl: string; format
   return typeof dataUrl === 'string' && dataUrl.startsWith('data:image/png') ? { dataUrl, format: 'PNG' } : null;
 }
 
-function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: number, pageHeightPt: number): void {
+function drawVectorPdfDecorations(
+  pdf: any,
+  list: PageDisplayList,
+  pageWidthPt: number,
+  pageHeightPt: number,
+  loadedEmbeddedFonts: ReadonlySet<string>,
+): void {
   const d = list.decorations;
   if (!d) return;
   const geom = d.geometry;
@@ -524,18 +715,22 @@ function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: 
   if (d.apa && !d.suppressHeaderFooter) {
     const apa = d.apa;
     const font = parseCanvasPdfFont(`${apa.fontSizePt}pt "${apa.fontFamily || 'Times New Roman'}"`);
-    if (typeof pdf.setFont === 'function') pdf.setFont(font.family, 'normal');
+    const isEmbedded = loadedEmbeddedFonts.has(`${font.embeddedFamily}:normal`);
+    const activeFamily = isEmbedded ? font.embeddedFamily : font.family;
+    if (typeof pdf.setFont === 'function') pdf.setFont(activeFamily, 'normal');
     if (typeof pdf.setFontSize === 'function') pdf.setFontSize(font.sizePt);
     if (typeof pdf.setTextColor === 'function') pdf.setTextColor(0, 0, 0);
     const yPt = 48 * PDF_PT_PER_PX + font.sizePt;
     if (apa.mode === 'professional' && apa.runningHead) {
-      pdf.text(toWinAnsiPdfText(apa.runningHead), geom.left * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic' });
+      pdf.text(formatPdfTextForFont(pdf, apa.runningHead, activeFamily, 'normal', isEmbedded), geom.left * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic' });
     }
-    pdf.text(toWinAnsiPdfText(formattedPage), (list.width - geom.right) * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic', align: 'right' });
+    pdf.text(formatPdfTextForFont(pdf, formattedPage, activeFamily, 'normal', isEmbedded), (list.width - geom.right) * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic', align: 'right' });
   } else if (!d.suppressHeaderFooter && d.showHeaderFooter) {
     const muted = d.darkSheet ? { r: 148, g: 163, b: 184 } : { r: 100, g: 116, b: 139 };
     if (typeof pdf.setTextColor === 'function') pdf.setTextColor(muted.r, muted.g, muted.b);
-    if (typeof pdf.setFont === 'function') pdf.setFont('helvetica', 'normal');
+    const sansEmbedded = loadedEmbeddedFonts.has('liberation-sans:normal');
+    const sansFamily = sansEmbedded ? 'liberation-sans' : 'helvetica';
+    if (typeof pdf.setFont === 'function') pdf.setFont(sansFamily, 'normal');
     if (typeof pdf.setFontSize === 'function') pdf.setFontSize(9);
 
     const headerY = Math.max(18, geom.top - 26) * PDF_PT_PER_PX + 9;
@@ -546,7 +741,7 @@ function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: 
       ? resolvePageDynamicTokens(headerStr, formattedPage, formattedTotal)
       : headerStr;
     if (resolvedHeader.trim()) {
-      pdf.text(toWinAnsiPdfText(resolvedHeader.trim()), geom.left * PDF_PT_PER_PX, headerY, { baseline: 'alphabetic' });
+      pdf.text(formatPdfTextForFont(pdf, resolvedHeader.trim(), sansFamily, 'normal', sansEmbedded), geom.left * PDF_PT_PER_PX, headerY, { baseline: 'alphabetic' });
     }
 
     const footerY = (list.height - Math.max(24, geom.bottom - 14)) * PDF_PT_PER_PX + 8;
@@ -557,12 +752,14 @@ function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: 
       ? resolvePageDynamicTokens(footerStr, formattedPage, formattedTotal)
       : footerStr;
     if (resolvedFooter.trim()) {
-      pdf.text(toWinAnsiPdfText(resolvedFooter.trim()), geom.left * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic' });
+      pdf.text(formatPdfTextForFont(pdf, resolvedFooter.trim(), sansFamily, 'normal', sansEmbedded), geom.left * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic' });
     }
     const pageNumLabel = `${d.pageLabel || 'Página'} ${formattedPage} ${d.ofLabel || 'de'} ${formattedTotal}`;
-    if (typeof pdf.setFont === 'function') pdf.setFont('courier', 'normal');
+    const monoEmbedded = loadedEmbeddedFonts.has('jetbrains-mono:normal');
+    const monoFamily = monoEmbedded ? 'jetbrains-mono' : 'courier';
+    if (typeof pdf.setFont === 'function') pdf.setFont(monoFamily, 'normal');
     if (typeof pdf.setFontSize === 'function') pdf.setFontSize(8.25);
-    pdf.text(toWinAnsiPdfText(pageNumLabel), (list.width - geom.right) * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic', align: 'right' });
+    pdf.text(formatPdfTextForFont(pdf, pageNumLabel, monoFamily, 'normal', monoEmbedded), (list.width - geom.right) * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic', align: 'right' });
   }
 }
 
@@ -576,9 +773,23 @@ const UNICODE_TO_WINANSI: Record<string, string> = {
   '\u2192': '->',
   '\u2190': '<-',
   '\u2194': '<->',
+  '\u2191': '^',
+  '\u2193': 'v',
   '\u21d2': '=>',
   '\u21d0': '<=',
   '\u21d4': '<=>',
+  '\u2794': '->',
+  '\u279c': '->',
+  '\u279e': '->',
+  '\u27f6': '->',
+  '\u27f5': '<-',
+  '\u27f7': '<->',
+  '\u27f9': '=>',
+  '\u27f8': '<=',
+  '\u27fa': '<=>',
+  '\u21a6': '|->',
+  '\u21b3': '->',
+  '\u21b5': '<-',
   '\u25e6': '-',
   '\u25aa': '-',
   '\u25ab': '-',
@@ -626,9 +837,41 @@ export function toWinAnsiPdfText(raw: string): string {
   return out;
 }
 
+/**
+ * Preserves native UTF-8 Unicode glyphs when using an embedded TrueType font (Identity-H),
+ * falling back only individual glyphs that are absent from that font's cmap.
+ */
+function formatPdfTextForFont(
+  pdf: any,
+  raw: string,
+  activeFamily: string,
+  style: PdfFontStyle,
+  isEmbedded: boolean,
+): string {
+  if (!isEmbedded) return toWinAnsiPdfText(raw);
+  const cleaned = raw.replace(/\u00a0/g, ' ').replace(/[\u200b\ufeff]/g, '');
+  const metadata = typeof pdf.getFont === 'function'
+    ? pdf.getFont(activeFamily, style)?.metadata
+    : undefined;
+  if (!metadata || typeof metadata.characterToGlyph !== 'function') return cleaned;
+
+  let out = '';
+  for (const ch of cleaned) {
+    const cp = ch.codePointAt(0);
+    if (cp === undefined || cp <= 0x20 || metadata.characterToGlyph(cp)) {
+      out += ch;
+    } else {
+      const mapped = UNICODE_TO_WINANSI[ch];
+      out += mapped !== undefined ? mapped : ch;
+    }
+  }
+  return out;
+}
+
 function drawVectorPdfTextLayer(
   pdf: any,
   list: PageDisplayList,
+  loadedEmbeddedFonts: ReadonlySet<string>,
 ): void {
   if (typeof pdf.text !== 'function') return;
   let lastFontKey = '';
@@ -643,16 +886,20 @@ function drawVectorPdfTextLayer(
 
   const flushRun = (): void => {
     if (!runText) return;
-    const safeText = toWinAnsiPdfText(runText);
+    const rawRunText = runText;
     runText = '';
-    if (!safeText) return;
 
-    const { family, style, sizePt } = parseCanvasPdfFont(runFont);
-    const fontKey = `${family}:${style}`;
+    const { family, embeddedFamily, style, sizePt } = parseCanvasPdfFont(runFont);
+    const isEmbedded = loadedEmbeddedFonts.has(`${embeddedFamily}:${style}`);
+    const activeFamily = isEmbedded ? embeddedFamily : family;
+    const fontKey = `${activeFamily}:${style}`;
     if (fontKey !== lastFontKey) {
-      if (typeof pdf.setFont === 'function') pdf.setFont(family, style);
+      if (typeof pdf.setFont === 'function') pdf.setFont(activeFamily, style);
       lastFontKey = fontKey;
     }
+
+    const safeText = formatPdfTextForFont(pdf, rawRunText, activeFamily, style, isEmbedded);
+    if (!safeText) return;
 
     let effectiveSizePt = sizePt;
     let charSpace: number | undefined;
@@ -738,6 +985,8 @@ export async function renderWordCanvasPdf(
   await new Promise<void>(resolve => setTimeout(resolve, 0));
   const { jsPDF } = await pdfDeadline(import('jspdf'), 'carga del generador PDF');
   const pdf: any = new jsPDF({ unit: 'pt', format: [1, 1], compress: true });
+  progress('Cargando tipografías UTF-8…');
+  const loadedEmbeddedFonts = await loadDocumentPdfFonts(pdf, displayLists);
   const assetCache = new Map<string, { dataUrl: string; format: 'PNG' | 'JPEG' } | null>();
 
   const isBgRect = (cmd: PageDisplayList['commands'][number]): boolean =>
@@ -769,7 +1018,7 @@ export async function renderWordCanvasPdf(
     }
 
     // 2. Decorations (page border, header, footer, page numbers)
-    drawVectorPdfDecorations(pdf, list, pageWidthPt, pageHeightPt);
+    drawVectorPdfDecorations(pdf, list, pageWidthPt, pageHeightPt, loadedEmbeddedFonts);
 
     // 3. Background fills (table cells, callouts, highlights)
     for (const cmd of list.commands) {
@@ -806,8 +1055,8 @@ export async function renderWordCanvasPdf(
       }
     }
 
-    // 6. Crisp native vector text (100% selectable & searchable)
-    drawVectorPdfTextLayer(pdf, list);
+    // 6. Crisp native vector text (100% selectable & searchable, full UTF-8 with embedded TTF fonts)
+    drawVectorPdfTextLayer(pdf, list, loadedEmbeddedFonts);
 
     await new Promise<void>(resolve => setTimeout(resolve, 0));
   }

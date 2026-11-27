@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CanvasEditSession } from '../engine/canvas-edit-session';
 import { attachCanvasPdfNavigation } from '../engine/canvas-pdf-links';
-import { pdfDeadline, renderWordCanvasPdf, renderWordPdf, snapshotWordSheets, toWinAnsiPdfText } from './word-pdf-export';
+import {
+  parseCanvasPdfFont,
+  pdfDeadline,
+  renderWordCanvasPdf,
+  renderWordPdf,
+  snapshotWordSheets,
+  toWinAnsiPdfText,
+} from './word-pdf-export';
 
 const pdfCalls = vi.hoisted(() => {
   const outlineAdd = vi.fn((_parent: unknown, title: string, options: { pageNumber: number }) => ({
@@ -10,6 +17,18 @@ const pdfCalls = vi.hoisted(() => {
     children: [],
   }));
   return {
+    enableEmbeddedFonts: false,
+    addFileToVFS: vi.fn(),
+    addFont: vi.fn(),
+    getFont: vi.fn((_family: string, _style: string) => ({
+      metadata: {
+        cmap: new Set([0x2192]),
+        characterToGlyph(cp: number) {
+          // Intentionally access `this.cmap` to catch unbound method calls
+          return cp <= 0xff || this.cmap.has(cp) ? cp : 0;
+        },
+      },
+    })),
     addPage: vi.fn(),
     addImage: vi.fn(),
     deletePage: vi.fn(),
@@ -28,6 +47,9 @@ const pdfCalls = vi.hoisted(() => {
   };
 });
 vi.mock('jspdf', () => ({ jsPDF: class {
+  addFileToVFS?: typeof pdfCalls.addFileToVFS;
+  addFont?: typeof pdfCalls.addFont;
+  getFont?: typeof pdfCalls.getFont;
   addPage = pdfCalls.addPage;
   addImage = pdfCalls.addImage;
   deletePage = pdfCalls.deletePage;
@@ -43,10 +65,18 @@ vi.mock('jspdf', () => ({ jsPDF: class {
   setPage = pdfCalls.setPage;
   link = pdfCalls.link;
   outline = { add: pdfCalls.outlineAdd };
+  constructor() {
+    if (pdfCalls.enableEmbeddedFonts) {
+      this.addFileToVFS = pdfCalls.addFileToVFS;
+      this.addFont = pdfCalls.addFont;
+      this.getFont = pdfCalls.getFont;
+    }
+  }
   output() { return new Blob(['%PDF-1.4']); }
 } }));
 
 afterEach(() => {
+  pdfCalls.enableEmbeddedFonts = false;
   document.body.replaceChildren();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -386,7 +416,83 @@ describe('Word PDF layout snapshot', () => {
 
   it('transliterates non-WinAnsi Unicode symbols so jsPDF Type1 fonts never corrupt code blocks or nested bullets', () => {
     expect(toWinAnsiPdfText('[Comunicación] → [Planeación]')).toBe('[Comunicación] -> [Planeación]');
+    expect(toWinAnsiPdfText('A ➔ B ➜ C ⟶ D ↦ E')).toBe('A -> B -> C -> D |-> E');
     expect(toWinAnsiPdfText('◦ Roles: Product Owner')).toBe('- Roles: Product Owner');
     expect(toWinAnsiPdfText('• Scrum — versión “1.0”')).toBe('• Scrum — versión “1.0”');
+  });
+
+  it('resolves distinct embedded PDF font families and mirrors browser fallback when a CSS font is missing', () => {
+    const calibriAvailable = (name: string) => name.toLowerCase() === 'calibri' || name.toLowerCase() === 'serif';
+    const allAvailable = () => true;
+
+    const heading = parseCanvasPdfFont('bold 24px "Calibri", serif', calibriAvailable);
+    expect(heading).toEqual({
+      family: 'helvetica',
+      embeddedFamily: 'dejavu-sans',
+      style: 'bold',
+      sizePt: 18,
+    });
+
+    // When "Inter" is missing from the browser, canvas falls back to serif -> PDF matches serif
+    const bodyMissingInter = parseCanvasPdfFont('13.33px "Inter", serif', calibriAvailable);
+    expect(bodyMissingInter.embeddedFamily).toBe('liberation-serif');
+    expect(bodyMissingInter.family).toBe('times');
+
+    // When "Inter" IS available, it maps to liberation-sans (still distinct from Calibri's dejavu-sans)
+    const bodyWithInter = parseCanvasPdfFont('13.33px "Inter", serif', allAvailable);
+    expect(bodyWithInter.embeddedFamily).toBe('liberation-sans');
+    expect(bodyWithInter.family).toBe('helvetica');
+
+    const code = parseCanvasPdfFont('13.33px "JetBrains Mono", monospace', allAvailable);
+    expect(code.embeddedFamily).toBe('jetbrains-mono');
+    expect(code.family).toBe('courier');
+  });
+
+  it('lazily embeds only used TrueType fonts and preserves native UTF-8 glyphs like → in code blocks', async () => {
+    pdfCalls.enableEmbeddedFonts = true;
+    const fakeTtfBytes = new Uint8Array(2048).fill(0x41).buffer;
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      arrayBuffer: async () => fakeTtfBytes,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await renderWordCanvasPdf(
+      [
+        {
+          id: 'p1',
+          revision: 1,
+          width: 816,
+          height: 1056,
+          commands: [
+            { kind: 'text', text: 'PARTE I: APUNTES', x: 96, y: 120, font: 'bold 24px "Calibri", serif', color: '#0f172a' },
+            { kind: 'text', text: 'Texto normal con acentos.', x: 96, y: 160, font: '13.33px "Inter", serif', color: '#1e293b' },
+            { kind: 'text', text: '[Comunicación] → [Planeación] ⇒ [Fin]', x: 96, y: 210, font: '13.33px "JetBrains Mono", monospace', color: '#0f172a' },
+          ],
+        },
+      ],
+      816,
+      1056,
+    );
+
+    const registeredFonts = pdfCalls.addFont.mock.calls.map(c => `${c[1]}:${c[2]}`);
+    expect(registeredFonts).toEqual(
+      expect.arrayContaining(['dejavu-sans:bold', 'liberation-sans:normal', 'jetbrains-mono:normal']),
+    );
+    expect(registeredFonts).toHaveLength(3);
+    expect(pdfCalls.addFileToVFS).toHaveBeenCalledTimes(3);
+
+    expect(pdfCalls.setFont).toHaveBeenNthCalledWith(1, 'dejavu-sans', 'bold');
+    expect(pdfCalls.setFont).toHaveBeenNthCalledWith(2, 'liberation-sans', 'normal');
+    expect(pdfCalls.setFont).toHaveBeenNthCalledWith(3, 'jetbrains-mono', 'normal');
+
+    // → is supported by the embedded font cmap so it stays native UTF-8; ⇒ is absent so it falls back to =>
+    expect(pdfCalls.text).toHaveBeenNthCalledWith(
+      3,
+      '[Comunicación] → [Planeación] => [Fin]',
+      72,
+      157.5,
+      { baseline: 'alphabetic' },
+    );
   });
 });
