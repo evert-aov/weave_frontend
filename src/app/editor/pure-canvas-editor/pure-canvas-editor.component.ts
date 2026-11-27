@@ -1,28 +1,40 @@
-import { Component, Input, inject, signal } from '@angular/core';
+import { Component, Input, ViewChild, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Note } from '../../core/models/note.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { WeaveCanvasComponent } from './components/weave-canvas/weave-canvas.component';
+import type { CanvasSceneData } from './engine/canvas-model';
 
 /**
  * Editor Especializado Puro: Lienzo de Dibujo / Pizarra (Canvas).
- * Reservado para el motor de dibujo propio de Weave (Excalidraw removido).
+ * Impulsado por el motor HTML5 Canvas 2D nativo y ligero de Weave.
  */
 @Component({
   selector: 'app-pure-canvas-editor',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, WeaveCanvasComponent],
   templateUrl: './pure-canvas-editor.component.html',
   styleUrls: ['./pure-canvas-editor.component.css'],
 })
 export class PureCanvasEditorComponent {
   @Input({ required: true }) note!: Note;
 
+  @ViewChild(WeaveCanvasComponent) canvasRef?: WeaveCanvasComponent;
+
   readonly notesService = inject(NotesService);
   readonly i18n = inject(I18nService);
 
   readonly currentZoom = signal<number>(1.0);
   readonly Math = Math;
+
+  onSceneChange(scene: CanvasSceneData): void {
+    if (!this.note?._id) return;
+    if (typeof scene.appState?.zoom === 'number') {
+      this.currentZoom.set(scene.appState.zoom);
+    }
+    this.notesService.updateDocData(scene, this.note._id);
+  }
 
   formatSpacePath(space?: string): string {
     if (!space) return 'General';
@@ -44,19 +56,23 @@ export class PureCanvasEditorComponent {
   }
 
   zoomIn(): void {
-    this.currentZoom.set(Math.min(Math.round((this.currentZoom() + 0.15) * 100) / 100, 3.0));
+    this.canvasRef?.zoomIn();
+    if (this.canvasRef) this.currentZoom.set(this.canvasRef.zoom());
   }
 
   zoomOut(): void {
-    this.currentZoom.set(Math.max(Math.round((this.currentZoom() - 0.15) * 100) / 100, 0.2));
+    this.canvasRef?.zoomOut();
+    if (this.canvasRef) this.currentZoom.set(this.canvasRef.zoom());
   }
 
   resetZoom(): void {
+    this.canvasRef?.resetZoom();
     this.currentZoom.set(1.0);
   }
 
   centerToContent(): void {
-    this.currentZoom.set(1.0);
+    this.canvasRef?.centerToContent();
+    if (this.canvasRef) this.currentZoom.set(this.canvasRef.zoom());
   }
 
   toggleFullscreen(): void {

@@ -8,16 +8,14 @@
     </div>
   </div>
 
-  <div class="canvas-mount-wrapper flex items-center justify-center p-8 text-center">
-    <div class="max-w-md space-y-2">
-      <p class="text-sm font-semibold">
-        {{ i18n.currentLang() === 'es' ? 'Motor de dibujo propio en preparación' : 'Custom drawing engine coming soon' }}
-      </p>
-      <p class="text-xs opacity-70">
-        {{ i18n.currentLang() === 'es'
-          ? 'Los datos guardados del lienzo se conservan intactos hasta conectar el nuevo motor.'
-          : 'Saved canvas data is preserved until the new drawing engine is connected.' }}
-      </p>
-    </div>
+  <div class="canvas-mount-wrapper">
+    <app-weave-canvas
+      class="excalidraw-mount-point"
+      [sceneKey]="block.id"
+      [sceneData]="block.content"
+      [readOnly]="notesService.isReadingMode()"
+      [compact]="true"
+      (sceneChange)="onSceneChange($event)"
+    ></app-weave-canvas>
   </div>
 </div>

@@ -1,14 +1,10 @@
 <div class="pure-canvas-workspace">
-  <main class="canvas-mount-container flex items-center justify-center p-8 text-center">
-    <div class="max-w-md space-y-2">
-      <p class="text-base font-semibold">
-        {{ i18n.currentLang() === 'es' ? 'Motor de dibujo propio en preparación' : 'Custom drawing engine coming soon' }}
-      </p>
-      <p class="text-sm opacity-70">
-        {{ i18n.currentLang() === 'es'
-          ? 'Excalidraw fue removido. Los datos de tus lienzos se conservan intactos para el nuevo motor.'
-          : 'Excalidraw has been removed. Your canvas data is preserved for the new engine.' }}
-      </p>
-    </div>
+  <main class="canvas-mount-container">
+    <app-weave-canvas
+      class="pure-excalidraw-mount"
+      [sceneKey]="note._id"
+      [sceneData]="note.docData"
+      (sceneChange)="onSceneChange($event)"
+    ></app-weave-canvas>
   </main>
 </div>
