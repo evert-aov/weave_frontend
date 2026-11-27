@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CanvasEditSession } from '../engine/canvas-edit-session';
 import { attachCanvasPdfNavigation } from '../engine/canvas-pdf-links';
-import { pdfDeadline, renderWordCanvasPdf, renderWordPdf, snapshotWordSheets } from './word-pdf-export';
+import { pdfDeadline, renderWordCanvasPdf, renderWordPdf, snapshotWordSheets, toWinAnsiPdfText } from './word-pdf-export';
 
 const pdfCalls = vi.hoisted(() => {
   const outlineAdd = vi.fn((_parent: unknown, title: string, options: { pageNumber: number }) => ({
@@ -382,5 +382,11 @@ describe('Word PDF layout snapshot', () => {
     // Bottom-of-page footnote text is rendered into the searchable PDF text layer
     const renderedPdfTexts = pdfCalls.text.mock.calls.map(c => c[0] as string).join(' ');
     expect(renderedPdfTexts).toContain('Nota visible en PDF.');
+  });
+
+  it('transliterates non-WinAnsi Unicode symbols so jsPDF Type1 fonts never corrupt code blocks or nested bullets', () => {
+    expect(toWinAnsiPdfText('[Comunicación] → [Planeación]')).toBe('[Comunicación] -> [Planeación]');
+    expect(toWinAnsiPdfText('◦ Roles: Product Owner')).toBe('- Roles: Product Owner');
+    expect(toWinAnsiPdfText('• Scrum — versión “1.0”')).toBe('• Scrum — versión “1.0”');
   });
 });

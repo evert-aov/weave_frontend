@@ -514,9 +514,9 @@ function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: 
     if (typeof pdf.setTextColor === 'function') pdf.setTextColor(0, 0, 0);
     const yPt = 48 * PDF_PT_PER_PX + font.sizePt;
     if (apa.mode === 'professional' && apa.runningHead) {
-      pdf.text(apa.runningHead, geom.left * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic' });
+      pdf.text(toWinAnsiPdfText(apa.runningHead), geom.left * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic' });
     }
-    pdf.text(formattedPage, (list.width - geom.right) * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic', align: 'right' });
+    pdf.text(toWinAnsiPdfText(formattedPage), (list.width - geom.right) * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic', align: 'right' });
   } else if (!d.suppressHeaderFooter && d.showHeaderFooter) {
     const muted = d.darkSheet ? { r: 148, g: 163, b: 184 } : { r: 100, g: 116, b: 139 };
     if (typeof pdf.setTextColor === 'function') pdf.setTextColor(muted.r, muted.g, muted.b);
@@ -531,7 +531,7 @@ function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: 
       ? resolvePageDynamicTokens(headerStr, formattedPage, formattedTotal)
       : headerStr;
     if (resolvedHeader.trim()) {
-      pdf.text(resolvedHeader.trim(), geom.left * PDF_PT_PER_PX, headerY, { baseline: 'alphabetic' });
+      pdf.text(toWinAnsiPdfText(resolvedHeader.trim()), geom.left * PDF_PT_PER_PX, headerY, { baseline: 'alphabetic' });
     }
 
     const footerY = (list.height - Math.max(24, geom.bottom - 14)) * PDF_PT_PER_PX + 8;
@@ -542,13 +542,73 @@ function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: 
       ? resolvePageDynamicTokens(footerStr, formattedPage, formattedTotal)
       : footerStr;
     if (resolvedFooter.trim()) {
-      pdf.text(resolvedFooter.trim(), geom.left * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic' });
+      pdf.text(toWinAnsiPdfText(resolvedFooter.trim()), geom.left * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic' });
     }
     const pageNumLabel = `${d.pageLabel || 'Página'} ${formattedPage} ${d.ofLabel || 'de'} ${formattedTotal}`;
     if (typeof pdf.setFont === 'function') pdf.setFont('courier', 'normal');
     if (typeof pdf.setFontSize === 'function') pdf.setFontSize(8.25);
-    pdf.text(pageNumLabel, (list.width - geom.right) * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic', align: 'right' });
+    pdf.text(toWinAnsiPdfText(pageNumLabel), (list.width - geom.right) * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic', align: 'right' });
   }
+}
+
+const CP1252_EXTRA = new Set([
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160,
+  0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,
+  0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+]);
+
+const UNICODE_TO_WINANSI: Record<string, string> = {
+  '\u2192': '->',
+  '\u2190': '<-',
+  '\u2194': '<->',
+  '\u21d2': '=>',
+  '\u21d0': '<=',
+  '\u21d4': '<=>',
+  '\u25e6': '-',
+  '\u25aa': '-',
+  '\u25ab': '-',
+  '\u25b8': '>',
+  '\u25b9': '>',
+  '\u2023': '>',
+  '\u25cf': '\u2022',
+  '\u25cb': 'o',
+  '\u2212': '-',
+  '\u2010': '-',
+  '\u2011': '-',
+  '\u2264': '<=',
+  '\u2265': '>=',
+  '\u2260': '!=',
+  '\u2248': '~',
+  '\u2713': 'v',
+  '\u2714': 'v',
+  '\u2717': 'x',
+  '\u2718': 'x',
+  '\u00a0': ' ',
+  '\u200b': '',
+  '\ufeff': '',
+};
+
+/**
+ * Convierte símbolos Unicode fuera de WinAnsi/CP1252 para evitar que las fuentes Type1
+ * integradas de jsPDF cambien a modo UTF-16 corrupto (espaciado doble o caracteres `%æ`).
+ */
+export function toWinAnsiPdfText(raw: string): string {
+  let out = '';
+  for (const ch of raw) {
+    const mapped = UNICODE_TO_WINANSI[ch];
+    if (mapped !== undefined) {
+      out += mapped;
+      continue;
+    }
+    const code = ch.charCodeAt(0);
+    if (code <= 0xff || CP1252_EXTRA.has(code)) {
+      out += ch;
+    } else {
+      const stripped = ch.normalize('NFKD').replace(/[^\x20-\xff]/g, '');
+      out += stripped || '?';
+    }
+  }
+  return out;
 }
 
 function drawVectorPdfTextLayer(
@@ -568,15 +628,38 @@ function drawVectorPdfTextLayer(
 
   const flushRun = (): void => {
     if (!runText) return;
+    const safeText = toWinAnsiPdfText(runText);
+    runText = '';
+    if (!safeText) return;
+
     const { family, style, sizePt } = parseCanvasPdfFont(runFont);
     const fontKey = `${family}:${style}`;
     if (fontKey !== lastFontKey) {
       if (typeof pdf.setFont === 'function') pdf.setFont(family, style);
       lastFontKey = fontKey;
     }
-    if (sizePt !== lastSizePt) {
-      if (typeof pdf.setFontSize === 'function') pdf.setFontSize(sizePt);
-      lastSizePt = sizePt;
+
+    let effectiveSizePt = sizePt;
+    let charSpace: number | undefined;
+    const targetWidthPt = runEndX > runX ? (runEndX - runX) * PDF_PT_PER_PX : 0;
+
+    if (targetWidthPt > 0 && typeof pdf.getTextWidth === 'function') {
+      if (effectiveSizePt !== lastSizePt) {
+        if (typeof pdf.setFontSize === 'function') pdf.setFontSize(effectiveSizePt);
+        lastSizePt = effectiveSizePt;
+      }
+      const actualWidthPt = Number(pdf.getTextWidth(safeText)) || 0;
+      if (actualWidthPt > targetWidthPt * 1.02) {
+        effectiveSizePt = Math.max(sizePt * 0.72, sizePt * (targetWidthPt / actualWidthPt));
+      } else if (actualWidthPt > 0 && actualWidthPt < targetWidthPt * 0.98 && safeText.length > 1) {
+        const extra = (targetWidthPt - actualWidthPt) / (safeText.length - 1);
+        if (extra > 0.02) charSpace = Math.min(1.6, extra);
+      }
+    }
+
+    if (effectiveSizePt !== lastSizePt) {
+      if (typeof pdf.setFontSize === 'function') pdf.setFontSize(effectiveSizePt);
+      lastSizePt = effectiveSizePt;
     }
     const rgb = parseCssColorToRgb(runColor) ?? { r: 15, g: 23, b: 42, a: 1 };
     const colorKey = `${rgb.r},${rgb.g},${rgb.b}`;
@@ -584,10 +667,9 @@ function drawVectorPdfTextLayer(
       if (typeof pdf.setTextColor === 'function') pdf.setTextColor(rgb.r, rgb.g, rgb.b);
       lastColorKey = colorKey;
     }
-    pdf.text(runText, runX * PDF_PT_PER_PX, runY * PDF_PT_PER_PX, {
-      baseline: 'alphabetic',
-    });
-    runText = '';
+    const textOpts: Record<string, unknown> = { baseline: 'alphabetic' };
+    if (charSpace !== undefined) textOpts['charSpace'] = Number(charSpace.toFixed(3));
+    pdf.text(safeText, runX * PDF_PT_PER_PX, runY * PDF_PT_PER_PX, textOpts);
   };
 
   for (const cmd of list.commands) {
