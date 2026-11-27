@@ -114,7 +114,7 @@ export class WordTableToolbarComponent {
   @Output() setHorizontalAlign = new EventEmitter<'left' | 'center' | 'right' | 'justify'>();
   @Output() toggleRowTopBorder = new EventEmitter<void>();
   @Output() toggleRepeatHeader = new EventEmitter<void>();
-  @Output() applyTableStyle = new EventEmitter<{ rule: TableStyleRule; fixed: boolean }>();
+  @Output() applyTableStyle = new EventEmitter<{ rule: TableStyleRule; fixed: boolean; preserveExplicitCellFormatting?: boolean }>();
   @Output() setCellPadding = new EventEmitter<number>();
   @Output() distributeColumns = new EventEmitter<void>();
   @Output() insertTable = new EventEmitter<{ rows: number; cols: number }>();
@@ -318,14 +318,14 @@ export class WordTableToolbarComponent {
     const cur = this.currentRule();
     const updated = normalizeTableStyle({ ...cur, [key]: !cur[key], mode: 'custom' });
     this.currentRule.set(updated);
-    this.applyTableStyle.emit({ rule: updated, fixed: true });
+    this.applyTableStyle.emit({ rule: updated, fixed: true, preserveExplicitCellFormatting: true });
   }
 
   setBordersType(borders: 'grid' | 'horizontal' | 'none'): void {
     const cur = this.currentRule();
     const updated = normalizeTableStyle({ ...cur, borders, mode: 'custom' });
     this.currentRule.set(updated);
-    this.applyTableStyle.emit({ rule: updated, fixed: true });
+    this.applyTableStyle.emit({ rule: updated, fixed: true, preserveExplicitCellFormatting: true });
     this.closeDropdown();
   }
 
@@ -333,7 +333,7 @@ export class WordTableToolbarComponent {
     const cur = this.currentRule();
     const updated = normalizeTableStyle({ ...cur, borderWidthPt: widthPt, mode: 'custom' });
     this.currentRule.set(updated);
-    this.applyTableStyle.emit({ rule: updated, fixed: true });
+    this.applyTableStyle.emit({ rule: updated, fixed: true, preserveExplicitCellFormatting: true });
     this.closeDropdown();
   }
 
@@ -341,14 +341,14 @@ export class WordTableToolbarComponent {
     const cur = this.currentRule();
     const updated = normalizeTableStyle({ ...cur, borderColor: color, mode: 'custom' });
     this.currentRule.set(updated);
-    this.applyTableStyle.emit({ rule: updated, fixed: true });
+    this.applyTableStyle.emit({ rule: updated, fixed: true, preserveExplicitCellFormatting: true });
   }
 
   applyCellPadding(paddingPt: number): void {
     const cur = this.currentRule();
     const updated = normalizeTableStyle({ ...cur, cellPaddingPt: paddingPt, mode: 'custom' });
     this.currentRule.set(updated);
-    this.applyTableStyle.emit({ rule: updated, fixed: true });
+    this.setCellPadding.emit(paddingPt);
     this.closeDropdown();
   }
 

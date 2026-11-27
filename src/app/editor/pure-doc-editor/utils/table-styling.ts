@@ -169,6 +169,42 @@ export function styleModelTable(
   return { ...table, attributes, children: visit(table.children) };
 }
 
+/** Updates only cell padding on a table, preserving all per-cell colors, borders, typography, and alignment. */
+export function updateModelTablePadding(table: ElementNode, paddingPt: number): ElementNode {
+  const clamped = Number.isFinite(Number(paddingPt)) ? Math.min(24, Math.max(0, Number(paddingPt))) : 4;
+  const attributes: Record<string, string> = {
+    ...table.attributes,
+    'data-word-table-padding': String((clamped * 96) / 72),
+  };
+  if (attributes['data-word-table-rule']) {
+    try {
+      const parsed = normalizeTableStyle({
+        ...JSON.parse(attributes['data-word-table-rule']),
+        cellPaddingPt: clamped,
+      });
+      attributes['data-word-table-rule'] = JSON.stringify(parsed);
+    } catch {
+      // Leave malformed rule untouched
+    }
+  }
+
+  const visit = (nodes: readonly DocumentNode[]): readonly DocumentNode[] =>
+    nodes.map(node => {
+      if (node.kind === 'text' || node.tag === 'table') return node;
+      if (node.tag === 'td' || node.tag === 'th') {
+        const style = css(node.attributes['style']);
+        for (const key of Object.keys(style)) {
+          if (key === 'padding' || key.startsWith('padding-')) delete style[key];
+        }
+        style['padding'] = `${clamped}pt`;
+        return { ...node, attributes: { ...node.attributes, style: serialize(style) } };
+      }
+      return { ...node, children: visit(node.children) };
+    });
+
+  return { ...table, attributes, children: visit(table.children) };
+}
+
 /** Materialize inherited metrics before document defaults change. No DOM measurement. */
 export function preserveModelTable(table: ElementNode, styles: ReadonlyMap<string, ResolvedLayoutStyle>): ElementNode {
   const tableStyle = styles.get(table.id);

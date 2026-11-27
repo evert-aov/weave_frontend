@@ -117,4 +117,29 @@ describe('independent Word table designs', () => {
     expect(serialized).not.toContain('padding-left: 36pt');
     expect(serialized).not.toContain('padding-left: 12pt');
   });
+
+  it('updates cell padding without wiping out custom per-cell backgrounds, text colors, or preset rules', () => {
+    const customColoredHtml =
+      '<table><tbody>' +
+      '<tr><td colspan="2" style="background-color: #0099dd; color: #ffffff; padding: 6pt;"><p>Historia de usuario</p></td></tr>' +
+      '<tr><td style="background-color: #0099dd; padding-left: 10pt; padding-right: 10pt;"><p>Como :</p></td><td style="background-color: #e2e8f0; padding: 6pt;"><p>Valor</p></td></tr>' +
+      '</tbody></table>';
+    const s = new CanvasEditSession(geometry, { font: '16px "Arial"', lineHeight: 20 }, measure);
+    s.load([{ id: 'p1', html: customColoredHtml }]);
+    selectTable(s);
+
+    expect(s.setTableCellPadding(2)).toBe(true);
+    const updated = table(s);
+    const serialized = serializeDocumentNodes([updated]);
+    expect(updated.attributes['data-word-table-padding']).toBe(String((2 * 96) / 72));
+    expect(serialized).toContain('background-color: #0099dd');
+    expect(serialized).toContain('background-color: #e2e8f0');
+    expect(serialized).toContain('color: #ffffff');
+    expect(serialized).toContain('padding: 2pt');
+    expect(serialized).not.toContain('padding-left: 10pt');
+
+    // Undo restores previous padding
+    s.undo();
+    expect(serializeDocumentNodes([table(s)])).toContain('padding: 6pt');
+  });
 });

@@ -264,7 +264,7 @@ export class WordRibbonComponent implements OnInit, OnChanges, OnDestroy {
   @Output() setTableCellVerticalAlign = new EventEmitter<'top' | 'middle' | 'bottom'>();
   @Output() toggleTableRowTopBorder = new EventEmitter<void>();
   @Output() toggleTableHeaderRepeat = new EventEmitter<void>();
-  @Output() applyTableStyle = new EventEmitter<{ rule: TableStyleRule; fixed: boolean }>();
+  @Output() applyTableStyle = new EventEmitter<{ rule: TableStyleRule; fixed: boolean; preserveExplicitCellFormatting?: boolean }>();
   @Output() setTableCellPadding = new EventEmitter<number>();
   @Output() distributeColumns = new EventEmitter<void>();
 

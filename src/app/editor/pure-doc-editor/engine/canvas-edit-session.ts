@@ -1,5 +1,5 @@
 import { numberModelHeadings } from './model-heading-numbering';
-import { isFixedTableStyle, normalizeTableStyle, preserveModelTable, styleModelTable } from '../utils/table-styling';
+import { isFixedTableStyle, normalizeTableStyle, preserveModelTable, styleModelTable, updateModelTablePadding } from '../utils/table-styling';
 import { HeadingOutlineCounter } from '../utils/heading-outline-counter';
 import { findNodeById } from './document-model';
 import { DocumentCanvasEngine, EngineSectionSnapshot } from './document-engine';
@@ -8519,17 +8519,34 @@ export class CanvasEditSession {
     catch { return undefined; }
   }
 
-  applyTableStyle(rule: TableStyleRule, fixed = true): boolean {
+  applyTableStyle(
+    rule: TableStyleRule,
+    fixed = true,
+    options?: { preserveExplicitCellFormatting?: boolean },
+  ): boolean {
     const tableId = this.getSelectionContext()?.table?.tableId;
     const section = this.engine.getSections()[this.section];
     if (!tableId || !section || rule.mode !== 'custom') return false;
     const visit = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => nodes.map(node => {
       if (node.kind === 'text') return node;
-      if (node.id === tableId) return styleModelTable(node, rule, fixed ? 'fixed' : 'template');
+      if (node.id === tableId) return styleModelTable(node, rule, fixed ? 'fixed' : 'template', options);
       if (!getSubtreeIds(node).has(tableId)) return node;
       return { ...node, children: visit(node.children) };
     });
     return this.commitCustomState(visit(section.model.state.roots), this.selection, 'table-style');
+  }
+
+  setTableCellPadding(paddingPt: number): boolean {
+    const tableId = this.getSelectionContext()?.table?.tableId;
+    const section = this.engine.getSections()[this.section];
+    if (!tableId || !section) return false;
+    const visit = (nodes: readonly DocumentNode[]): readonly DocumentNode[] => nodes.map(node => {
+      if (node.kind === 'text') return node;
+      if (node.id === tableId) return updateModelTablePadding(node, paddingPt);
+      if (!getSubtreeIds(node).has(tableId)) return node;
+      return { ...node, children: visit(node.children) };
+    });
+    return this.commitCustomState(visit(section.model.state.roots), this.selection, 'table-padding');
   }
 
   /** Applies a full design template (`StyleTemplate`) across all sections directly in the DocumentModel without leaving Canvas mode. */

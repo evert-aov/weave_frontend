@@ -152,21 +152,25 @@ describe('WordTableToolbarComponent', () => {
     expect(el.textContent).toContain('Dividir celda');
   });
 
-  it('preserves preset colors and striped rows when changing cell padding', () => {
+  it('emits setCellPadding without re-applying full table style so custom per-cell colors are preserved', () => {
     const emittedStyles: any[] = [];
+    const emittedPaddings: number[] = [];
     component.applyTableStyle.subscribe((val) => emittedStyles.push(val));
+    component.setCellPadding.subscribe((pt) => emittedPaddings.push(pt));
 
     const striped = component.presets.find((p) => p.id === 'striped')!;
     component.selectPreset(striped);
+    expect(emittedStyles.length).toBe(1);
     expect(emittedStyles[0].rule.headerBackgroundColor).toBe('#2563eb');
     expect(emittedStyles[0].rule.bandedRows).toBe(true);
 
     component.applyCellPadding(12);
-    expect(emittedStyles.length).toBe(2);
-    expect(emittedStyles[1].rule.cellPaddingPt).toBe(12);
-    expect(emittedStyles[1].rule.headerBackgroundColor).toBe('#2563eb');
-    expect(emittedStyles[1].rule.headerColor).toBe('#ffffff');
-    expect(emittedStyles[1].rule.bandedRows).toBe(true);
-    expect(emittedStyles[1].rule.bandColor).toBe('#f8fafc');
+    expect(emittedPaddings).toEqual([12]);
+    expect(emittedStyles.length).toBe(1);
+    expect(component.currentRule().cellPaddingPt).toBe(12);
+    expect(component.currentRule().headerBackgroundColor).toBe('#2563eb');
+    expect(component.currentRule().headerColor).toBe('#ffffff');
+    expect(component.currentRule().bandedRows).toBe(true);
+    expect(component.currentRule().bandColor).toBe('#f8fafc');
   });
 });

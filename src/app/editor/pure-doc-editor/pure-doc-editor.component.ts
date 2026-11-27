@@ -1514,10 +1514,10 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
     this.styleModalOpen.set(true);
   }
 
-  handleApplyTableStyleToSelection(change: { rule: TableStyleRule; fixed: boolean }): void {
+  handleApplyTableStyleToSelection(change: { rule: TableStyleRule; fixed: boolean; preserveExplicitCellFormatting?: boolean }): void {
     if (!this.documentReady() || this.isReadMode()) return;
     if (this.canvasEnabled() && this.canvasEditor?.session) {
-      if (this.canvasEditor.session.applyTableStyle(change.rule, change.fixed)) {
+      if (this.canvasEditor.session.applyTableStyle(change.rule, change.fixed, { preserveExplicitCellFormatting: change.preserveExplicitCellFormatting })) {
         this.canvasEditor.publishNow();
         this.updateSelectionFormats();
         this.showToast('Diseño aplicado a la tabla seleccionada');
@@ -2063,10 +2063,7 @@ export class PureDocEditorComponent implements OnInit, AfterViewInit, AfterViewC
   handleSetTableCellPadding(paddingPt: number): void {
     if (!this.documentReady() || this.isReadMode()) return;
     if (this.canvasEnabled() && this.canvasEditor?.session) {
-      const currentDesign = this.canvasEditor.session.getSelectedTableDesign?.();
-      const template = this.styleTemplates().find((t) => t.id === this.activeTemplateId()) || this.styleTemplates()[0];
-      const baseRule = currentDesign?.rule || this.activeTableRule() || template?.tableStyle || DEFAULT_TABLE_STYLE;
-      if (this.canvasEditor.session.applyTableStyle({ ...baseRule, mode: 'custom', cellPaddingPt: paddingPt }, true)) {
+      if (this.canvasEditor.session.setTableCellPadding(paddingPt)) {
         this.canvasEditor.publishNow();
         this.updateSelectionFormats();
         this.showToast('Margen de celda actualizado');
