@@ -735,11 +735,13 @@ export class NotesService {
   }
 
   /**
-   * Sube una imagen al servidor de activos.
+   * Sube una imagen al servidor de activos dentro de la carpeta del documento activo si existe.
    */
-  uploadImage(file: File): Observable<{ url: string; originalName: string }> {
+  uploadImage(file: File, noteId?: string): Observable<{ url: string; originalName: string }> {
     const formData = new FormData();
     formData.append('file', file);
+    const resolvedNoteId = noteId ?? this.currentNote()?._id;
+    if (resolvedNoteId) formData.append('noteId', resolvedNoteId);
     return this.http.post<{ url: string; originalName: string }>(
       `${this.assetsUrl}/upload`,
       formData,
@@ -748,12 +750,17 @@ export class NotesService {
 
   /**
    * Sube una imagen codificada en base64 / Data URL al servidor, guardándola
-   * físicamente en disco y retornando la URL física persistente.
+   * físicamente en la carpeta `assets/` del documento activo (local + R2).
    */
-  uploadBase64Image(dataUrl: string, filename?: string): Observable<{ url: string; filename: string }> {
+  uploadBase64Image(
+    dataUrl: string,
+    filename?: string,
+    noteId?: string,
+  ): Observable<{ url: string; filename: string }> {
+    const resolvedNoteId = noteId ?? this.currentNote()?._id;
     return this.http.post<{ url: string; filename: string }>(
       `${this.assetsUrl}/upload-base64`,
-      { dataUrl, filename },
+      { dataUrl, filename, ...(resolvedNoteId ? { noteId: resolvedNoteId } : {}) },
     );
   }
 
@@ -773,9 +780,14 @@ export class NotesService {
   /**
    * Sube un archivo o documento (PDF, Word, Excel, PPTX, etc.) al servidor de activos.
    */
-  uploadAsset(file: File): Observable<{ url: string; originalName: string; mimeType: string; size: number }> {
+  uploadAsset(
+    file: File,
+    noteId?: string,
+  ): Observable<{ url: string; originalName: string; mimeType: string; size: number }> {
     const formData = new FormData();
     formData.append('file', file);
+    const resolvedNoteId = noteId ?? this.currentNote()?._id;
+    if (resolvedNoteId) formData.append('noteId', resolvedNoteId);
     return this.http.post<{ url: string; originalName: string; mimeType: string; size: number }>(
       `${this.assetsUrl}/upload`,
       formData,

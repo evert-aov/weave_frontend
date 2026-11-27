@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
 import { Block } from '../../core/models/block.model';
 import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -107,8 +108,9 @@ export class MermaidBlockComponent implements OnInit {
         'mermaid-' + Math.random().toString(36).substring(2, 9) + '-' + Date.now();
       const codeToRender = (this.chartText || 'graph TD;\n    A-->B;').trim();
       const { svg } = await mermaid.render(uniqueId, codeToRender);
+      const cleanSvg = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
 
-      this.svgOutput.set(this.sanitizer.bypassSecurityTrustHtml(svg));
+      this.svgOutput.set(this.sanitizer.bypassSecurityTrustHtml(cleanSvg));
 
       this.notesService.updateBlockContent(this.block.id, {
         chart: this.chartText,

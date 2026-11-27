@@ -105,30 +105,32 @@ export class ImageStoreService {
    * Sube una imagen base64 / dataUrl al backend y devuelve la URL del servidor,
    * evitando subidas duplicadas concurrentes mediante un caché en memoria.
    */
-  async uploadAndPersist(dataUrl: string): Promise<string> {
+  async uploadAndPersist(dataUrl: string, noteId?: string): Promise<string> {
+    const resolvedNoteId = noteId ?? this.notesService.currentNote()?._id;
     const id = this.hash(dataUrl);
-    if (this.memCache.has(id)) {
-      return this.memCache.get(id)!;
+    const cacheKey = resolvedNoteId ? `${resolvedNoteId}:${id}` : id;
+    if (this.memCache.has(cacheKey)) {
+      return this.memCache.get(cacheKey)!;
     }
 
-    if (this.inProgressUploads.has(id)) {
-      return this.inProgressUploads.get(id)!;
+    if (this.inProgressUploads.has(cacheKey)) {
+      return this.inProgressUploads.get(cacheKey)!;
     }
 
     const uploadTask = (async () => {
       try {
-        const res = await firstValueFrom(this.notesService.uploadBase64Image(dataUrl));
+        const res = await firstValueFrom(this.notesService.uploadBase64Image(dataUrl, undefined, resolvedNoteId));
         const finalUrl = res.url;
-        this.memCache.set(id, finalUrl);
+        this.memCache.set(cacheKey, finalUrl);
         // Guardamos también en IndexedDB para disponibilidad offline
         void this.save(id, dataUrl);
         return finalUrl;
       } finally {
-        this.inProgressUploads.delete(id);
+        this.inProgressUploads.delete(cacheKey);
       }
     })();
 
-    this.inProgressUploads.set(id, uploadTask);
+    this.inProgressUploads.set(cacheKey, uploadTask);
     return uploadTask;
   }
 

@@ -395,7 +395,8 @@ export class LatexBlockComponent implements OnInit, AfterViewInit, OnDestroy {
       this.renderedChipsMap.set(math, safe);
       return safe;
     } catch {
-      const safe = this.sanitizer.bypassSecurityTrustHtml(math);
+      const escaped = math.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safe = this.sanitizer.bypassSecurityTrustHtml(escaped);
       this.renderedChipsMap.set(math, safe);
       return safe;
     }
