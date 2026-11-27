@@ -19,9 +19,9 @@ export class RegisterComponent {
   private readonly router = inject(Router);
   readonly i18n = inject(I18nService);
 
-  name = 'Alex Morgan';
-  email = 'alex@weave.so';
-  password = 'password123';
+  name = '';
+  email = '';
+  password = '';
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string>('');
 

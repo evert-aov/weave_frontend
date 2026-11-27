@@ -19,8 +19,8 @@ export class LoginComponent {
   private readonly router = inject(Router);
   readonly i18n = inject(I18nService);
 
-  email = 'alex@weave.so';
-  password = 'password123';
+  email = '';
+  password = '';
   readonly isLoading = signal<boolean>(false);
   readonly errorMessage = signal<string>('');
 

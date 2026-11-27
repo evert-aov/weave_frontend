@@ -231,7 +231,25 @@
       }
 
       <!-- Outline View Mode vs Document Sheets -->
-      @if (canvasEnabled() && documentReady() && viewMode() !== 'outline') {
+      @if (!documentReady()) {
+        <div
+          class="w-full max-w-[794px] min-h-[760px] rounded-md p-10 sm:p-14 shadow-md border flex flex-col gap-3.5 animate-pulse"
+          [ngClass]="darkMode() ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="h-7 w-1/2 rounded-md" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-1/3 rounded-md mb-4" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-full rounded" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-11/12 rounded" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-5/6 rounded" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-2/3 rounded mb-4" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-36 w-full rounded-md mb-4" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-full rounded" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-10/12 rounded" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+          <div class="h-3.5 w-3/4 rounded" [ngClass]="darkMode() ? 'bg-slate-800' : 'bg-slate-200'"></div>
+        </div>
+      } @else if (canvasEnabled() && viewMode() !== 'outline') {
         <app-word-canvas-editor [pages]="pages()" [modelSections]="loadedModelSections()" [viewMode]="viewMode()" [geometry]="canvasGeometry()" [defaults]="canvasDefaults()"
           [styleTemplate]="canvasStyleTemplate()" [headingNumbering]="headingNumbering()" [scale]="zoom()/100" [readOnly]="isReadMode()" [enabled]="active()"
           [layoutConfig]="layoutConfig()" [darkSheet]="darkMode() && darkCanvas() && !layoutConfig().apa"

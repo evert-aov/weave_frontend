@@ -47,24 +47,31 @@ body.dark,
   --code: #0a0d12;
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-body {
-  margin: 0;
-  padding: 0;
-  background: var(--canvas);
-  color: var(--text);
-  overflow-x: hidden;
-}
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--canvas);
+    color: var(--text);
+    overflow-x: hidden;
+  }
 
-button {
-  font: inherit;
-  color: inherit;
-  border: 0;
-  background: none;
-  cursor: pointer;
+  button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  input, textarea, select {
+    font: inherit;
+    color: inherit;
+  }
 }
 
 /* Separadores de panel compartidos por navegación y asistente. */
@@ -91,11 +98,6 @@ button {
   }
 
   &:hover::after, &:focus-visible::after, &.resizing::after { background: var(--accent); }
-}
-
-input, textarea, select {
-  font: inherit;
-  color: inherit;
 }
 
 /* Tipografías especiales */

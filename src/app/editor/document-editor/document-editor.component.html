@@ -1,4 +1,4 @@
-@if (!notesService.currentNote() && (notesService.isLoadingList() || notesService.isLoadingNote())) {
+@if (notesService.isLoadingNote() || (!notesService.currentNote() && notesService.isLoadingList())) {
   <app-lazy-load-state></app-lazy-load-state>
 } @else if (!notesService.currentNote() && notesService.noteLoadFailed()) {
   <app-lazy-load-state [failed]="true"></app-lazy-load-state>
@@ -210,8 +210,8 @@
 
 @defer (when wordSessions().length > 0) {
   @for (session of wordSessions(); track session._id) {
-    <section class="word-session" [style.display]="notesService.currentNote()?._id === session._id ? 'block' : 'none'"
-      [attr.inert]="notesService.currentNote()?._id === session._id ? null : ''">
+    <section class="word-session" [style.display]="!notesService.isLoadingNote() && notesService.currentNote()?._id === session._id ? 'block' : 'none'"
+      [attr.inert]="!notesService.isLoadingNote() && notesService.currentNote()?._id === session._id ? null : ''">
       <app-pure-doc-editor [note]="session" [active]="notesService.currentNote()?._id === session._id" />
     </section>
   }
