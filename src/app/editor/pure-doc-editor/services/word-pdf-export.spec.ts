@@ -15,6 +15,12 @@ const pdfCalls = vi.hoisted(() => {
     deletePage: vi.fn(),
     setFont: vi.fn(),
     setFontSize: vi.fn(),
+    setTextColor: vi.fn(),
+    setFillColor: vi.fn(),
+    setDrawColor: vi.fn(),
+    setLineWidth: vi.fn(),
+    rect: vi.fn(),
+    line: vi.fn(),
     text: vi.fn(),
     setPage: vi.fn(),
     link: vi.fn(),
@@ -27,6 +33,12 @@ vi.mock('jspdf', () => ({ jsPDF: class {
   deletePage = pdfCalls.deletePage;
   setFont = pdfCalls.setFont;
   setFontSize = pdfCalls.setFontSize;
+  setTextColor = pdfCalls.setTextColor;
+  setFillColor = pdfCalls.setFillColor;
+  setDrawColor = pdfCalls.setDrawColor;
+  setLineWidth = pdfCalls.setLineWidth;
+  rect = pdfCalls.rect;
+  line = pdfCalls.line;
   text = pdfCalls.text;
   setPage = pdfCalls.setPage;
   link = pdfCalls.link;
@@ -155,15 +167,15 @@ describe('Word PDF layout snapshot', () => {
     );
     expect(pdf.size).toBeGreaterThan(0);
     expect(pdfCalls.addPage).toHaveBeenCalledTimes(2);
-    expect(pdfCalls.addImage).toHaveBeenCalledTimes(2);
+    expect(pdfCalls.addImage).not.toHaveBeenCalled();
     expect(pdfCalls.setFont).toHaveBeenNthCalledWith(1, 'times', 'bold');
     expect(pdfCalls.setFont).toHaveBeenNthCalledWith(2, 'helvetica', 'italic');
     expect(pdfCalls.setFont).toHaveBeenNthCalledWith(3, 'courier', 'normal');
     expect(pdfCalls.setFontSize).toHaveBeenCalledWith(12);
     expect(pdfCalls.setFontSize).toHaveBeenCalledWith(9);
-    expect(pdfCalls.text).toHaveBeenNthCalledWith(1, 'Capítulo 1', 72, 90, { baseline: 'alphabetic', renderingMode: 'invisible' });
-    expect(pdfCalls.text).toHaveBeenNthCalledWith(2, 'Contenido APA.', 72, 120, { baseline: 'alphabetic', renderingMode: 'invisible' });
-    expect(pdfCalls.text).toHaveBeenNthCalledWith(3, 'Segunda página', 72, 90, { baseline: 'alphabetic', renderingMode: 'invisible' });
+    expect(pdfCalls.text).toHaveBeenNthCalledWith(1, 'Capítulo 1', 72, 90, { baseline: 'alphabetic' });
+    expect(pdfCalls.text).toHaveBeenNthCalledWith(2, 'Contenido APA.', 72, 120, { baseline: 'alphabetic' });
+    expect(pdfCalls.text).toHaveBeenNthCalledWith(3, 'Segunda página', 72, 90, { baseline: 'alphabetic' });
     expect(progress).toHaveBeenCalledWith('Exportando página 2 de 2…');
   });
 
@@ -294,8 +306,8 @@ describe('Word PDF layout snapshot', () => {
     );
 
     expect(pdfCalls.text).toHaveBeenCalledTimes(2);
-    expect(pdfCalls.text).toHaveBeenNthCalledWith(1, 'Hola', 30, 60, { baseline: 'alphabetic', renderingMode: 'invisible' });
-    expect(pdfCalls.text).toHaveBeenNthCalledWith(2, '12', 225, 60, { baseline: 'alphabetic', renderingMode: 'invisible' });
+    expect(pdfCalls.text).toHaveBeenNthCalledWith(1, 'Hola', 30, 60, { baseline: 'alphabetic' });
+    expect(pdfCalls.text).toHaveBeenNthCalledWith(2, '12', 225, 60, { baseline: 'alphabetic' });
   });
 
   it('adds clickable PDF links, outline bookmarks for Table/Figure indexes, and searchable bottom-of-page footnotes', async () => {

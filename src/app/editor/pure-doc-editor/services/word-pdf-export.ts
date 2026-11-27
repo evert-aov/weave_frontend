@@ -371,19 +371,197 @@ function parseCanvasPdfFont(font: string): ParsedPdfFont {
   return result;
 }
 
-function drawSearchablePdfTextLayer(
-  pdf: {
-    setFont?: (fontName: string, fontStyle?: string) => unknown;
-    setFontSize?: (size: number) => unknown;
-    text?: (text: string, x: number, y: number, options?: { baseline?: 'alphabetic'; renderingMode?: 'invisible' }) => unknown;
-  },
+interface ParsedRgb {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+const NAMED_COLORS: Record<string, [number, number, number]> = {
+  black: [0, 0, 0],
+  white: [255, 255, 255],
+  red: [255, 0, 0],
+  green: [0, 128, 0],
+  blue: [0, 0, 255],
+  gray: [128, 128, 128],
+  grey: [128, 128, 128],
+  navy: [0, 0, 128],
+  silver: [192, 192, 192],
+  yellow: [255, 255, 0],
+  orange: [255, 165, 0],
+  purple: [128, 0, 128],
+};
+
+function parseCssColorToRgb(raw?: string): ParsedRgb | null {
+  if (!raw) return null;
+  const c = raw.trim().toLowerCase();
+  if (!c || c === 'transparent' || c === 'none' || c === 'inherit' || c === 'initial' || c === 'unset' || c === 'auto') {
+    return null;
+  }
+  if (NAMED_COLORS[c]) {
+    const [r, g, b] = NAMED_COLORS[c];
+    return { r, g, b, a: 1 };
+  }
+  const hex3 = /^#([0-9a-f]{3})$/.exec(c);
+  if (hex3) {
+    const h = hex3[1];
+    return {
+      r: parseInt(h[0] + h[0], 16),
+      g: parseInt(h[1] + h[1], 16),
+      b: parseInt(h[2] + h[2], 16),
+      a: 1,
+    };
+  }
+  const hex6 = /^#([0-9a-f]{6})([0-9a-f]{2})?$/.exec(c);
+  if (hex6) {
+    const h = hex6[1];
+    const a = hex6[2] ? parseInt(hex6[2], 16) / 255 : 1;
+    if (a <= 0.01) return null;
+    return {
+      r: parseInt(h.slice(0, 2), 16),
+      g: parseInt(h.slice(2, 4), 16),
+      b: parseInt(h.slice(4, 6), 16),
+      a,
+    };
+  }
+  const rgbMatch = /^rgba?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*[,\s]\s*([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)$/.exec(c);
+  if (rgbMatch) {
+    const a = rgbMatch[4] !== undefined ? Number(rgbMatch[4]) : 1;
+    if (!Number.isFinite(a) || a <= 0.01) return null;
+    return {
+      r: Math.min(255, Math.max(0, Math.round(Number(rgbMatch[1])))),
+      g: Math.min(255, Math.max(0, Math.round(Number(rgbMatch[2])))),
+      b: Math.min(255, Math.max(0, Math.round(Number(rgbMatch[3])))),
+      a,
+    };
+  }
+  return null;
+}
+
+async function loadPdfImageAsset(src: string): Promise<{ dataUrl: string; format: 'PNG' | 'JPEG' } | null> {
+  if (!src) return null;
+  if (src.startsWith('data:image/jpeg') || src.startsWith('data:image/jpg')) {
+    return { dataUrl: src, format: 'JPEG' };
+  }
+  if (src.startsWith('data:image/png')) {
+    return { dataUrl: src, format: 'PNG' };
+  }
+  try {
+    const response = await pdfDeadline(fetch(src), 'carga de imagen');
+    if (response.ok) {
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+        reader.readAsDataURL(blob);
+      });
+      if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) {
+        return { dataUrl, format: 'JPEG' };
+      }
+      if (dataUrl.startsWith('data:image/png')) {
+        return { dataUrl, format: 'PNG' };
+      }
+    }
+  } catch {
+    // Fall back to HTMLImageElement + canvas conversion (e.g. WebP/GIF/SVG or test stub)
+  }
+  const img = await loadCanvasAsset(src);
+  if (!img) return null;
+  const htmlImg = img as HTMLImageElement;
+  const w = htmlImg.naturalWidth || 1;
+  const h = htmlImg.naturalHeight || 1;
+  const temp = document.createElement('canvas');
+  temp.width = w;
+  temp.height = h;
+  const ctx = temp.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, w, h);
+  const dataUrl = typeof temp.toDataURL === 'function' ? temp.toDataURL('image/png') : '';
+  temp.width = temp.height = 0;
+  return typeof dataUrl === 'string' && dataUrl.startsWith('data:image/png') ? { dataUrl, format: 'PNG' } : null;
+}
+
+function drawVectorPdfDecorations(pdf: any, list: PageDisplayList, pageWidthPt: number, pageHeightPt: number): void {
+  const d = list.decorations;
+  if (!d) return;
+  const geom = d.geometry;
+  const formattedPage = d.formattedPageNumber || String(d.pageIndex + 1);
+  const formattedTotal = d.formattedTotalPages || String(d.totalPages);
+
+  if (d.border && d.border.style !== 'none' && typeof pdf.line === 'function') {
+    const b = d.border;
+    const offsetPt = Math.max(0, b.offsetPx || 0) * PDF_PT_PER_PX;
+    const strokePt = Math.max(0.75, b.widthPt || 1);
+    const rgb = parseCssColorToRgb(b.color || '#1e293b') ?? { r: 30, g: 41, b: 59, a: 1 };
+    if (typeof pdf.setDrawColor === 'function') pdf.setDrawColor(rgb.r, rgb.g, rgb.b);
+    if (typeof pdf.setLineWidth === 'function') pdf.setLineWidth(strokePt);
+    const x1 = offsetPt, y1 = offsetPt, x2 = pageWidthPt - offsetPt, y2 = pageHeightPt - offsetPt;
+    if (b.top) pdf.line(x1, y1, x2, y1);
+    if (b.bottom) pdf.line(x1, y2, x2, y2);
+    if (b.left) pdf.line(x1, y1, x1, y2);
+    if (b.right) pdf.line(x2, y1, x2, y2);
+  }
+
+  if (typeof pdf.text !== 'function') return;
+
+  if (d.apa && !d.suppressHeaderFooter) {
+    const apa = d.apa;
+    const font = parseCanvasPdfFont(`${apa.fontSizePt}pt "${apa.fontFamily || 'Times New Roman'}"`);
+    if (typeof pdf.setFont === 'function') pdf.setFont(font.family, 'normal');
+    if (typeof pdf.setFontSize === 'function') pdf.setFontSize(font.sizePt);
+    if (typeof pdf.setTextColor === 'function') pdf.setTextColor(0, 0, 0);
+    const yPt = 48 * PDF_PT_PER_PX + font.sizePt;
+    if (apa.mode === 'professional' && apa.runningHead) {
+      pdf.text(apa.runningHead, geom.left * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic' });
+    }
+    pdf.text(formattedPage, (list.width - geom.right) * PDF_PT_PER_PX, yPt, { baseline: 'alphabetic', align: 'right' });
+  } else if (!d.suppressHeaderFooter && d.showHeaderFooter) {
+    const muted = d.darkSheet ? { r: 148, g: 163, b: 184 } : { r: 100, g: 116, b: 139 };
+    if (typeof pdf.setTextColor === 'function') pdf.setTextColor(muted.r, muted.g, muted.b);
+    if (typeof pdf.setFont === 'function') pdf.setFont('helvetica', 'normal');
+    if (typeof pdf.setFontSize === 'function') pdf.setFontSize(9);
+
+    const headerY = Math.max(18, geom.top - 26) * PDF_PT_PER_PX + 9;
+    const headerStr = d.headerLines?.length
+      ? d.headerLines.map(l => l.runs.map(r => r.text).join('')).join(' ')
+      : d.headerText || '';
+    const resolvedHeader = headerStr.includes('{{')
+      ? resolvePageDynamicTokens(headerStr, formattedPage, formattedTotal)
+      : headerStr;
+    if (resolvedHeader.trim()) {
+      pdf.text(resolvedHeader.trim(), geom.left * PDF_PT_PER_PX, headerY, { baseline: 'alphabetic' });
+    }
+
+    const footerY = (list.height - Math.max(24, geom.bottom - 14)) * PDF_PT_PER_PX + 8;
+    const footerStr = d.footerLines?.length
+      ? d.footerLines.map(l => l.runs.map(r => r.text).join('')).join(' ')
+      : d.footerText || '';
+    const resolvedFooter = footerStr.includes('{{')
+      ? resolvePageDynamicTokens(footerStr, formattedPage, formattedTotal)
+      : footerStr;
+    if (resolvedFooter.trim()) {
+      pdf.text(resolvedFooter.trim(), geom.left * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic' });
+    }
+    const pageNumLabel = `${d.pageLabel || 'Página'} ${formattedPage} ${d.ofLabel || 'de'} ${formattedTotal}`;
+    if (typeof pdf.setFont === 'function') pdf.setFont('courier', 'normal');
+    if (typeof pdf.setFontSize === 'function') pdf.setFontSize(8.25);
+    pdf.text(pageNumLabel, (list.width - geom.right) * PDF_PT_PER_PX, footerY, { baseline: 'alphabetic', align: 'right' });
+  }
+}
+
+function drawVectorPdfTextLayer(
+  pdf: any,
   list: PageDisplayList,
 ): void {
   if (typeof pdf.text !== 'function') return;
   let lastFontKey = '';
   let lastSizePt = -1;
+  let lastColorKey = '';
   let runText = '';
   let runFont = '';
+  let runColor = '';
   let runX = 0;
   let runY = 0;
   let runEndX = 0;
@@ -400,9 +578,14 @@ function drawSearchablePdfTextLayer(
       if (typeof pdf.setFontSize === 'function') pdf.setFontSize(sizePt);
       lastSizePt = sizePt;
     }
-    pdf.text!(runText, runX * PDF_PT_PER_PX, runY * PDF_PT_PER_PX, {
+    const rgb = parseCssColorToRgb(runColor) ?? { r: 15, g: 23, b: 42, a: 1 };
+    const colorKey = `${rgb.r},${rgb.g},${rgb.b}`;
+    if (colorKey !== lastColorKey) {
+      if (typeof pdf.setTextColor === 'function') pdf.setTextColor(rgb.r, rgb.g, rgb.b);
+      lastColorKey = colorKey;
+    }
+    pdf.text(runText, runX * PDF_PT_PER_PX, runY * PDF_PT_PER_PX, {
       baseline: 'alphabetic',
-      renderingMode: 'invisible',
     });
     runText = '';
   };
@@ -418,10 +601,12 @@ function drawSearchablePdfTextLayer(
           )
         : cmd.text;
     const cmdFont = cmd.font || '';
+    const cmdColor = cmd.color || '#0f172a';
     const cmdWidth = cmd.source?.width ?? cmd.advanceWidth ?? 0;
     const canCoalesce =
       Boolean(runText) &&
       cmdFont === runFont &&
+      cmdColor === runColor &&
       Math.abs(cmd.y - runY) <= 0.5 &&
       runEndX > runX &&
       cmdWidth > 0 &&
@@ -436,6 +621,7 @@ function drawSearchablePdfTextLayer(
     flushRun();
     runText = rawText;
     runFont = cmdFont;
+    runColor = cmdColor;
     runX = cmd.x;
     runY = cmd.y;
     runEndX = cmdWidth > 0 ? cmd.x + cmdWidth : cmd.x;
@@ -454,44 +640,81 @@ export async function renderWordCanvasPdf(
   progress('Preparando el generador PDF…');
   await new Promise<void>(resolve => setTimeout(resolve, 0));
   const { jsPDF } = await pdfDeadline(import('jspdf'), 'carga del generador PDF');
-  const pdf = new jsPDF({ unit: 'pt', format: [1, 1], compress: true });
-  const renderer = new CanvasPageRenderer();
-  const assetCache = new Map<string, CanvasImageSource | null>();
-  const canvas = document.createElement('canvas');
+  const pdf: any = new jsPDF({ unit: 'pt', format: [1, 1], compress: true });
+  const assetCache = new Map<string, { dataUrl: string; format: 'PNG' | 'JPEG' } | null>();
 
-  try {
-    for (let index = 0; index < displayLists.length; index++) {
-      progress(`Exportando página ${index + 1} de ${displayLists.length}…`);
-      const list = displayLists[index];
-      const pageWidth = list.width > 0 ? list.width : width;
-      const pageHeight = list.height > 0 ? list.height : height;
-      const pageWidthPt = pageWidth * PDF_PT_PER_PX;
-      const pageHeightPt = pageHeight * PDF_PT_PER_PX;
-      const pageOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';
-      const assets = new Map<string, CanvasImageSource>();
-      for (const cmd of list.commands) {
-        if (cmd.kind !== 'image') continue;
-        if (!assetCache.has(cmd.assetId)) {
-          assetCache.set(cmd.assetId, await loadCanvasAsset(cmd.assetId));
-        }
-        const loaded = assetCache.get(cmd.assetId);
-        if (loaded) assets.set(cmd.assetId, loaded);
-      }
+  const isBgRect = (cmd: PageDisplayList['commands'][number]): boolean =>
+    cmd.kind === 'rect' && cmd.width > 4 && cmd.height > 4;
 
-      renderer.render(canvas, { ...list, caret: undefined, selections: [], assets }, 1, 2);
-      pdf.addPage([pageWidthPt, pageHeightPt], pageOrientation);
-      const jpegDataUrl = typeof canvas.toDataURL === 'function' ? canvas.toDataURL('image/jpeg', 0.92) : '';
-      if (typeof jpegDataUrl === 'string' && jpegDataUrl.startsWith('data:image/jpeg')) {
-        pdf.addImage(jpegDataUrl, 'JPEG', 0, 0, pageWidthPt, pageHeightPt, undefined, 'FAST');
-      } else {
-        pdf.addImage(canvas, 'PNG', 0, 0, pageWidthPt, pageHeightPt, undefined, 'FAST');
-      }
-      drawSearchablePdfTextLayer(pdf, list);
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
+  const drawRect = (x: number, y: number, w: number, h: number, color: string) => {
+    if (w <= 0 || h <= 0 || typeof pdf.rect !== 'function') return;
+    const rgb = parseCssColorToRgb(color);
+    if (!rgb) return;
+    if (typeof pdf.setFillColor === 'function') pdf.setFillColor(rgb.r, rgb.g, rgb.b);
+    pdf.rect(x * PDF_PT_PER_PX, y * PDF_PT_PER_PX, w * PDF_PT_PER_PX, h * PDF_PT_PER_PX, 'F');
+  };
+
+  for (let index = 0; index < displayLists.length; index++) {
+    progress(`Exportando página ${index + 1} de ${displayLists.length}…`);
+    const list = displayLists[index];
+    const pageWidth = list.width > 0 ? list.width : width;
+    const pageHeight = list.height > 0 ? list.height : height;
+    const pageWidthPt = pageWidth * PDF_PT_PER_PX;
+    const pageHeightPt = pageHeight * PDF_PT_PER_PX;
+    const pageOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';
+
+    pdf.addPage([pageWidthPt, pageHeightPt], pageOrientation);
+
+    // 1. Page background fill (if non-white)
+    const bgColor = list.backgroundColor || (list.decorations?.darkSheet ? '#18181b' : '');
+    if (bgColor && bgColor !== '#fff' && bgColor !== '#ffffff') {
+      drawRect(0, 0, pageWidth, pageHeight, bgColor);
     }
-  } finally {
-    canvas.width = canvas.height = 0;
+
+    // 2. Decorations (page border, header, footer, page numbers)
+    drawVectorPdfDecorations(pdf, list, pageWidthPt, pageHeightPt);
+
+    // 3. Background fills (table cells, callouts, highlights)
+    for (const cmd of list.commands) {
+      if (cmd.kind === 'rect' && isBgRect(cmd)) {
+        drawRect(cmd.x, cmd.y, cmd.width, cmd.height, cmd.color);
+      }
+    }
+
+    // 4. Embedded images (deduplicated by assetId alias)
+    for (const cmd of list.commands) {
+      if (cmd.kind !== 'image') continue;
+      if (!assetCache.has(cmd.assetId)) {
+        assetCache.set(cmd.assetId, await loadPdfImageAsset(cmd.assetId));
+      }
+      const asset = assetCache.get(cmd.assetId);
+      if (asset) {
+        pdf.addImage(
+          asset.dataUrl,
+          asset.format,
+          cmd.x * PDF_PT_PER_PX,
+          cmd.y * PDF_PT_PER_PX,
+          cmd.width * PDF_PT_PER_PX,
+          cmd.height * PDF_PT_PER_PX,
+          cmd.assetId,
+          'MEDIUM',
+        );
+      }
+    }
+
+    // 5. Thin vector rectangles (table borders, underlines, horizontal rules)
+    for (const cmd of list.commands) {
+      if (cmd.kind === 'rect' && !isBgRect(cmd)) {
+        drawRect(cmd.x, cmd.y, cmd.width, cmd.height, cmd.color);
+      }
+    }
+
+    // 6. Crisp native vector text (100% selectable & searchable)
+    drawVectorPdfTextLayer(pdf, list);
+
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
   }
+
   progress('Preparando la descarga…');
   pdf.deletePage(1);
   applyCanvasPdfNavigation(pdf, displayLists);
